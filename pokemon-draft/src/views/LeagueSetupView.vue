@@ -1,10 +1,20 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import AppIcon from '@/components/AppIcon.vue'
+import { REGULATIONS } from '@/data/regulations'
+import { useSignalR, API_BASE } from '@/services/signalr'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
-import { useSignalR, API_BASE } from '@/services/signalr'
-import { REGULATIONS } from '@/data/regulations'
+import {
+  mdiCog,
+  mdiCheck,
+  mdiTrophy,
+  mdiClipboardList,
+  mdiAlert,
+  mdiArrowUp,
+  mdiArrowDown,
+} from '@mdi/js'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -28,7 +38,6 @@ const newPlayerPin = ref('')
 const addError = ref('')
 const showResetWarning = ref(false)
 const isSaving = ref(false)
-const showAddSelf = ref(false)
 const selfPin = ref('')
 
 function applyState(state: any) {
@@ -59,7 +68,7 @@ onUnmounted(disconnect)
 async function patch(path: string, body: object) {
   isSaving.value = true
   await fetch(`${API_BASE}/leagues/${leagueCode.value}${path}`, {
-    method: path === '/players/move' || path.startsWith('/players/') && body ? 'POST' : 'PATCH',
+    method: path === '/players/move' || (path.startsWith('/players/') && body) ? 'POST' : 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
@@ -83,7 +92,10 @@ async function addPlayer() {
   addError.value = ''
   const name = newPlayerName.value.trim()
   const pin = newPlayerPin.value.trim()
-  if (!name || !pin) { addError.value = 'Name and PIN required.'; return }
+  if (!name || !pin) {
+    addError.value = 'Name and PIN required.'
+    return
+  }
 
   const res = await fetch(`${API_BASE}/leagues/${leagueCode.value}/players`, {
     method: 'POST',
@@ -99,17 +111,21 @@ async function addPlayer() {
 }
 
 async function removePlayer(id: string) {
-  const res = await fetch(`${API_BASE}/leagues/${leagueCode.value}/players/${id}`, { method: 'DELETE' })
+  const res = await fetch(`${API_BASE}/leagues/${leagueCode.value}/players/${id}`, {
+    method: 'DELETE',
+  })
   if (res.ok) {
     // Optimistic update — SignalR will confirm
-    players.value = players.value.filter(p => p.id !== id)
+    players.value = players.value.filter((p) => p.id !== id)
   } else {
     addError.value = 'Failed to remove player.'
   }
 }
 
 async function addSelf() {
-  const pin = selfPin.value.trim() || prompt('Choose a player PIN for yourself (different from your admin PIN):')
+  const pin =
+    selfPin.value.trim() ||
+    prompt('Choose a player PIN for yourself (different from your admin PIN):')
   if (!pin) return
   addError.value = ''
   const name = authStore.playerName ?? 'Commissioner'
@@ -143,9 +159,7 @@ async function resetDraft() {
   showResetWarning.value = false
 }
 
-const inviteLink = computed(() =>
-  `${window.location.origin}/register?code=${leagueCode.value}`
-)
+const inviteLink = computed(() => `${window.location.origin}/register?code=${leagueCode.value}`)
 const linkCopied = ref(false)
 async function copyInviteLink() {
   await navigator.clipboard.writeText(inviteLink.value)
@@ -169,7 +183,7 @@ const snakePreview = computed(() => {
 <template>
   <main class="league-setup">
     <div class="page-header">
-      <h1>⚙️ League Setup</h1>
+      <h1><AppIcon :path="mdiCog" :size="24" /> League Setup</h1>
       <div class="connection-badge" :class="isConnected ? 'live' : 'offline'">
         {{ isConnected ? '● Live' : '○ Disconnected' }}
       </div>
@@ -181,9 +195,15 @@ const snakePreview = computed(() => {
         <span class="code-pill">{{ leagueCode }}</span>
       </div>
       <div class="invite-link-row">
-        <input class="invite-url" :value="inviteLink" readonly @focus="($event.target as HTMLInputElement).select()" />
+        <input
+          class="invite-url"
+          :value="inviteLink"
+          readonly
+          @focus="($event.target as HTMLInputElement).select()"
+        />
         <button class="btn-copy" @click="copyInviteLink">
-          {{ linkCopied ? '✓ Copied!' : 'Copy Link' }}
+          <template v-if="linkCopied"><AppIcon :path="mdiCheck" :size="16" /> Copied!</template>
+          <template v-else>Copy Link</template>
         </button>
       </div>
       <p class="hint">Share this link — players click it to choose their name and PIN.</p>
@@ -216,11 +236,25 @@ const snakePreview = computed(() => {
 
     <section class="card">
       <h2>Players</h2>
-      <p class="hint">Add players and assign each a unique PIN. They'll use it to log in at <strong>/join</strong>.</p>
+      <p class="hint">
+        Add players and assign each a unique PIN. They'll use it to log in at
+        <strong>/join</strong>.
+      </p>
 
       <div class="add-player">
-        <input v-model="newPlayerName" type="text" placeholder="Player name" @keydown.enter="addPlayer" />
-        <input v-model="newPlayerPin" type="text" placeholder="PIN" style="width:90px" @keydown.enter="addPlayer" />
+        <input
+          v-model="newPlayerName"
+          type="text"
+          placeholder="Player name"
+          @keydown.enter="addPlayer"
+        />
+        <input
+          v-model="newPlayerPin"
+          type="text"
+          placeholder="PIN"
+          style="width: 90px"
+          @keydown.enter="addPlayer"
+        />
         <button class="btn-primary" @click="addPlayer">Add</button>
       </div>
 
@@ -230,8 +264,16 @@ const snakePreview = computed(() => {
         <li v-for="(player, index) in players" :key="player.id" class="player-item">
           <span class="player-order">{{ index + 1 }}</span>
           <span class="player-name">{{ player.name }}</span>
-          <button class="btn-icon" @click="movePlayer(index, index - 1)" :disabled="index === 0">↑</button>
-          <button class="btn-icon" @click="movePlayer(index, index + 1)" :disabled="index === players.length - 1">↓</button>
+          <button class="btn-icon" @click="movePlayer(index, index - 1)" :disabled="index === 0">
+            <AppIcon :path="mdiArrowUp" :size="18" />
+          </button>
+          <button
+            class="btn-icon"
+            @click="movePlayer(index, index + 1)"
+            :disabled="index === players.length - 1"
+          >
+            <AppIcon :path="mdiArrowDown" :size="18" />
+          </button>
           <button class="btn-danger" @click="removePlayer(player.id)">Remove</button>
         </li>
       </ul>
@@ -252,14 +294,22 @@ const snakePreview = computed(() => {
       <h2>Draft Controls</h2>
       <div class="btn-row">
         <button class="btn-primary" :disabled="players.length < 2" @click="startDraft">
-          🏆 Start Draft
+          <AppIcon :path="mdiTrophy" :size="18" />
+          Start Draft
         </button>
-        <button class="btn-secondary" @click="router.push('/pokemon')">📋 Manage Point Values</button>
+        <button class="btn-secondary" @click="router.push('/pokemon')">
+          <AppIcon :path="mdiClipboardList" :size="18" />
+          Manage Point Values
+        </button>
         <button class="btn-danger" @click="showResetWarning = true">Reset Draft</button>
       </div>
-      <p v-if="players.length < 2" class="hint" style="margin-top:0.5rem">Need at least 2 players to start.</p>
+      <p v-if="players.length < 2" class="hint" style="margin-top: 0.5rem">
+        Need at least 2 players to start.
+      </p>
       <div v-if="showResetWarning" class="confirm-reset">
-        <p>⚠️ This will erase all draft picks. Are you sure?</p>
+        <p>
+          <AppIcon :path="mdiAlert" :size="18" /> This will erase all draft picks. Are you sure?
+        </p>
         <button class="btn-danger" @click="resetDraft">Yes, Reset</button>
         <button @click="showResetWarning = false">Cancel</button>
       </div>
@@ -283,7 +333,14 @@ const snakePreview = computed(() => {
   gap: 1rem;
 }
 
-h1 { font-size: 1.6rem; font-weight: 800; margin: 0; }
+h1 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
 
 .connection-badge {
   font-size: 0.75rem;
@@ -292,8 +349,14 @@ h1 { font-size: 1.6rem; font-weight: 800; margin: 0; }
   border-radius: 20px;
 }
 
-.connection-badge.live { color: #10b981; background: rgba(16,185,129,0.12); }
-.connection-badge.offline { color: var(--text-muted); background: var(--input-bg); }
+.connection-badge.live {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+}
+.connection-badge.offline {
+  color: var(--text-muted);
+  background: var(--input-bg);
+}
 
 .invite-banner {
   background: var(--card-bg);
@@ -324,7 +387,7 @@ h1 { font-size: 1.6rem; font-weight: 800; margin: 0; }
   font-weight: 900;
   letter-spacing: 0.15em;
   color: var(--primary);
-  background: rgba(204,0,0,0.1);
+  background: rgba(204, 0, 0, 0.1);
   border-radius: 6px;
   padding: 0.15rem 0.6rem;
 }
@@ -355,6 +418,9 @@ h1 { font-size: 1.6rem; font-weight: 800; margin: 0; }
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .card {
@@ -381,11 +447,22 @@ h1 { font-size: 1.6rem; font-weight: 800; margin: 0; }
   flex-wrap: wrap;
 }
 
-.form-row label { width: 130px; font-weight: 600; font-size: 0.9rem; flex-shrink: 0; }
+.form-row label {
+  width: 130px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
 
-.hint { font-size: 0.78rem; color: var(--text-muted); margin: 0; }
+.hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0;
+}
 
-input[type='text'], input[type='number'], input[type='password'] {
+input[type='text'],
+input[type='number'],
+input[type='password'] {
   background: var(--input-bg);
   border: 1px solid var(--border-color);
   color: var(--text);
@@ -395,7 +472,9 @@ input[type='text'], input[type='number'], input[type='password'] {
   flex: 1;
 }
 
-input[type='number'] { max-width: 100px; }
+input[type='number'] {
+  max-width: 100px;
+}
 
 .add-self-row {
   display: flex;
@@ -409,19 +488,42 @@ input[type='number'] { max-width: 100px; }
   font-size: 0.82rem;
 }
 
-
-.add-player input { flex: 1; }
-
-.player-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
-.empty { color: var(--text-muted); font-size: 0.9rem; }
-
-.player-item {
-  display: flex; align-items: center; gap: 0.5rem;
-  background: var(--input-bg); border-radius: 6px; padding: 0.4rem 0.6rem;
+.add-player input {
+  flex: 1;
 }
 
-.player-order { width: 1.4rem; font-weight: 700; color: var(--text-muted); font-size: 0.85rem; }
-.player-name { flex: 1; font-weight: 600; }
+.player-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.empty {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.player-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--input-bg);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+
+.player-order {
+  width: 1.4rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.player-name {
+  flex: 1;
+  font-weight: 600;
+}
 
 .pick-schedule {
   display: grid;
@@ -429,47 +531,126 @@ input[type='number'] { max-width: 100px; }
   gap: 0.4rem;
 }
 
-.pick-slot { background: var(--input-bg); border-radius: 6px; padding: 0.4rem 0.6rem; display: flex; flex-direction: column; font-size: 0.78rem; }
-.pick-number { color: var(--text-muted); }
-.pick-player { font-weight: 700; }
-.pick-round { color: var(--primary); font-size: 0.7rem; }
+.pick-slot {
+  background: var(--input-bg);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.78rem;
+}
+.pick-number {
+  color: var(--text-muted);
+}
+.pick-player {
+  font-weight: 700;
+}
+.pick-round {
+  color: var(--primary);
+  font-size: 0.7rem;
+}
 
-.btn-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.btn-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
 
 .btn-primary {
-  background: var(--primary); color: white; border: none;
-  border-radius: 6px; padding: 0.5rem 1.2rem; font-size: 0.95rem; font-weight: 600; cursor: pointer;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1.2rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 .btn-secondary {
-  background: var(--secondary); color: white; border: none;
-  border-radius: 6px; padding: 0.5rem 1.2rem; font-size: 0.95rem; font-weight: 600; cursor: pointer;
+  background: var(--secondary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1.2rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .btn-danger {
-  background: #dc2626; color: white; border: none;
-  border-radius: 6px; padding: 0.4rem 0.8rem; font-size: 0.88rem; font-weight: 600; cursor: pointer;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .btn-icon {
-  background: transparent; border: 1px solid var(--border-color); color: var(--text);
-  border-radius: 4px; padding: 0.2rem 0.4rem; cursor: pointer; font-size: 0.8rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.btn-icon:disabled { opacity: 0.3; cursor: not-allowed; }
-button:hover:not(:disabled) { opacity: 0.85; }
+.btn-icon:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+button:hover:not(:disabled) {
+  opacity: 0.85;
+}
 
 .error-msg {
-  background: rgba(220,38,38,0.1); border: 1px solid rgba(220,38,38,0.3);
-  color: #f87171; border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.85rem;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: #f87171;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
   margin-bottom: 0.5rem;
 }
 
 .confirm-reset {
-  margin-top: 1rem; background: rgba(204,0,0,0.1); border: 1px solid var(--primary);
-  border-radius: 8px; padding: 1rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+  margin-top: 1rem;
+  background: rgba(204, 0, 0, 0.1);
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
-.confirm-reset p { flex: 1; margin: 0; font-size: 0.9rem; }
+.confirm-reset p {
+  flex: 1;
+  margin: 0;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
 </style>

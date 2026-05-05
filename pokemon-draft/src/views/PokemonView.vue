@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { usePokemonStore } from '@/stores/pokemon'
-import { useAuthStore } from '@/stores/auth'
-import { formatPokemonName } from '@/utils/format'
-import { REGULATIONS, getRegulation } from '@/data/regulations'
+import AppIcon from '@/components/AppIcon.vue'
 import PokemonCard from '@/components/PokemonCard.vue'
+import { REGULATIONS, getRegulation } from '@/data/regulations'
+import { useAuthStore } from '@/stores/auth'
+import { usePokemonStore } from '@/stores/pokemon'
+import { formatPokemonName } from '@/utils/format'
+import { mdiClipboardList, mdiFlash, mdiContentSave, mdiCheck } from '@mdi/js'
 
 const pokemonStore = usePokemonStore()
 const authStore = useAuthStore()
@@ -49,7 +51,8 @@ onMounted(async () => {
 const filtered = computed(() => {
   const q = searchQuery.value.toLowerCase()
   return pokemonStore.pokemonWithPoints.filter((p) => {
-    if (q && !p.name.includes(q) && !formatPokemonName(p.name).toLowerCase().includes(q)) return false
+    if (q && !p.name.includes(q) && !formatPokemonName(p.name).toLowerCase().includes(q))
+      return false
     if (selectedRegulation.value !== 'national') {
       const reg = getRegulation(selectedRegulation.value)
       if (reg.isLegal) {
@@ -84,7 +87,8 @@ async function onRegulationChange() {
   try {
     legalIds.value = await regulation.fetchLegalIds()
   } catch (error) {
-    regulationError.value = error instanceof Error ? error.message : 'Failed to load regulation set.'
+    regulationError.value =
+      error instanceof Error ? error.message : 'Failed to load regulation set.'
   } finally {
     regulationLoading.value = false
   }
@@ -101,7 +105,9 @@ function applyDefaults() {
     selectedRegulation.value === 'national'
       ? undefined
       : regulation.isLegal
-        ? pokemonStore.allPokemon.filter((pokemon) => regulation.isLegal?.(pokemon.id)).map((pokemon) => pokemon.id)
+        ? pokemonStore.allPokemon
+            .filter((pokemon) => regulation.isLegal?.(pokemon.id))
+            .map((pokemon) => pokemon.id)
         : legalIds.value
           ? Array.from(legalIds.value)
           : []
@@ -138,16 +144,28 @@ async function saveToServer() {
 <template>
   <main class="pokemon-view">
     <div class="header">
-      <h1>📋 Pokémon Point Values</h1>
+      <h1><AppIcon :path="mdiClipboardList" :size="24" /> Pokémon Point Values</h1>
       <span class="meta">{{ valuedCount }} / {{ pokemonStore.allPokemon.length }} valued</span>
       <div v-if="authStore.isAdmin" class="save-row">
-        <button class="btn-defaults" :disabled="pokemonStore.isLoading || regulationLoading" @click="applyDefaults">
-          ⚡ Apply Defaults
+        <button
+          class="btn-defaults"
+          :disabled="pokemonStore.isLoading || regulationLoading"
+          @click="applyDefaults"
+        >
+          <AppIcon :path="mdiFlash" :size="18" />
+          Apply Defaults
         </button>
         <button class="btn-save" :disabled="saving" @click="saveToServer">
-          {{ saving ? 'Saving…' : '💾 Save to League' }}
+          <template v-if="saving">Saving…</template>
+          <template v-else>
+            <AppIcon :path="mdiContentSave" :size="18" />
+            Save to League
+          </template>
         </button>
-        <span v-if="saveSuccess" class="save-ok">✓ Saved!</span>
+        <span v-if="saveSuccess" class="save-ok">
+          <AppIcon :path="mdiCheck" :size="16" />
+          Saved!
+        </span>
         <span v-if="saveError" class="save-err">{{ saveError }}</span>
       </div>
     </div>
@@ -185,16 +203,14 @@ async function saveToServer() {
           Valued only
         </label>
         <span v-if="regulationLoading" class="filter-status">Loading regulation…</span>
-        <span v-else-if="regulationError" class="filter-status filter-error">{{ regulationError }}</span>
+        <span v-else-if="regulationError" class="filter-status filter-error">{{
+          regulationError
+        }}</span>
         <span class="result-count">{{ filtered.length }} Pokémon</span>
       </div>
 
       <div class="pokemon-grid">
-        <div
-          v-for="pokemon in paginated"
-          :key="pokemon.id"
-          class="pokemon-entry"
-        >
+        <div v-for="pokemon in paginated" :key="pokemon.id" class="pokemon-entry">
           <PokemonCard :pokemon="pokemon" :point-value="pokemon.pointValue" mode="browse" />
           <div class="point-input-row">
             <label :for="`pts-${pokemon.id}`">Points</label>
@@ -211,12 +227,12 @@ async function saveToServer() {
       </div>
 
       <div v-if="hasMore" class="load-more">
-        <button @click="page++">Load More ({{ filtered.length - paginated.length }} remaining)</button>
+        <button @click="page++">
+          Load More ({{ filtered.length - paginated.length }} remaining)
+        </button>
       </div>
 
-      <div v-if="filtered.length === 0" class="empty">
-        No Pokémon match your filters.
-      </div>
+      <div v-if="filtered.length === 0" class="empty">No Pokémon match your filters.</div>
     </template>
   </main>
 </template>
@@ -239,6 +255,9 @@ async function saveToServer() {
   font-size: 1.6rem;
   font-weight: 800;
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .meta {
@@ -266,7 +285,9 @@ async function saveToServer() {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .filters {
@@ -389,6 +410,9 @@ select {
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .btn-save {
@@ -400,8 +424,20 @@ select {
 }
 
 .btn-save:disabled,
-.btn-defaults:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-defaults:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
-.save-ok { color: #4ade80; font-size: 0.88rem; }
-.save-err { color: #f87171; font-size: 0.88rem; }
+.save-ok {
+  color: #4ade80;
+  font-size: 0.88rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.save-err {
+  color: #f87171;
+  font-size: 0.88rem;
+}
 </style>

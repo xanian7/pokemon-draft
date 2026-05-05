@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Pokemon } from '@/types'
 
-const CACHE_KEY = 'pokemon-draft:pokemon-cache:v2'
+const CACHE_KEY = 'pokemon-draft:pokemon-cache:v3'
 const POINTS_KEY = 'pokemon-draft:point-values'
 const CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 
@@ -29,15 +29,50 @@ function bstToPoints(bst: number): number {
   return 1
 }
 
-// Single GraphQL request returns all Pokémon with types and stats — much faster than 1000+ REST calls
+// Forms that are cosmetic only (same types/stats as base, purely visual differences)
+// These would appear as separate rows in the API but shouldn't be separate draftable Pokémon.
+const COSMETIC_FORM_PREFIXES = [
+  'pikachu-',      // costume/cap variants (pikachu-rock-star, pikachu-original-cap, etc.)
+  'minior-',       // color variants of meteor and core forms (only default minior is needed)
+  'squawkabilly-', // plumage color variants (same stats/types)
+  'koraidon-',     // riding/mode builds (traversal forms)
+  'miraidon-',     // riding/mode builds (traversal forms)
+]
+
+const COSMETIC_FORM_NAMES = new Set([
+  'eevee-starter',      // special partner eevee
+  'magearna-original',  // original color Magearna (cosmetic)
+  'zarude-dada',        // dada Zarude (cosmetic)
+  'gimmighoul-roaming', // same species, different overworld encounter form
+  'keldeo-resolute',    // same stats/types as Keldeo-Ordinary
+])
+
+function isCosmeticForm(name: string, isDefault: boolean): boolean {
+  if (isDefault) return false
+  if (name.endsWith('-gmax')) return true
+  if (name.endsWith('-totem') || name.includes('-totem-')) return true
+  if (name.includes('-power-construct')) return true
+  if (COSMETIC_FORM_NAMES.has(name)) return true
+  return COSMETIC_FORM_PREFIXES.some((prefix) => name.startsWith(prefix))
+}
+
+// Fetches all non-battle-only, non-mega Pokémon forms in a single request.
+// Alternate forms with distinct types/stats (regional variants, Rotom forms, etc.)
+// are included. Cosmetic-only forms are filtered out client-side.
 const GRAPHQL_QUERY = `
   query {
     pokemon_v2_pokemon(
-      where: { is_default: { _eq: true } }
+      where: {
+        pokemon_v2_pokemonforms: {
+          is_battle_only: { _eq: false }
+          is_mega: { _eq: false }
+        }
+      }
       order_by: { id: asc }
     ) {
       id
       name
+      is_default
       pokemon_v2_pokemontypes {
         pokemon_v2_type {
           name
@@ -99,7 +134,9 @@ export const usePokemonStore = defineStore('pokemon', () => {
 
       const { data } = await res.json()
 
-      allPokemon.value = data.pokemon_v2_pokemon.map((p: any) => ({
+      allPokemon.value = data.pokemon_v2_pokemon
+        .filter((p: any) => !isCosmeticForm(p.name, p.is_default))
+        .map((p: any) => ({
         id: p.id,
         name: p.name,
         spriteUrl: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png`,

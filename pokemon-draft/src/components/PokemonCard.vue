@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import AppIcon from '@/components/AppIcon.vue'
 import type { Pokemon } from '@/types'
 import { formatPokemonName, TYPE_COLORS } from '@/utils/format'
+import { mdiCheck } from '@mdi/js'
 
 const props = defineProps<{
   pokemon: Pokemon
@@ -48,7 +50,10 @@ const emit = defineEmits<{
         {{ pointValue > 0 ? `${pointValue} pts` : 'No value' }}
       </span>
     </div>
-    <div v-if="isPicked" class="picked-overlay">✓ Drafted</div>
+    <div v-if="isPicked" class="picked-overlay">
+      <AppIcon :path="mdiCheck" :size="14" />
+      Drafted
+    </div>
   </div>
 </template>
 
@@ -160,6 +165,7 @@ const emit = defineEmits<{
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 0.35rem;
   font-size: 0.7rem;
   font-weight: 700;
   color: var(--text-muted);

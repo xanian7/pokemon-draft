@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import AppIcon from '@/components/AppIcon.vue'
 import { API_BASE } from '@/services/signalr'
+import { useAuthStore } from '@/stores/auth'
+import { mdiTrophy, mdiPartyPopper } from '@mdi/js'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -54,7 +56,7 @@ async function enterAsAdmin() {
   <div class="create-page">
     <div class="create-card">
       <button class="back-btn" @click="router.push('/join')">← Back</button>
-      <div class="create-logo">🏆</div>
+      <div class="create-logo"><AppIcon :path="mdiTrophy" :size="48" /></div>
       <h1>Create a League</h1>
       <p class="subtitle">Set up your league as commissioner. Share the code with your players.</p>
 
@@ -62,7 +64,12 @@ async function enterAsAdmin() {
         <form @submit.prevent="createLeague" class="create-form">
           <div class="field">
             <label for="commissionerName">Your Name</label>
-            <input id="commissionerName" v-model="commissionerName" type="text" placeholder="e.g. Ash Ketchum" />
+            <input
+              id="commissionerName"
+              v-model="commissionerName"
+              type="text"
+              placeholder="e.g. Ash Ketchum"
+            />
           </div>
           <div class="field">
             <label for="name">League Name</label>
@@ -83,9 +90,12 @@ async function enterAsAdmin() {
 
       <template v-else>
         <div class="success-block">
-          <p class="success-label">League Created! 🎉</p>
+          <p class="success-label"><AppIcon :path="mdiPartyPopper" :size="20" /> League Created!</p>
           <div class="league-code">{{ created.code }}</div>
-          <p class="code-hint">Share this code with your players. They'll use it along with their individual PINs to join.</p>
+          <p class="code-hint">
+            Share this code with your players. They'll use it along with their individual PINs to
+            join.
+          </p>
           <button class="btn-enter" @click="enterAsAdmin">Enter League Setup →</button>
         </div>
       </template>
@@ -126,11 +136,23 @@ async function enterAsAdmin() {
   border-radius: 4px;
 }
 
-.back-btn:hover { color: var(--text); }
+.back-btn:hover {
+  color: var(--text);
+}
 
-.create-logo { font-size: 3rem; margin-bottom: 0.5rem; }
+.create-logo {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+}
 
-h1 { font-size: 1.5rem; font-weight: 800; margin-bottom: 0.4rem; }
+h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-bottom: 0.4rem;
+}
 
 .subtitle {
   color: var(--text-muted);
@@ -173,7 +195,10 @@ input {
   font-size: 0.95rem;
 }
 
-input:focus { outline: none; border-color: var(--primary); }
+input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
 
 .error-msg {
   background: rgba(220, 38, 38, 0.12);
@@ -199,7 +224,10 @@ input:focus { outline: none; border-color: var(--primary); }
   gap: 0.5rem;
 }
 
-.btn-create:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-create:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 .success-block {
   display: flex;
@@ -209,6 +237,9 @@ input:focus { outline: none; border-color: var(--primary); }
 }
 
 .success-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   font-weight: 700;
   font-size: 1.1rem;
   color: #10b981;
@@ -246,11 +277,15 @@ input:focus { outline: none; border-color: var(--primary); }
 .spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255,255,255,0.4);
+  border: 2px solid rgba(255, 255, 255, 0.4);
   border-top-color: white;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 </style>

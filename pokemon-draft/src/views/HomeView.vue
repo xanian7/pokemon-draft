@@ -4,27 +4,40 @@ import { useRouter } from 'vue-router'
 import { useLeagueStore } from '@/stores/league'
 import { useDraftStore } from '@/stores/draft'
 import { usePokemonStore } from '@/stores/pokemon'
+import AppIcon from '@/components/AppIcon.vue'
+import {
+  mdiTrophy,
+  mdiCog,
+  mdiClipboardList,
+  mdiCircle,
+  mdiCheckCircle,
+  mdiCircleOutline,
+  mdiCards,
+} from '@mdi/js'
 
 const router = useRouter()
 const leagueStore = useLeagueStore()
 const draftStore = useDraftStore()
 const pokemonStore = usePokemonStore()
 
-const valuedPokemonCount = computed(
-  () => Object.keys(pokemonStore.pointValues).length,
-)
+const valuedPokemonCount = computed(() => Object.keys(pokemonStore.pointValues).length)
 
-const statusLabel = computed(() => {
-  if (draftStore.status === 'active') return '🟢 Draft In Progress'
-  if (draftStore.status === 'complete') return '✅ Draft Complete'
-  return '⚪ Not Started'
+const statusInfo = computed(() => {
+  if (draftStore.status === 'active')
+    return { text: 'In Progress', icon: mdiCircle, color: '#10b981' }
+  if (draftStore.status === 'complete')
+    return { text: 'Complete', icon: mdiCheckCircle, color: '#10b981' }
+  return { text: 'Not Started', icon: mdiCircleOutline, color: 'var(--text-muted)' }
 })
 </script>
 
 <template>
   <main class="home">
     <section class="hero">
-      <h1>🎴 Pokémon Draft League</h1>
+      <h1>
+        <AppIcon :path="mdiCards" :size="32" />
+        Pokémon Draft League
+      </h1>
       <p>Build your league, assign point values, and run a snake draft.</p>
     </section>
 
@@ -51,19 +64,25 @@ const statusLabel = computed(() => {
       </div>
       <div class="stat-card">
         <span class="stat-label">Draft Status</span>
-        <span class="stat-value">{{ statusLabel }}</span>
+        <span class="stat-value status-value">
+          <AppIcon :path="statusInfo.icon" :size="16" :style="{ color: statusInfo.color }" />
+          {{ statusInfo.text }}
+        </span>
       </div>
     </section>
 
     <section class="actions">
       <button class="action-btn primary" @click="router.push('/league/setup')">
-        ⚙️ Configure League
+        <AppIcon :path="mdiCog" :size="18" />
+        Configure League
       </button>
       <button class="action-btn secondary" @click="router.push('/pokemon')">
-        📋 Manage Point Values
+        <AppIcon :path="mdiClipboardList" :size="18" />
+        Manage Point Values
       </button>
       <button class="action-btn accent" @click="router.push('/draft')">
-        🏆 Go to Draft Board
+        <AppIcon :path="mdiTrophy" :size="18" />
+        Go to Draft Board
       </button>
     </section>
 
@@ -104,6 +123,10 @@ const statusLabel = computed(() => {
   font-weight: 800;
   margin-bottom: 0.5rem;
   color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
 .hero p {
@@ -141,6 +164,13 @@ const statusLabel = computed(() => {
   color: var(--text);
 }
 
+.status-value {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+}
+
 .actions {
   display: flex;
   gap: 1rem;
@@ -157,7 +187,13 @@ const statusLabel = computed(() => {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
+  transition:
+    opacity 0.15s,
+    transform 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
 }
 
 .action-btn:hover {
