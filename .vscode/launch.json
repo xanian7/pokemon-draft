@@ -1,0 +1,31 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend (.NET)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "Build Backend",
+      "program": "${workspaceFolder}/PokemonDraftApi/bin/Debug/net8.0/PokemonDraftApi.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/PokemonDraftApi",
+      "stopAtEntry": false,
+      "env": { "ASPNETCORE_ENVIRONMENT": "Development" }
+    },
+    {
+      "name": "Frontend (Vite)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}/pokemon-draft"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack",
+      "configurations": ["Backend (.NET)", "Frontend (Vite)"],
+      "stopAll": true
+    }
+  ]
+}

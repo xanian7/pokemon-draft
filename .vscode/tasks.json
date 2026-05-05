@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build Backend",
+      "type": "shell",
+      "command": "dotnet build PokemonDraftApi/PokemonDraftApi.csproj -c Debug",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    }
+  ]
+}
