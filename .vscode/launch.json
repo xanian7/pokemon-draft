@@ -11,20 +11,13 @@
       "cwd": "${workspaceFolder}/PokemonDraftApi",
       "stopAtEntry": false,
       "env": { "ASPNETCORE_ENVIRONMENT": "Development" }
-    },
-    {
-      "name": "Frontend (Vite)",
-      "type": "node",
-      "request": "launch",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "cwd": "${workspaceFolder}/pokemon-draft"
     }
   ],
   "compounds": [
     {
       "name": "Full Stack",
-      "configurations": ["Backend (.NET)", "Frontend (Vite)"],
+      "configurations": ["Backend (.NET)"],
+      "preLaunchTask": "Start Frontend",
       "stopAll": true
     }
   ]
