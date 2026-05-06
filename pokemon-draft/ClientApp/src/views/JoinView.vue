@@ -2,6 +2,8 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import AppIcon from '@/components/AppIcon.vue'
+import { mdiPokeball } from '@mdi/js'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -36,7 +38,7 @@ async function join() {
 <template>
   <div class="page-center">
     <div class="auth-card">
-      <div class="join-logo">🎴</div>
+      <div class="join-logo"><AppIcon :path="mdiPokeball" :size="52" /></div>
       <h1>Join Draft League</h1>
       <p class="subtitle">Enter the league code and your PIN to join.</p>
 
@@ -83,8 +85,10 @@ async function join() {
 
 <style scoped>
 .join-logo {
-  font-size: 3rem;
+  display: flex;
+  justify-content: center;
   margin-bottom: 0.5rem;
+  color: var(--primary);
 }
 
 h1 {

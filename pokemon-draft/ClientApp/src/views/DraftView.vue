@@ -10,7 +10,7 @@ import { useSignalR, API_BASE } from '@/services/signalr'
 import { useRegulationFilter } from '@/composables/useRegulationFilter'
 import type { Pokemon } from '@/types'
 import { formatPokemonName, TYPE_COLORS } from '@/utils/format'
-import { mdiTrophy, mdiCrosshairs, mdiAccountGroup } from '@mdi/js'
+import { mdiTrophy, mdiCrosshairs, mdiAccountGroup, mdiChevronDown } from '@mdi/js'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -56,11 +56,59 @@ const currentRound = computed(() => {
   return Math.floor(league.value.draft.currentPickNumber / n) + 1
 })
 
+// All remaining picks (snake draft order), grouped by round
+const upcomingPicks = computed(() => {
+  if (!league.value || draftStatus.value !== 'Active') return []
+  const players = league.value.players as Array<{ id: string; name: string }>
+  const n = players.length
+  if (n === 0) return []
+  const totalPicks = n * league.value.rounds
+  const currentPick = league.value.draft.currentPickNumber
+  return Array.from({ length: totalPicks - currentPick }, (_, i) => {
+    const pickNumber = currentPick + i
+    const round = Math.floor(pickNumber / n)
+    const posInRound = pickNumber % n
+    const idx = round % 2 === 0 ? posInRound : n - 1 - posInRound
+    const player = players[idx]
+    return {
+      playerId: player.id,
+      playerName: player.name,
+      isMe: player.id === authStore.playerId,
+      isCurrent: i === 0,
+      pickNumber: pickNumber + 1,
+      round: round + 1,
+    }
+  })
+})
+
+const picksByRound = computed(() => {
+  const groups: Array<{ round: number; picks: typeof upcomingPicks.value }> = []
+  for (const pick of upcomingPicks.value) {
+    const last = groups[groups.length - 1]
+    if (!last || last.round !== pick.round) groups.push({ round: pick.round, picks: [pick] })
+    else last.picks.push(pick)
+  }
+  return groups
+})
+
 const completionModalDismissed = ref(false)
 
 const showCompletionModal = computed(
   () => draftStatus.value === 'Complete' && !completionModalDismissed.value,
 )
+
+const expandedPlayers = ref<Set<string>>(new Set())
+
+function toggleExpanded(playerId: string) {
+  const s = new Set(expandedPlayers.value)
+  if (s.has(playerId)) s.delete(playerId)
+  else s.add(playerId)
+  expandedPlayers.value = s
+}
+
+function isExpanded(playerId: string) {
+  return playerId === authStore.playerId || expandedPlayers.value.has(playerId)
+}
 
 function getPlayerPicks(playerId: string): Pokemon[] {
   if (!league.value) return []
@@ -150,31 +198,55 @@ function closeDetail() {
         <AppIcon :path="mdiTrophy" :size="20" />
         Draft Complete!
       </div>
-      <template v-else>
-        <div class="round-info">
-          <span class="label">Round</span>
-          <span class="value">{{ currentRound }} / {{ league?.rounds }}</span>
-        </div>
-        <div class="round-info">
-          <span class="label">Pick</span>
-          <span class="value"
-            >{{ (league?.draft?.currentPickNumber ?? 0) + 1 }} /
-            {{ league?.draft?.totalPicks }}</span
-          >
-        </div>
-        <div class="current-picker">
-          <span class="label">Now Picking</span>
-          <span class="picker-name" :class="{ 'is-me': isMyTurn }">
-            <template v-if="isMyTurn">
-              <AppIcon :path="mdiCrosshairs" :size="16" />
-              YOU
+      <template v-else >
+        <div class="round-header">
+          <div class="header-stats">
+            <div class="header-stats-row">
+              <div class="round-info">
+                <span class="label">Round</span>
+                <span class="value">{{ currentRound }} / {{ league?.rounds }}</span>
+              </div>
+              <div class="round-info">
+                <span class="label">Pick</span>
+                <span class="value"
+                  >{{ (league?.draft?.currentPickNumber ?? 0) + 1 }} /
+                  {{ league?.draft?.totalPicks }}</span
+                >
+              </div>
+              <div v-if="pickError" class="pick-error">{{ pickError }}</div>
+            </div>
+            <div class="connection-badge" :class="isConnected ? 'live' : 'offline'">
+              {{ isConnected ? '● Live' : '○ Disconnected' }}
+            </div>
+          </div>
+          <div class="draft-queue">
+            <template v-for="(group, gi) in picksByRound" :key="group.round">
+              <div v-if="gi > 0" class="queue-round-divider" />
+              <div class="queue-round-group">
+                <div class="queue-round-label">Round {{ group.round }}</div>
+                <div class="queue-round-picks">
+                  <div
+                    v-for="entry in group.picks"
+                    :key="entry.pickNumber"
+                    class="queue-entry"
+                    :class="{ 'queue-current': entry.isCurrent, 'queue-me': entry.isMe }"
+                  >
+                    <span class="queue-badge">
+                      {{ entry.isCurrent ? 'NOW' : entry.pickNumber === (league?.draft?.currentPickNumber ?? 0) + 2 ? 'NEXT' : '' }}
+                    </span>
+                    <span class="queue-name">
+                      <template v-if="entry.isCurrent && entry.isMe">
+                        <AppIcon :path="mdiCrosshairs" :size="14" />
+                        YOU
+                      </template>
+                      <template v-else>{{ entry.playerName }}</template>
+                    </span>
+                    <span class="queue-pick-num">Pick {{ entry.pickNumber }}</span>
+                  </div>
+                </div>
+              </div>
             </template>
-            <template v-else>{{ currentPicker }}</template>
-          </span>
-        </div>
-        <div v-if="pickError" class="pick-error">{{ pickError }}</div>
-        <div class="connection-badge" :class="isConnected ? 'live' : 'offline'">
-          {{ isConnected ? '● Live' : '○ Disconnected' }}
+          </div>
         </div>
       </template>
     </div>
@@ -227,28 +299,66 @@ function closeDetail() {
 
       <!-- Teams sidebar -->
       <section class="teams-panel">
-        <h2>Teams</h2>
+        <!-- My team — always expanded, prominent -->
+        <div v-if="authStore.playerId" class="my-team-section">
+          <div class="my-team-label">
+            <AppIcon :path="mdiAccountGroup" :size="13" />
+            My Team
+          </div>
+          <div
+            class="team-card is-me"
+            :class="{ 'active-picker': league.draft.currentPickerId === authStore.playerId }"
+          >
+            <div class="team-header">
+              <span class="team-name">
+                {{ league.players.find((p: any) => p.id === authStore.playerId)?.name }}
+              </span>
+              <span class="team-points">
+                {{ getPlayerPoints(authStore.playerId) }}
+                <span v-if="league.pointLimit > 0"> / {{ league.pointLimit }}</span>
+                pts
+              </span>
+            </div>
+            <div class="team-picks">
+              <div v-for="round in league.rounds" :key="round" class="pick-slot">
+                <PokemonCard
+                  v-if="getPlayerPicks(authStore.playerId)[round - 1]"
+                  :pokemon="getPlayerPicks(authStore.playerId)[round - 1]!"
+                  :point-value="pokemonStore.getPointValue(getPlayerPicks(authStore.playerId)[round - 1]!.id)"
+                  mode="team"
+                />
+                <div v-else class="empty-pick"><span>R{{ round }}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Other teams — collapsible -->
+        <div class="other-teams-label">Other Teams</div>
         <div
-          v-for="player in league.players"
+          v-for="player in league.players.filter((p: any) => p.id !== authStore.playerId)"
           :key="player.id"
           class="team-card"
-          :class="{
-            'active-picker': player.id === league.draft.currentPickerId,
-            'is-me': player.id === authStore.playerId,
-          }"
+          :class="{ 'active-picker': player.id === league.draft.currentPickerId }"
         >
-          <div class="team-header">
-            <span class="team-name">
-              {{ player.name }}
-              <span v-if="player.id === authStore.playerId" class="you-tag">You</span>
-            </span>
+          <button
+            class="team-header team-toggle"
+            @click="toggleExpanded(player.id)"
+          >
+            <span class="team-name">{{ player.name }}</span>
             <span class="team-points">
               {{ getPlayerPoints(player.id) }}
               <span v-if="league.pointLimit > 0"> / {{ league.pointLimit }}</span>
               pts
             </span>
-          </div>
-          <div class="team-picks">
+            <AppIcon
+              :path="mdiChevronDown"
+              :size="16"
+              class="team-chevron"
+              :class="{ expanded: isExpanded(player.id) }"
+            />
+          </button>
+          <div v-if="isExpanded(player.id)" class="team-picks">
             <div v-for="round in league.rounds" :key="round" class="pick-slot">
               <PokemonCard
                 v-if="getPlayerPicks(player.id)[round - 1]"
@@ -256,9 +366,7 @@ function closeDetail() {
                 :point-value="pokemonStore.getPointValue(getPlayerPicks(player.id)[round - 1]!.id)"
                 mode="team"
               />
-              <div v-else class="empty-pick">
-                <span>R{{ round }}</span>
-              </div>
+              <div v-else class="empty-pick"><span>R{{ round }}</span></div>
             </div>
           </div>
         </div>
@@ -324,13 +432,12 @@ function closeDetail() {
 
 .draft-header {
   display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 0.75rem 1.25rem;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
   background: var(--card-bg);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
-  flex-wrap: wrap;
 }
 
 .status-banner {
@@ -339,7 +446,7 @@ function closeDetail() {
   gap: 1rem;
   font-weight: 600;
   font-size: 0.95rem;
-  flex: 1;
+  padding: 0.15rem 0;
 }
 .status-banner.setup {
   color: var(--text-muted);
@@ -358,12 +465,146 @@ function closeDetail() {
   cursor: pointer;
 }
 
+.round-header {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.draft-queue {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+  padding-bottom: 2px;
+  background-color: var(--bg);
+  border: 1px solid transparent;
+  border-color: var(--border-color);
+  border-radius: 6px;
+  padding: 10px;
+  width: 100%;
+}
+
+.queue-round-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.queue-round-label {
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  padding: 0 0.35rem;
+}
+
+.queue-round-picks {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.2rem;
+}
+
+.queue-round-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border-color);
+  margin: 0.15rem 0.5rem;
+  flex-shrink: 0;
+}
+
+.queue-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  flex-shrink: 0;
+  min-width: 56px;
+  border: 1px solid transparent;
+}
+
+.queue-badge {
+  font-size: 0.52rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  height: 0.7rem;
+  line-height: 0.7rem;
+}
+
+.queue-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.queue-pick-num {
+  font-size: 0.58rem;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.queue-entry.queue-current {
+  background: rgba(204, 0, 0, 0.1);
+  border-color: rgba(204, 0, 0, 0.3);
+}
+.queue-entry.queue-current .queue-badge {
+  color: var(--primary);
+}
+.queue-entry.queue-current .queue-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+.queue-entry.queue-current .queue-pick-num {
+  color: var(--primary);
+  opacity: 0.8;
+}
+.queue-entry.queue-current.queue-me .queue-name {
+  animation: pulse-text 1.5s ease-in-out infinite;
+}
+
+.queue-entry.queue-me:not(.queue-current) .queue-name {
+  color: var(--secondary);
+}
+.queue-entry.queue-me:not(.queue-current) .queue-pick-num {
+  color: var(--secondary);
+  opacity: 0.8;
+}
+
+.header-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  background-color: var(--bg);
+  border: 1px solid transparent;
+  border-color: var(--border-color);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.header-stats-row {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
 .round-info {
   display: flex;
   flex-direction: column;
 }
-.round-info .label,
-.current-picker .label {
+.round-info .label {
   font-size: 0.62rem;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -372,23 +613,6 @@ function closeDetail() {
 .round-info .value {
   font-weight: 700;
   font-size: 1rem;
-}
-
-.current-picker {
-  display: flex;
-  flex-direction: column;
-}
-.picker-name {
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-.picker-name.is-me {
-  color: var(--primary);
-  animation: pulse-text 1.5s ease-in-out infinite;
 }
 
 @keyframes pulse-text {
@@ -416,7 +640,7 @@ function closeDetail() {
   font-weight: 700;
   padding: 0.15rem 0.5rem;
   border-radius: 20px;
-  margin-left: auto;
+  margin: auto;
 }
 .connection-badge.live {
   color: #10b981;
@@ -536,13 +760,31 @@ select {
   gap: 0.65rem;
 }
 
-.teams-panel h2 {
-  font-size: 0.82rem;
-  font-weight: 700;
+.my-team-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.my-team-label,
+.other-teams-label {
+  font-size: 0.72rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.07em;
   color: var(--text-muted);
-  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.my-team-label {
+  color: var(--secondary);
+}
+
+.my-team-section .team-card {
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.15);
 }
 
 .team-card {
@@ -561,10 +803,6 @@ select {
   box-shadow: 0 0 0 2px rgba(204, 0, 0, 0.2);
 }
 
-.team-card.is-me {
-  border-color: var(--secondary);
-}
-
 .team-header {
   display: flex;
   justify-content: space-between;
@@ -573,25 +811,39 @@ select {
   background: var(--input-bg);
 }
 
+.team-toggle {
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  gap: 0.5rem;
+}
+
+.team-toggle:hover {
+  background: var(--border-color);
+}
+
 .team-name {
   font-weight: 700;
   font-size: 0.85rem;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
+  flex: 1;
 }
-.you-tag {
-  font-size: 0.6rem;
-  background: var(--secondary);
-  color: white;
-  border-radius: 4px;
-  padding: 1px 4px;
-  font-weight: 800;
-}
+
 .team-points {
   font-size: 0.75rem;
   color: var(--primary);
   font-weight: 700;
+}
+
+.team-chevron {
+  color: var(--text-muted);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.team-chevron.expanded {
+  transform: rotate(180deg);
 }
 
 .team-picks {

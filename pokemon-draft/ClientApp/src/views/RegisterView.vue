@@ -3,6 +3,8 @@ import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { API_BASE } from '@/services/signalr'
+import AppIcon from '@/components/AppIcon.vue'
+import { mdiPokeball } from '@mdi/js'
 
 const router = useRouter()
 const route = useRoute()
@@ -61,7 +63,7 @@ async function register() {
 <template>
   <div class="page-center">
     <div class="auth-card">
-      <div class="logo">🎴</div>
+      <div class="logo"><AppIcon :path="mdiPokeball" :size="52" /></div>
       <h1>Join the Draft</h1>
 
       <div v-if="leagueName" class="league-badge">
@@ -113,7 +115,7 @@ async function register() {
 </template>
 
 <style scoped>
-.logo { font-size: 2.5rem; margin-bottom: 0.4rem; }
+.logo { display: flex; justify-content: center; margin-bottom: 0.4rem; color: var(--primary); }
 
 h1 { font-size: 1.5rem; font-weight: 800; margin-bottom: 0.75rem; }
 
