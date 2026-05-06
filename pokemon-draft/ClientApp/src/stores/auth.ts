@@ -11,7 +11,7 @@ interface Session {
   pin: string
 }
 
-const API_BASE = 'http://localhost:5050/api'
+const API_BASE = import.meta.env.DEV ? 'http://localhost:5050/api' : '/api'
 
 export const useAuthStore = defineStore('auth', () => {
   const session = ref<Session | null>(null)

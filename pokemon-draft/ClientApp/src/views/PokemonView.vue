@@ -6,13 +6,12 @@ import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import { REGULATIONS, getRegulation } from '@/data/regulations'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
+import { API_BASE } from '@/services/signalr'
 import { formatPokemonName } from '@/utils/format'
 import { mdiClipboardList, mdiFlash, mdiContentSave, mdiCheck } from '@mdi/js'
 
 const pokemonStore = usePokemonStore()
 const authStore = useAuthStore()
-
-const API_BASE = 'http://localhost:5050/api'
 
 const searchQuery = ref('')
 const selectedRegulation = ref('national')

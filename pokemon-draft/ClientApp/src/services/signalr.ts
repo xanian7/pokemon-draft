@@ -1,8 +1,8 @@
 import * as signalR from '@microsoft/signalr'
 import { ref, shallowRef } from 'vue'
 
-export const API_BASE = 'http://localhost:5050/api'
-export const HUB_URL = 'http://localhost:5050/hubs/draft'
+export const API_BASE = import.meta.env.DEV ? 'http://localhost:5050/api' : '/api'
+export const HUB_URL = import.meta.env.DEV ? 'http://localhost:5050/hubs/draft' : '/hubs/draft'
 
 const connection = shallowRef<signalR.HubConnection | null>(null)
 const isConnected = ref(false)

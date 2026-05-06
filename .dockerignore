@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.git
+**/.vscode
+**/.vs
+**/bin
+**/obj
+pokemon-draft/draft.db
+pokemon-draft/draft.db-shm
+pokemon-draft/draft.db-wal
+pokemon-draft/appsettings.Development.json
