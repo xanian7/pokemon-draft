@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Pokemon } from '@/types'
 
-const CACHE_KEY = 'pokemon-draft:pokemon-cache:v3'
+const CACHE_KEY = 'pokemon-draft:pokemon-cache:v4'
 const POINTS_KEY = 'pokemon-draft:point-values'
 const CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 
@@ -70,6 +70,7 @@ interface PokeApiPokemon {
   is_default: boolean
   pokemon_v2_pokemontypes: PokeApiTypeEntry[]
   pokemon_v2_pokemonstats: PokeApiStatEntry[]
+  pokemon_v2_pokemonspecy: { id: number } | null
 }
 
 interface PokeApiResponse {
@@ -93,6 +94,9 @@ const GRAPHQL_QUERY = `
       id
       name
       is_default
+      pokemon_v2_pokemonspecy {
+        id
+      }
       pokemon_v2_pokemontypes {
         pokemon_v2_type {
           name
@@ -127,11 +131,15 @@ export const usePokemonStore = defineStore('pokemon', () => {
   }
 
   async function fetchAllPokemon() {
+    if (allPokemon.value.length > 0 && allPokemon.value[0].speciesId !== undefined) return
+
     const cached = localStorage.getItem(CACHE_KEY)
     if (cached) {
       try {
         const data: CacheData = JSON.parse(cached)
-        if (Date.now() - data.timestamp < CACHE_TTL) {
+        const firstEntry = data.pokemon[0] as (Pokemon & { speciesId?: number }) | undefined
+        const hasSpeciesId = firstEntry?.speciesId !== undefined
+        if (hasSpeciesId && Date.now() - data.timestamp < CACHE_TTL) {
           allPokemon.value = data.pokemon
           return
         }
@@ -158,6 +166,7 @@ export const usePokemonStore = defineStore('pokemon', () => {
         .filter((p) => !isCosmeticForm(p.name, p.is_default))
         .map((p) => ({
         id: p.id,
+        speciesId: p.pokemon_v2_pokemonspecy?.id ?? p.id,
         name: p.name,
         spriteUrl: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png`,
         types: p.pokemon_v2_pokemontypes.map((t) => t.pokemon_v2_type.name),

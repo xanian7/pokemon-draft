@@ -288,6 +288,9 @@ FakesAssemblies/
 .ntvs_analysis.dat
 node_modules/
 
+# Vite / Vue build output
+dist/
+
 # Visual Studio 6 build log
 *.plg
 

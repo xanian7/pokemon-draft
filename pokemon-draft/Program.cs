@@ -32,17 +32,67 @@ using (var scope = app.Services.CreateScope())
 
 app.UseCors();
 
-// Serve the built Vue SPA from ClientApp/dist when available (production/preview).
-// In development, run `npm run dev` inside ClientApp and use the Vite dev server at port 5173.
-var spaRoot = Path.Combine(app.Environment.ContentRootPath, "ClientApp", "dist");
-if (Directory.Exists(spaRoot))
+if (app.Environment.IsDevelopment())
 {
-    var fileProvider = new PhysicalFileProvider(spaRoot);
-    app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = fileProvider });
-    app.UseStaticFiles(new StaticFileOptions { FileProvider = fileProvider });
+    var clientAppDir = Path.Combine(app.Environment.ContentRootPath, "ClientApp");
+    var vite = new System.Diagnostics.Process
+    {
+        StartInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            Arguments = "/c npm run dev",
+            WorkingDirectory = clientAppDir,
+            UseShellExecute = true,
+        }
+    };
+    vite.Start();
+    app.Lifetime.ApplicationStopping.Register(() => { try { vite.Kill(true); } catch { } });
+}
+else
+{
+    var spaRoot = Path.Combine(app.Environment.ContentRootPath, "ClientApp", "dist");
+    if (Directory.Exists(spaRoot))
+    {
+        var fileProvider = new PhysicalFileProvider(spaRoot);
+        app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = fileProvider });
+        app.UseStaticFiles(new StaticFileOptions { FileProvider = fileProvider });
+    }
 }
 
 app.MapHub<DraftHub>("/hubs/draft");
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapFallback(() => Results.Content("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Starting...</title>
+          <style>
+            body { margin: 0; display: flex; align-items: center; justify-content: center;
+                   height: 100vh; background: #1a1a2e; font-family: sans-serif; color: #fff; }
+            p { color: #aaa; }
+          </style>
+        </head>
+        <body>
+          <div style="text-align:center">
+            <h2>Starting dev server...</h2>
+            <p>You'll be redirected automatically.</p>
+          </div>
+          <script>
+            (async function poll() {
+              try {
+                await fetch('http://localhost:5173/', { mode: 'no-cors' });
+                location.href = 'http://localhost:5173' + location.pathname + location.search;
+              } catch {
+                setTimeout(poll, 500);
+              }
+            })();
+          </script>
+        </body>
+        </html>
+        """, "text/html"));
+}
 
 async Task BroadcastLeague(IHubContext<DraftHub> hub, ILeagueService svc, string code)
 {
@@ -235,8 +285,12 @@ app.MapPost("/api/leagues/{code}/trades/{tradeId}/cancel", async (
     return Results.Ok();
 });
 
-if (Directory.Exists(spaRoot))
-    app.MapFallbackToFile("index.html", new StaticFileOptions { FileProvider = new PhysicalFileProvider(spaRoot) });
+if (!app.Environment.IsDevelopment())
+{
+    var spaRoot = Path.Combine(app.Environment.ContentRootPath, "ClientApp", "dist");
+    if (Directory.Exists(spaRoot))
+        app.MapFallbackToFile("index.html", new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(spaRoot) });
+}
 
 app.Run();
 

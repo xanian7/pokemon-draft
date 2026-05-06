@@ -1,5 +1,7 @@
 export interface Pokemon {
   id: number
+  /** National Pokédex species number — same for all forms of a species (e.g. 479 for all Rotom forms). */
+  speciesId: number
   name: string
   spriteUrl: string
   types: string[]

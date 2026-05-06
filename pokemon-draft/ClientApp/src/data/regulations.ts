@@ -1,3 +1,5 @@
+import vgcData from './vgc-regulations.json'
+
 export interface RegulationDef {
   id: string
   label: string
@@ -80,6 +82,16 @@ function createVgcRegulation(
   return regulation
 }
 
+function createStaticRegulation(entry: (typeof vgcData.sets)[number]): RegulationDef {
+  const ids = new Set(entry.pokemonIds)
+  return {
+    id: entry.id,
+    label: entry.label,
+    description: entry.description,
+    isLegal: (pokemonId: number) => ids.has(pokemonId),
+  }
+}
+
 export const REGULATIONS: RegulationDef[] = [
   {
     id: 'national',
@@ -103,6 +115,7 @@ export const REGULATIONS: RegulationDef[] = [
     'Paldea, Kitakami, and Blueberry Pokédex legal Pokémon.',
     ['paldea', 'kitakami', 'blueberry'],
   ),
+  ...vgcData.sets.map(createStaticRegulation),
 ]
 
 export function getRegulation(id: string): RegulationDef {

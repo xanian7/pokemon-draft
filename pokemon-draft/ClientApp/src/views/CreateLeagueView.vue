@@ -53,8 +53,8 @@ async function enterAsAdmin() {
 </script>
 
 <template>
-  <div class="create-page">
-    <div class="create-card">
+  <div class="page-center">
+    <div class="auth-card">
       <button class="back-btn" @click="router.push('/join')">← Back</button>
       <div class="create-logo"><AppIcon :path="mdiTrophy" :size="48" /></div>
       <h1>Create a League</h1>
@@ -104,25 +104,6 @@ async function enterAsAdmin() {
 </template>
 
 <style scoped>
-.create-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-}
-
-.create-card {
-  width: 100%;
-  max-width: 400px;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 2.5rem 2rem;
-  text-align: center;
-  position: relative;
-}
-
 .back-btn {
   position: absolute;
   top: 1rem;
@@ -167,46 +148,9 @@ h1 {
   text-align: left;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.field label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
 .hint {
   font-size: 0.75rem;
   color: var(--text-muted);
-}
-
-input {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 0.6rem 0.8rem;
-  font-size: 0.95rem;
-}
-
-input:focus {
-  outline: none;
-  border-color: var(--primary);
-}
-
-.error-msg {
-  background: rgba(220, 38, 38, 0.12);
-  border: 1px solid rgba(220, 38, 38, 0.35);
-  color: #f87171;
-  border-radius: 6px;
-  padding: 0.6rem 0.75rem;
-  font-size: 0.85rem;
 }
 
 .btn-create {
@@ -222,6 +166,7 @@ input:focus {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  width: 100%;
 }
 
 .btn-create:disabled {
@@ -272,20 +217,5 @@ input:focus {
   font-weight: 700;
   cursor: pointer;
   margin-top: 0.5rem;
-}
-
-.spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>

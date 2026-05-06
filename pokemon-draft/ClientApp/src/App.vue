@@ -1,14 +1,22 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import AppIcon from '@/components/AppIcon.vue'
+import { mdiHome, mdiPokeball } from '@mdi/js'
 
 const authStore = useAuthStore()
 </script>
 
 <template>
   <header class="app-header">
-    <RouterLink to="/" class="logo">🎴 PokéDraft</RouterLink>
+    <RouterLink to="/" class="logo">
+      <AppIcon :path="mdiPokeball" :size="22" class="logo-icon" />
+      PokéDraft
+    </RouterLink>
     <nav>
+      <RouterLink to="/" class="nav-home" title="Dashboard">
+        <AppIcon :path="mdiHome" :size="18" />
+      </RouterLink>
       <RouterLink to="/join">Join / Login</RouterLink>
       <RouterLink v-if="authStore.isAuthenticated && authStore.isAdmin" to="/league/setup">
         League Setup
@@ -79,11 +87,16 @@ a { color: inherit; text-decoration: none; }
 }
 
 .logo {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 1.1rem;
   font-weight: 800;
   color: var(--primary);
   white-space: nowrap;
 }
+
+.logo-icon { flex-shrink: 0; }
 
 nav {
   display: flex;
@@ -104,7 +117,18 @@ nav a {
 
 nav a:hover { color: var(--text); background: var(--input-bg); }
 nav a.router-link-active { color: var(--text); background: var(--input-bg); }
-nav a.router-link-exact-active { color: var(--primary); }
+nav a.router-link-exact-active {
+  color: var(--primary);
+  background: rgba(204, 0, 0, 0.08);
+  box-shadow: 0 2px 0 var(--primary);
+  font-weight: 700;
+}
+
+.nav-home {
+  display: flex;
+  align-items: center;
+  padding: 0.3rem 0.5rem;
+}
 
 .btn-logout {
   background: transparent;

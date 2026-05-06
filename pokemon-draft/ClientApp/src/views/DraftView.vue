@@ -3,9 +3,11 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import PokemonCard from '@/components/PokemonCard.vue'
+import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
 import { useSignalR, API_BASE } from '@/services/signalr'
+import { useRegulationFilter } from '@/composables/useRegulationFilter'
 import type { Pokemon } from '@/types'
 import { formatPokemonName, TYPE_COLORS } from '@/utils/format'
 import { mdiTrophy, mdiCrosshairs, mdiAccountGroup } from '@mdi/js'
@@ -82,6 +84,10 @@ watch(draftStatus, (status) => {
   if (status !== 'Complete') completionModalDismissed.value = false
 })
 
+// ── Regulation filter ─────────────────────────────────────────────────────────
+const leagueRegulationId = computed(() => league.value?.regulationSet ?? 'national')
+const { isLegalPokemon } = useRegulationFilter(leagueRegulationId)
+
 // ── Pokemon browser ───────────────────────────────────────────────────────────
 const searchQuery = ref('')
 const selectedType = ref('')
@@ -91,6 +97,7 @@ const pickError = ref('')
 const filteredPokemon = computed(() => {
   const q = searchQuery.value.toLowerCase()
   return pokemonStore.pokemonWithPoints.filter((p) => {
+    if (!isLegalPokemon(p)) return false
     if (showAvailableOnly.value && pickedIds.value.has(p.id)) return false
     if (q && !p.name.includes(q) && !formatPokemonName(p.name).toLowerCase().includes(q))
       return false
@@ -115,6 +122,17 @@ async function makePick(pokemonId: number) {
     const text = await res.text()
     pickError.value = text || 'Failed to make pick.'
   }
+}
+
+// ── Detail modal ──────────────────────────────────────────────────────────────
+const detailPokemon = ref<(typeof filteredPokemon.value)[0] | null>(null)
+
+function openDetail(p: (typeof filteredPokemon.value)[0]) {
+  detailPokemon.value = p
+}
+
+function closeDetail() {
+  detailPokemon.value = null
 }
 </script>
 
@@ -200,7 +218,7 @@ async function makePick(pokemonId: number) {
                 :point-value="p.pointValue"
                 :is-picked="pickedIds.has(p.id)"
                 mode="draft"
-                @click="makePick(p.id)"
+                @click="openDetail(p)"
               />
             </div>
           </div>
@@ -284,6 +302,16 @@ async function makePick(pokemonId: number) {
       </div>
     </Teleport>
   </main>
+
+  <PokemonDetailModal
+    v-if="detailPokemon"
+    :pokemon="detailPokemon"
+    :point-value="detailPokemon.pointValue"
+    :can-draft="isMyTurn && draftStatus === 'Active'"
+    :is-picked="pickedIds.has(detailPokemon.id)"
+    @close="closeDetail"
+    @draft="(id) => { makePick(id); closeDetail() }"
+  />
 </template>
 
 <style scoped>
@@ -476,24 +504,7 @@ select {
   gap: 0.45rem;
   overflow-y: auto;
   flex: 1;
-}
-
-.pokemon-grid::-webkit-scrollbar {
-  width: 6px;
-}
-
-.pokemon-grid::-webkit-scrollbar-track {
-  background: var(--bg);
-  border-radius: 3px;
-}
-
-.pokemon-grid::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 3px;
-}
-
-.pokemon-grid::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+  padding-top: 4px;
 }
 
 .pick-wrapper {
@@ -523,24 +534,6 @@ select {
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-}
-
-.teams-panel::-webkit-scrollbar {
-  width: 6px;
-}
-
-.teams-panel::-webkit-scrollbar-track {
-  background: var(--bg);
-  border-radius: 3px;
-}
-
-.teams-panel::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 3px;
-}
-
-.teams-panel::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
 }
 
 .teams-panel h2 {
@@ -636,12 +629,6 @@ select {
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 /* Completion modal */

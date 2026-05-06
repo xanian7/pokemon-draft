@@ -4,8 +4,13 @@ import { RouterLink, useRouter } from 'vue-router'
 import { API_BASE, useSignalR } from '@/services/signalr'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
+import { useRegulationFilter } from '@/composables/useRegulationFilter'
 import type { DraftPick, LeaguePlayer, Pokemon, Trade } from '@/types'
 import { formatPokemonName } from '@/utils/format'
+import AppIcon from '@/components/AppIcon.vue'
+import PokemonCard from '@/components/PokemonCard.vue'
+import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
+import { mdiAccountGroup, mdiMagnify } from '@mdi/js'
 
 interface LeagueState {
   code: string
@@ -49,6 +54,8 @@ const actionError = ref('')
 const actionSuccess = ref('')
 const activeTab = ref<'add-drop' | 'trade'>('add-drop')
 const addSearch = ref('')
+const selectedType = ref('')
+const detailPokemon = ref<Pokemon | null>(null)
 const isSubmitting = ref(false)
 
 const targetPlayerId = ref('')
@@ -120,11 +127,17 @@ const otherPlayers = computed(() =>
 const targetTeam = computed(() => getTeamEntries(targetPlayerId.value))
 const rosteredPokemonIds = computed(() => new Set((league.value?.draft.picks ?? []).map((pick) => pick.pokemonId)))
 
+const leagueRegulationId = computed(() => league.value?.regulationSet ?? 'national')
+const { isLegalPokemon } = useRegulationFilter(leagueRegulationId)
+
 const availablePokemon = computed(() => {
   const query = addSearch.value.trim().toLowerCase()
+  const type = selectedType.value
 
   return pokemonStore.allPokemon.filter((pokemon) => {
+    if (!isLegalPokemon(pokemon)) return false
     if (rosteredPokemonIds.value.has(pokemon.id)) return false
+    if (type && !pokemon.types.includes(type)) return false
     if (!query) return true
 
     const formatted = formatPokemonName(pokemon.name).toLowerCase()
@@ -227,6 +240,19 @@ async function addPokemon(pokemonId: number) {
   }
 }
 
+function openDetail(pokemon: Pokemon) {
+  detailPokemon.value = pokemon
+}
+
+function closeDetail() {
+  detailPokemon.value = null
+}
+
+async function addPokemonFromModal(pokemonId: number) {
+  closeDetail()
+  await addPokemon(pokemonId)
+}
+
 async function submitTrade() {
   if (!leagueCode.value || !currentPlayerId.value || !targetPlayerId.value) return
 
@@ -297,16 +323,15 @@ onUnmounted(disconnect)
 
     <template v-else-if="league">
       <section class="hero-card">
-        <div>
+        <div class="hero-left">
           <p class="eyebrow">{{ league.name }}</p>
           <h1>Team Management</h1>
-          <p class="subtitle">Handle add/drop moves or propose trades after the draft.</p>
         </div>
         <div class="hero-actions">
           <div class="connection-badge" :class="isConnected ? 'live' : 'offline'">
-            {{ isConnected ? '● Live Updates' : '○ Offline' }}
+            {{ isConnected ? '● Live' : '○ Offline' }}
           </div>
-          <RouterLink class="secondary-link" to="/team">← Back to My Team</RouterLink>
+          <RouterLink class="secondary-link" to="/team">← My Team</RouterLink>
         </div>
       </section>
 
@@ -317,37 +342,58 @@ onUnmounted(disconnect)
       </section>
 
       <template v-else>
-        <section class="toolbar-card">
-          <div class="tab-list">
-            <button
-              class="tab-btn"
-              :class="{ active: activeTab === 'add-drop' }"
-              @click="activeTab = 'add-drop'"
-            >
-              Add / Drop
-            </button>
-            <button
-              class="tab-btn"
-              :class="{ active: activeTab === 'trade' }"
-              @click="activeTab = 'trade'"
-            >
-              Propose Trade
-            </button>
-          </div>
-          <div class="points-pill">{{ myPointTotal }} / {{ league.pointLimit }} pts</div>
-        </section>
+        <div class="page-body">
+          <section class="toolbar-card">
+            <div class="tab-list">
+              <button
+                class="tab-btn"
+                :class="{ active: activeTab === 'add-drop' }"
+                @click="activeTab = 'add-drop'"
+              >
+                Add / Drop
+              </button>
+              <button
+                class="tab-btn"
+                :class="{ active: activeTab === 'trade' }"
+                @click="activeTab = 'trade'"
+              >
+                Propose Trade
+              </button>
+            </div>
+            <div class="points-pill">{{ myPointTotal }} / {{ league.pointLimit }} pts</div>
+          </section>
 
-        <p v-if="actionError" class="message error-message">{{ actionError }}</p>
-        <p v-if="actionSuccess" class="message success-message">{{ actionSuccess }}</p>
+          <p v-if="actionError" class="message error-message">{{ actionError }}</p>
+          <p v-if="actionSuccess" class="message success-message">{{ actionSuccess }}</p>
 
-        <section v-if="activeTab === 'add-drop'" class="content-grid">
-          <article class="panel-card">
+          <section v-if="activeTab === 'add-drop'" class="add-drop-layout">
+          <!-- Left: team sidebar -->
+          <aside class="team-sidebar panel-card">
             <div class="section-header">
-              <div>
-                <p class="eyebrow">Current roster</p>
-                <h2>Your team</h2>
+              <div class="sidebar-heading">
+                <AppIcon :path="mdiAccountGroup" :size="16" />
+                <h2>Your Roster</h2>
               </div>
               <span class="section-meta">{{ myTeam.length }} Pokémon</span>
+            </div>
+            <div class="points-bar">
+              <span class="points-used">{{ myPointTotal }}</span>
+              <span class="points-sep">/</span>
+              <span class="points-limit">{{ league.pointLimit }} pts</span>
+              <div class="points-track">
+                <div
+                  class="points-fill"
+                  :style="{
+                    width: `${Math.min(100, (myPointTotal / league.pointLimit) * 100)}%`,
+                    background:
+                      myPointTotal > league.pointLimit
+                        ? '#f87171'
+                        : myPointTotal > league.pointLimit * 0.85
+                          ? '#f97316'
+                          : 'var(--primary)',
+                  }"
+                />
+              </div>
             </div>
 
             <div v-if="myTeam.length" class="team-list">
@@ -371,44 +417,47 @@ onUnmounted(disconnect)
               </article>
             </div>
             <p v-else class="empty-text">Your roster is currently empty.</p>
-          </article>
+          </aside>
 
-          <article class="panel-card">
-            <div class="section-header">
-              <div>
-                <p class="eyebrow">Free agents</p>
-                <h2>Add Pokémon</h2>
+          <!-- Right: available Pokémon grid -->
+          <div class="available-panel panel-card">
+            <div class="available-header">
+              <div class="sidebar-heading">
+                <AppIcon :path="mdiMagnify" :size="16" />
+                <h2>Free Agents</h2>
               </div>
               <span class="section-meta">{{ availablePokemon.length }} available</span>
             </div>
 
-            <input
-              v-model="addSearch"
-              type="text"
-              class="search-input"
-              placeholder="Search available Pokémon…"
-            />
-
-            <div class="free-agent-list">
-              <article v-for="pokemon in availablePokemon" :key="pokemon.id" class="free-agent-row">
-                <div class="pokemon-info">
-                  <img :src="pokemon.spriteUrl" :alt="formatPokemonName(pokemon.name)" class="pokemon-sprite" />
-                  <div>
-                    <h3>{{ formatPokemonName(pokemon.name) }}</h3>
-                    <p>{{ getPointValue(pokemon.id) }} pts</p>
-                  </div>
-                </div>
-                <button
-                  class="primary-btn"
-                  :disabled="isSubmitting || myPointTotal + getPointValue(pokemon.id) > league.pointLimit"
-                  @click="addPokemon(pokemon.id)"
-                >
-                  Add
-                </button>
-              </article>
-              <p v-if="!availablePokemon.length" class="empty-text">No available Pokémon match your search.</p>
+            <div class="available-filters">
+              <input
+                v-model="addSearch"
+                type="text"
+                class="filter-input"
+                placeholder="Search by name…"
+              />
+              <select v-model="selectedType" class="filter-select">
+                <option value="">All Types</option>
+                <option v-for="type in pokemonStore.allTypes" :key="type" :value="type">
+                  {{ type.charAt(0).toUpperCase() + type.slice(1) }}
+                </option>
+              </select>
             </div>
-          </article>
+
+            <div v-if="availablePokemon.length === 0" class="empty-text" style="padding: 1rem 0">
+              No available Pokémon match your filters.
+            </div>
+            <div v-else class="available-grid">
+              <PokemonCard
+                v-for="pokemon in availablePokemon"
+                :key="pokemon.id"
+                :pokemon="pokemon"
+                :point-value="getPointValue(pokemon.id)"
+                mode="draft"
+                @click="openDetail(pokemon)"
+              />
+            </div>
+          </div>
         </section>
 
         <section v-else class="trade-layout">
@@ -527,19 +576,30 @@ onUnmounted(disconnect)
             </article>
           </template>
         </section>
+        </div>
       </template>
     </template>
   </main>
+
+  <PokemonDetailModal
+    v-if="detailPokemon && league"
+    :pokemon="detailPokemon"
+    :point-value="getPointValue(detailPokemon.id)"
+    :can-draft="myPointTotal + getPointValue(detailPokemon.id) <= league.pointLimit && !isSubmitting"
+    :is-picked="false"
+    action-label="Add to Roster"
+    @close="closeDetail"
+    @draft="addPokemonFromModal"
+  />
 </template>
 
 <style scoped>
 .roster-view {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 1.5rem 1rem 2rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  height: calc(100vh - 56px);
+  overflow: hidden;
+  padding: 0;
 }
 
 .hero-card,
@@ -548,23 +608,78 @@ onUnmounted(disconnect)
 .state-card {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
+  border-radius: 0;
 }
 
-.hero-card,
-.toolbar-card,
-.panel-card,
+/* Hero — slim top bar */
+.hero-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1.25rem;
+  flex-shrink: 0;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+}
+
+.hero-left {
+  display: flex;
+  align-items: baseline;
+  gap: 0.85rem;
+}
+
+.hero-left h1 {
+  font-size: 1.1rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+/* Toolbar */
+.toolbar-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 1rem;
+  flex-shrink: 0;
+  border-left: none;
+  border-right: none;
+}
+
+/* Page body — fills remaining height */
+.page-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0.75rem;
+  gap: 0.5rem;
+}
+
+/* Panels used inside page-body */
+.panel-card {
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+/* State cards (loading / error / warning) */
 .state-card {
-  padding: 1.25rem;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin: 1rem;
 }
 
-.hero-card,
-.toolbar-card,
+.state-card h1 { font-size: 1.4rem; margin-bottom: 0.4rem; }
+.state-card h2 { font-size: 1.1rem; margin-bottom: 0.4rem; }
+
 .section-header,
 .hero-actions,
 .trade-team-header,
 .team-row,
-.free-agent-row,
 .pokemon-info,
 .checkbox-row,
 .preview-card li {
@@ -572,19 +687,14 @@ onUnmounted(disconnect)
   align-items: center;
 }
 
-.hero-card,
-.toolbar-card,
 .section-header,
 .hero-actions,
 .trade-team-header,
 .team-row,
-.free-agent-row,
 .preview-card li {
   justify-content: space-between;
 }
 
-.hero-card,
-.toolbar-card,
 .section-header {
   gap: 1rem;
   flex-wrap: wrap;
@@ -593,7 +703,6 @@ onUnmounted(disconnect)
 .hero-actions,
 .trade-team-header,
 .team-row,
-.free-agent-row,
 .pokemon-info,
 .checkbox-row {
   gap: 0.85rem;
@@ -612,10 +721,6 @@ h2,
 h3,
 .checkbox-copy strong {
   color: var(--text);
-}
-
-h1 {
-  font-size: 2rem;
 }
 
 .subtitle,
@@ -704,42 +809,110 @@ h1 {
   color: #34d399;
 }
 
-.content-grid {
+/* ── Add/Drop split layout ───────────────────────────────────────────────── */
+.add-drop-layout {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  grid-template-columns: 280px 1fr;
+  gap: 0.75rem;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
 }
 
-.team-list,
-.free-agent-list {
+.team-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  overflow: hidden;
+  min-height: 0;
 }
 
-.free-agent-list {
-  max-height: 520px;
-  overflow-y: auto;
-  padding-right: 0.25rem;
+.sidebar-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-.free-agent-list::-webkit-scrollbar {
-  width: 6px;
+.points-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.82rem;
 }
 
-.free-agent-list::-webkit-scrollbar-track {
-  background: var(--bg);
-  border-radius: 3px;
-}
+.points-used { font-weight: 700; color: var(--text); }
+.points-sep,
+.points-limit { color: var(--text-muted); }
 
-.free-agent-list::-webkit-scrollbar-thumb {
+.points-track {
+  flex: 1;
+  height: 6px;
   background: var(--border-color);
-  border-radius: 3px;
+  border-radius: 999px;
+  overflow: hidden;
 }
 
-.free-agent-list::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+.points-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.team-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 0.15rem;
+}
+
+.available-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.available-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.available-filters {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-input {
+  flex: 1;
+  min-width: 140px;
+}
+
+.filter-input,
+.filter-select {
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.82rem;
+}
+
+.available-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
+  gap: 0.45rem;
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 0.15rem;
+  padding-top: 4px;
 }
 
 .team-row,
@@ -787,7 +960,15 @@ h1 {
   color: var(--text-muted);
 }
 
-.search-input,
+.trade-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
 .select-input {
   width: 100%;
   background: var(--input-bg);
@@ -796,12 +977,6 @@ h1 {
   border-radius: 10px;
   padding: 0.75rem 0.9rem;
   margin-top: 1rem;
-}
-
-.trade-layout {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
 }
 
 .trade-team-grid,
@@ -874,20 +1049,23 @@ h1 {
 }
 
 @media (max-width: 900px) {
-  .content-grid,
+  .add-drop-layout,
   .trade-team-grid,
   .preview-grid {
     grid-template-columns: 1fr;
   }
+
+  .team-sidebar {
+    max-height: 280px;
+  }
 }
 
 @media (max-width: 640px) {
-  .roster-view {
-    padding-inline: 0.75rem;
+  .page-body {
+    padding: 0.5rem;
   }
 
-  .team-row,
-  .free-agent-row {
+  .team-row {
     align-items: flex-start;
     flex-direction: column;
   }

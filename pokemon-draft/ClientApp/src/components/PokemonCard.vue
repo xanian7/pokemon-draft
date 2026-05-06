@@ -25,7 +25,8 @@ const emit = defineEmits<{
       'mode-draft': mode === 'draft',
       'mode-team': mode === 'team',
     }"
-    @click="!isPicked && emit('click')"
+    :data-tooltip="mode === 'draft' ? formatPokemonName(pokemon.name) : undefined"
+    @click="emit('click')"
   >
     <img
       :src="pokemon.spriteUrl"
@@ -80,6 +81,7 @@ const emit = defineEmits<{
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   border-color: var(--primary);
+  z-index: 1;
 }
 
 .pokemon-card.is-picked {
@@ -139,6 +141,11 @@ const emit = defineEmits<{
   justify-content: center;
 }
 
+.mode-draft .types {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
 .mode-team .types {
   justify-content: flex-start;
 }
@@ -170,5 +177,32 @@ const emit = defineEmits<{
   font-weight: 700;
   color: var(--text-muted);
   border-radius: 10px;
+}
+
+.mode-draft[data-tooltip] {
+  position: relative;
+}
+
+.mode-draft[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border-radius: 5px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 1000;
+}
+
+.mode-draft[data-tooltip]:hover::after {
+  opacity: 1;
 }
 </style>

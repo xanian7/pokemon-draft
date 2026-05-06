@@ -34,8 +34,8 @@ async function join() {
 </script>
 
 <template>
-  <div class="join-page">
-    <div class="join-card">
+  <div class="page-center">
+    <div class="auth-card">
       <div class="join-logo">🎴</div>
       <h1>Join Draft League</h1>
       <p class="subtitle">Enter the league code and your PIN to join.</p>
@@ -82,25 +82,6 @@ async function join() {
 </template>
 
 <style scoped>
-.join-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: var(--bg);
-}
-
-.join-card {
-  width: 100%;
-  max-width: 380px;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 2.5rem 2rem;
-  text-align: center;
-}
-
 .join-logo {
   font-size: 3rem;
   margin-bottom: 0.5rem;
@@ -125,48 +106,10 @@ h1 {
   text-align: left;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.field label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-input {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 0.6rem 0.8rem;
-  font-size: 0.95rem;
-  transition: border-color 0.15s;
-}
-
-input:focus {
-  outline: none;
-  border-color: var(--primary);
-}
-
 .code-input {
   text-transform: uppercase;
   letter-spacing: 0.15em;
   font-weight: 700;
-}
-
-.error-msg {
-  background: rgba(220, 38, 38, 0.12);
-  border: 1px solid rgba(220, 38, 38, 0.35);
-  color: #f87171;
-  border-radius: 6px;
-  padding: 0.6rem 0.75rem;
-  font-size: 0.85rem;
 }
 
 .btn-join {
@@ -183,6 +126,7 @@ input:focus {
   justify-content: center;
   gap: 0.5rem;
   transition: opacity 0.15s;
+  width: 100%;
 }
 
 .btn-join:disabled {
@@ -226,15 +170,4 @@ input:focus {
   border-color: var(--primary);
   background: var(--input-bg);
 }
-
-.spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255,255,255,0.4);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin { to { transform: rotate(360deg); } }
 </style>

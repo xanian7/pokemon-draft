@@ -624,12 +624,6 @@ button:hover:not(:disabled) {
 }
 
 .error-msg {
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid rgba(220, 38, 38, 0.3);
-  color: #f87171;
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.85rem;
   margin-bottom: 0.5rem;
 }
 

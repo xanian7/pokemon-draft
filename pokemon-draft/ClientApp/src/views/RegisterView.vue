@@ -59,8 +59,8 @@ async function register() {
 </script>
 
 <template>
-  <div class="register-page">
-    <div class="register-card">
+  <div class="page-center">
+    <div class="auth-card">
       <div class="logo">🎴</div>
       <h1>Join the Draft</h1>
 
@@ -113,24 +113,6 @@ async function register() {
 </template>
 
 <style scoped>
-.register-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-}
-
-.register-card {
-  width: 100%;
-  max-width: 400px;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 2.5rem 2rem;
-  text-align: center;
-}
-
 .logo { font-size: 2.5rem; margin-bottom: 0.4rem; }
 
 h1 { font-size: 1.5rem; font-weight: 800; margin-bottom: 0.75rem; }
@@ -153,41 +135,7 @@ h1 { font-size: 1.5rem; font-weight: 800; margin-bottom: 0.75rem; }
   text-align: left;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.field label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
 .hint { font-size: 0.74rem; color: var(--text-muted); }
-
-input {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 0.6rem 0.8rem;
-  font-size: 0.95rem;
-}
-
-input:focus { outline: none; border-color: var(--primary); }
-
-.error-msg {
-  background: rgba(220, 38, 38, 0.12);
-  border: 1px solid rgba(220, 38, 38, 0.35);
-  color: #f87171;
-  border-radius: 6px;
-  padding: 0.6rem 0.75rem;
-  font-size: 0.85rem;
-}
 
 .btn-join {
   background: var(--primary);
@@ -203,6 +151,7 @@ input:focus { outline: none; border-color: var(--primary); }
   justify-content: center;
   gap: 0.5rem;
   margin-top: 0.25rem;
+  width: 100%;
 }
 
 .btn-join:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -214,15 +163,4 @@ input:focus { outline: none; border-color: var(--primary); }
 }
 
 .login-link a { color: var(--primary); text-decoration: none; }
-
-.spinner {
-  width: 16px; height: 16px;
-  border: 2px solid rgba(255,255,255,0.4);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-  flex-shrink: 0;
-}
-
-@keyframes spin { to { transform: rotate(360deg); } }
 </style>

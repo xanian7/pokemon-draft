@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import PokemonCard from '@/components/PokemonCard.vue'
+import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import { REGULATIONS, getRegulation } from '@/data/regulations'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
@@ -20,12 +21,21 @@ const showOnlyValued = ref(false)
 const legalIds = ref<Set<number> | null>(null)
 const regulationLoading = ref(false)
 const regulationError = ref('')
-const PAGE_SIZE = 60
-const page = ref(1)
 
 const saving = ref(false)
 const saveError = ref('')
 const saveSuccess = ref(false)
+
+// ── Detail modal ──────────────────────────────────────────────────────────────
+const detailPokemon = ref<(typeof filtered.value)[0] | null>(null)
+
+function openDetail(p: (typeof filtered.value)[0]) {
+  detailPokemon.value = p
+}
+
+function closeDetail() {
+  detailPokemon.value = null
+}
 
 onMounted(async () => {
   await pokemonStore.fetchAllPokemon()
@@ -56,9 +66,9 @@ const filtered = computed(() => {
     if (selectedRegulation.value !== 'national') {
       const reg = getRegulation(selectedRegulation.value)
       if (reg.isLegal) {
-        if (!reg.isLegal(p.id)) return false
+        if (!reg.isLegal(p.speciesId)) return false
       } else if (legalIds.value) {
-        if (!legalIds.value.has(p.id)) return false
+        if (!legalIds.value.has(p.speciesId)) return false
       }
     }
     if (selectedType.value && !p.types.includes(selectedType.value)) return false
@@ -67,16 +77,9 @@ const filtered = computed(() => {
   })
 })
 
-const paginated = computed(() => filtered.value.slice(0, page.value * PAGE_SIZE))
-const hasMore = computed(() => paginated.value.length < filtered.value.length)
 const valuedCount = computed(() => Object.keys(pokemonStore.pointValues).length)
 
-function onSearch() {
-  page.value = 1
-}
-
 async function onRegulationChange() {
-  onSearch()
   legalIds.value = null
   regulationError.value = ''
 
@@ -106,10 +109,12 @@ function applyDefaults() {
       ? undefined
       : regulation.isLegal
         ? pokemonStore.allPokemon
-            .filter((pokemon) => regulation.isLegal?.(pokemon.id))
+            .filter((pokemon) => regulation.isLegal?.(pokemon.speciesId))
             .map((pokemon) => pokemon.id)
         : legalIds.value
-          ? Array.from(legalIds.value)
+          ? pokemonStore.allPokemon
+              .filter((pokemon) => legalIds.value!.has(pokemon.speciesId))
+              .map((pokemon) => pokemon.id)
           : []
 
   pokemonStore.applyDefaultPoints(currentLegalIds)
@@ -143,130 +148,214 @@ async function saveToServer() {
 
 <template>
   <main class="pokemon-view">
-    <div class="header">
-      <h1><AppIcon :path="mdiClipboardList" :size="24" /> Pokémon Point Values</h1>
-      <span class="meta">{{ valuedCount }} / {{ pokemonStore.allPokemon.length }} valued</span>
-      <div v-if="authStore.isAdmin" class="save-row">
+    <!-- Top bar -->
+    <div class="view-header">
+      <span class="view-title">
+        <AppIcon :path="mdiClipboardList" :size="20" />
+        {{ authStore.isAdmin ? 'Pokémon Point Values' : 'Free Agents' }}
+      </span>
+      <span class="meta">{{ valuedCount }} valued · {{ filtered.length }} shown</span>
+
+      <div v-if="authStore.isAdmin" class="admin-actions">
         <button
           class="btn-defaults"
           :disabled="pokemonStore.isLoading || regulationLoading"
           @click="applyDefaults"
         >
-          <AppIcon :path="mdiFlash" :size="18" />
+          <AppIcon :path="mdiFlash" :size="16" />
           Apply Defaults
         </button>
         <button class="btn-save" :disabled="saving" @click="saveToServer">
           <template v-if="saving">Saving…</template>
           <template v-else>
-            <AppIcon :path="mdiContentSave" :size="18" />
+            <AppIcon :path="mdiContentSave" :size="16" />
             Save to League
           </template>
         </button>
         <span v-if="saveSuccess" class="save-ok">
-          <AppIcon :path="mdiCheck" :size="16" />
-          Saved!
+          <AppIcon :path="mdiCheck" :size="14" /> Saved!
         </span>
         <span v-if="saveError" class="save-err">{{ saveError }}</span>
       </div>
     </div>
 
-    <div v-if="pokemonStore.isLoading" class="loading">
-      <span class="spinner" />
-      Loading Pokémon data…
+    <!-- Filter bar -->
+    <div class="filter-bar">
+      <input
+        v-model="searchQuery"
+        type="text"
+        placeholder="Search by name…"
+        class="search-input"
+      />
+      <select v-model="selectedRegulation" @change="onRegulationChange">
+        <option v-for="reg in REGULATIONS" :key="reg.id" :value="reg.id">{{ reg.label }}</option>
+      </select>
+      <select v-model="selectedType">
+        <option value="">All Types</option>
+        <option v-for="type in pokemonStore.allTypes" :key="type" :value="type">
+          {{ type.charAt(0).toUpperCase() + type.slice(1) }}
+        </option>
+      </select>
+      <label class="toggle">
+        <input v-model="showOnlyValued" type="checkbox" />
+        Valued only
+      </label>
+      <span v-if="regulationLoading" class="filter-status">Loading regulation…</span>
+      <span v-else-if="regulationError" class="filter-status filter-error">{{ regulationError }}</span>
     </div>
 
-    <div v-else-if="pokemonStore.error" class="error">
+    <!-- Grid -->
+    <div v-if="pokemonStore.isLoading" class="loading">
+      <span class="spinner" /> Loading Pokémon data…
+    </div>
+    <div v-else-if="pokemonStore.error" class="loading">
       {{ pokemonStore.error }}
       <button @click="pokemonStore.fetchAllPokemon()">Retry</button>
     </div>
+    <div v-else-if="filtered.length === 0" class="loading">No Pokémon match your filters.</div>
 
-    <template v-else>
-      <div class="filters">
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Search by name…"
-          class="search-input"
-          @input="onSearch"
+    <div v-else class="pokemon-grid">
+      <div
+        v-for="pokemon in filtered"
+        :key="pokemon.id"
+        class="pokemon-entry"
+      >
+        <PokemonCard
+          :pokemon="pokemon"
+          :point-value="pokemon.pointValue"
+          mode="draft"
+          @click="openDetail(pokemon)"
         />
-        <select v-model="selectedRegulation" @change="onRegulationChange">
-          <option v-for="reg in REGULATIONS" :key="reg.id" :value="reg.id">{{ reg.label }}</option>
-        </select>
-        <select v-model="selectedType" @change="onSearch">
-          <option value="">All Types</option>
-          <option v-for="type in pokemonStore.allTypes" :key="type" :value="type">
-            {{ type.charAt(0).toUpperCase() + type.slice(1) }}
-          </option>
-        </select>
-        <label class="toggle">
-          <input v-model="showOnlyValued" type="checkbox" @change="onSearch" />
-          Valued only
-        </label>
-        <span v-if="regulationLoading" class="filter-status">Loading regulation…</span>
-        <span v-else-if="regulationError" class="filter-status filter-error">{{
-          regulationError
-        }}</span>
-        <span class="result-count">{{ filtered.length }} Pokémon</span>
+        <input
+          v-if="authStore.isAdmin"
+          type="number"
+          min="0"
+          :value="pokemon.pointValue || ''"
+          placeholder="pts"
+          class="pts-input"
+          @change="onPointInput(pokemon.id, $event)"
+        />
       </div>
-
-      <div class="pokemon-grid">
-        <div v-for="pokemon in paginated" :key="pokemon.id" class="pokemon-entry">
-          <PokemonCard :pokemon="pokemon" :point-value="pokemon.pointValue" mode="browse" />
-          <div class="point-input-row">
-            <label :for="`pts-${pokemon.id}`">Points</label>
-            <input
-              :id="`pts-${pokemon.id}`"
-              type="number"
-              min="0"
-              :value="pokemon.pointValue || ''"
-              placeholder="0"
-              @change="onPointInput(pokemon.id, $event)"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div v-if="hasMore" class="load-more">
-        <button @click="page++">
-          Load More ({{ filtered.length - paginated.length }} remaining)
-        </button>
-      </div>
-
-      <div v-if="filtered.length === 0" class="empty">No Pokémon match your filters.</div>
-    </template>
+    </div>
   </main>
+
+  <PokemonDetailModal
+    v-if="detailPokemon"
+    :pokemon="detailPokemon"
+    :point-value="detailPokemon.pointValue"
+    :can-draft="false"
+    :is-picked="false"
+    @close="closeDetail"
+    @draft="closeDetail"
+  />
 </template>
 
 <style scoped>
 .pokemon-view {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-}
-
-.header {
   display: flex;
-  align-items: baseline;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  flex-direction: column;
+  height: calc(100vh - 56px);
+  overflow: hidden;
 }
 
-.header h1 {
-  font-size: 1.6rem;
-  font-weight: 800;
-  margin: 0;
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+.view-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.view-title {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 700;
 }
 
 .meta {
+  font-size: 0.8rem;
   color: var(--text-muted);
-  font-size: 0.9rem;
 }
 
-.loading,
-.error {
+.admin-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.btn-save,
+.btn-defaults {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-save { background: var(--primary); }
+.btn-defaults { background: var(--secondary); }
+.btn-save:disabled,
+.btn-defaults:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.save-ok { color: #4ade80; font-size: 0.82rem; display: flex; align-items: center; gap: 0.3rem; }
+.save-err { color: #f87171; font-size: 0.82rem; }
+
+/* ── Filter bar ──────────────────────────────────────────────────────────── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  background: var(--bg);
+}
+
+.search-input {
+  flex: 1;
+  min-width: 140px;
+}
+
+input[type='text'],
+select {
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.82rem;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.filter-status {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.filter-error { color: #f87171; }
+
+/* ── Grid ────────────────────────────────────────────────────────────────── */
+.loading {
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -275,8 +364,8 @@ async function saveToServer() {
 }
 
 .spinner {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border: 3px solid var(--border-color);
   border-top-color: var(--primary);
   border-radius: 50%;
@@ -284,160 +373,29 @@ async function saveToServer() {
   flex-shrink: 0;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.filters {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  align-items: center;
-  margin-bottom: 1.25rem;
-}
-
-.search-input {
-  flex: 1;
-  min-width: 180px;
-}
-
-input[type='text'],
-input[type='number'],
-select {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 0.4rem 0.65rem;
-  font-size: 0.9rem;
-}
-
-.toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.88rem;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.filter-status {
-  font-size: 0.82rem;
-  color: var(--text-muted);
-}
-
-.filter-error {
-  color: #f87171;
-}
-
-.result-count {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  margin-left: auto;
-}
-
 .pokemon-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
+  gap: 0.45rem;
+  padding: 0.75rem;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .pokemon-entry {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.2rem;
 }
 
-.point-input-row {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.point-input-row label {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.point-input-row input {
+.pts-input {
   width: 100%;
   text-align: center;
-  padding: 0.25rem 0.4rem;
-  font-size: 0.85rem;
-}
-
-.load-more {
-  margin-top: 1.5rem;
-  text-align: center;
-}
-
-.load-more button {
-  background: var(--card-bg);
+  padding: 0.15rem 0.3rem;
+  font-size: 0.78rem;
+  background: var(--input-bg);
   border: 1px solid var(--border-color);
+  border-radius: 5px;
   color: var(--text);
-  border-radius: 8px;
-  padding: 0.6rem 1.5rem;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.load-more button:hover {
-  border-color: var(--primary);
-}
-
-.empty {
-  text-align: center;
-  color: var(--text-muted);
-  padding: 3rem;
-}
-
-.save-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-left: auto;
-}
-
-.btn-save,
-.btn-defaults {
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 0.45rem 1.1rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.btn-save {
-  background: var(--primary);
-}
-
-.btn-defaults {
-  background: var(--secondary);
-}
-
-.btn-save:disabled,
-.btn-defaults:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.save-ok {
-  color: #4ade80;
-  font-size: 0.88rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-.save-err {
-  color: #f87171;
-  font-size: 0.88rem;
 }
 </style>
