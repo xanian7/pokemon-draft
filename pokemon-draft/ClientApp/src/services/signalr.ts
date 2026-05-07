@@ -21,7 +21,17 @@ export function useSignalR() {
 
     const hub = new signalR.HubConnectionBuilder()
       .withUrl(HUB_URL)
-      .withAutomaticReconnect()
+      .withAutomaticReconnect({
+        nextRetryDelayInMilliseconds: (ctx) => {
+          // Keep retrying indefinitely: escalating backoff, capped at 30s
+          if (ctx.elapsedMilliseconds < 10_000) return 2_000
+          if (ctx.elapsedMilliseconds < 30_000) return 5_000
+          if (ctx.elapsedMilliseconds < 60_000) return 10_000
+          return 30_000
+        }
+      })
+      .withKeepAliveInterval(15_000)
+      .withServerTimeout(60_000)
       .build()
 
     hub.on('LeagueState', onLeagueState)
