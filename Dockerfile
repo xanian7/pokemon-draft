@@ -16,10 +16,11 @@ COPY pokemon-draft/*.csproj ./
 RUN dotnet restore
 
 COPY pokemon-draft/ ./
-# Copy compiled frontend into the location the app expects at runtime
-COPY --from=frontend /app/ClientApp/dist ./ClientApp/dist
 
 RUN dotnet publish -c Release -o /publish --no-restore
+
+# Copy compiled frontend into the publish output so it's available at runtime
+COPY --from=frontend /app/ClientApp/dist /publish/ClientApp/dist
 
 # ── Stage 3: Runtime image ────────────────────────────────────────────────────
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
