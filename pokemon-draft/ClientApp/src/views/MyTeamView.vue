@@ -1,9 +1,11 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { API_BASE, useSignalR } from '@/services/signalr'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
+import PokemonCard from '@/components/PokemonCard.vue'
+import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import type { DraftPick, LeaguePlayer, Pokemon, Trade } from '@/types'
 import { formatPokemonName } from '@/utils/format'
 
@@ -48,6 +50,14 @@ const isLoading = ref(true)
 const loadError = ref('')
 const tradeError = ref('')
 const tradeActionId = ref<number | null>(null)
+const teamAvatarError = ref(false)
+const displayTeamName = computed(() =>
+  authStore.teamName?.trim() ? authStore.teamName : `${authStore.playerName}'s Team`,
+)
+const heroInitials = computed(() => {
+  const n = displayTeamName.value
+  return n.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+})
 
 function normalizeStatus(status?: string | null) {
   return status?.toLowerCase() ?? ''
@@ -93,7 +103,8 @@ async function loadPage() {
 }
 
 function getPlayerName(playerId: string) {
-  return league.value?.players.find((player) => player.id === playerId)?.name ?? 'Unknown Player'
+  const player = league.value?.players.find((player) => player.id === playerId)
+  return player?.teamName || (player?.name ?? 'Unknown Player')
 }
 
 function getPokemonName(pokemonId: number) {
@@ -137,6 +148,26 @@ const myTrades = computed(() =>
 
 const pendingTrades = computed(() => myTrades.value.filter((trade) => trade.status === 'Pending'))
 const tradeHistory = computed(() => myTrades.value.filter((trade) => trade.status !== 'Pending'))
+
+// ── Pokemon detail modal ───────────────────────────────────────────────────────
+const selectedPokemon = ref<Pokemon | null>(null)
+const selectedPokemonPoints = computed(() =>
+  selectedPokemon.value ? getPointValue(selectedPokemon.value.id) : 0,
+)
+
+function openDetail(pokemon: Pokemon | undefined) {
+  if (pokemon) selectedPokemon.value = pokemon
+}
+
+// ── Other teams expand/collapse ───────────────────────────────────────────────
+const expandedOtherTeams = ref<Set<string>>(new Set())
+
+function toggleOtherTeam(playerId: string) {
+  const s = new Set(expandedOtherTeams.value)
+  if (s.has(playerId)) s.delete(playerId)
+  else s.add(playerId)
+  expandedOtherTeams.value = s
+}
 
 function getTradeItems(trade: Trade, playerId: string) {
   return trade.items.filter((item) => item.fromPlayerId === playerId)
@@ -198,28 +229,63 @@ onUnmounted(disconnect)
 </script>
 
 <template>
-  <main class="team-view">
+  <main class="page-wrap">
     <section v-if="isLoading" class="state-card">
-      <h1>Loading your team…</h1>
+      <h1>Loading your team&hellip;</h1>
       <p>Syncing league state and trades.</p>
     </section>
 
     <section v-else-if="loadError" class="state-card error-card">
-      <h1>Couldn’t load My Team</h1>
+      <h1>Couldn't load My Team</h1>
       <p>{{ loadError }}</p>
       <button class="primary-btn" @click="loadPage">Try Again</button>
     </section>
 
     <template v-else-if="league">
-      <section class="hero-card">
-        <div>
+      <!-- ── Hero banner ── -->
+      <section class="hero">
+        <div class="hero-avatar">
+          <img
+            v-if="authStore.teamImageUrl && !teamAvatarError"
+            :src="authStore.teamImageUrl"
+            alt="Team avatar"
+            class="hero-avatar-img"
+            @error="teamAvatarError = true"
+          />
+          <div v-else class="hero-avatar-initials">{{ heroInitials }}</div>
+        </div>
+        <div class="hero-left">
           <p class="eyebrow">{{ league.name }}</p>
-          <h1>My Team</h1>
-          <p class="subtitle">Keep tabs on your roster and pending trades.</p>
+          <h1>{{ displayTeamName }}</h1>
+          <RouterLink to="/settings" class="edit-team-link">Edit team profile</RouterLink>
+          <div v-if="myTeam.length" class="hero-sprites">
+            <img
+              v-for="entry in myTeam.slice(0, 10)"
+              :key="entry.pokemonId"
+              :src="entry.pokemon?.spriteUrl"
+              :alt="getPokemonName(entry.pokemonId)"
+              class="hero-sprite"
+              :title="getPokemonName(entry.pokemonId)"
+            />
+          </div>
+        </div>
+        <div class="hero-right">
+          <div class="stat-block">
+            <span class="stat-value">{{ myTeam.length }}</span>
+            <span class="stat-label">Pokémon</span>
+          </div>
+          <div class="stat-block">
+            <span class="stat-value">{{ myPointTotal }}</span>
+            <span class="stat-label">of {{ league.pointLimit }} pts</span>
+          </div>
+          <div class="stat-block">
+            <span class="stat-value">{{ league.pointLimit - myPointTotal }}</span>
+            <span class="stat-label">pts remaining</span>
+          </div>
         </div>
         <div class="hero-actions">
           <div class="connection-badge" :class="isConnected ? 'live' : 'offline'">
-            {{ isConnected ? '● Live Updates' : '○ Offline' }}
+            {{ isConnected ? '● Live' : '○ Offline' }}
           </div>
           <button class="primary-btn" @click="router.push('/team/manage')">Manage Roster</button>
         </div>
@@ -228,194 +294,191 @@ onUnmounted(disconnect)
       <section v-if="!draftComplete" class="state-card warning-card">
         <h2>Draft is still in progress</h2>
         <p>Roster moves unlock once the draft is complete.</p>
-        <RouterLink class="inline-link" to="/draft">Go to Draft Board →</RouterLink>
+        <RouterLink class="inline-link" to="/draft">Go to Draft Board &rarr;</RouterLink>
       </section>
 
       <template v-else>
-        <section class="summary-grid">
-          <article class="summary-card highlight-card">
-            <div class="summary-header">
-              <div>
-                <p class="eyebrow">{{ authStore.playerName }}</p>
-                <h2>Your roster</h2>
+        <div class="content-grid">
+          <!-- ── Left: My Roster + Other Teams ── -->
+          <div class="main-col">
+            <section class="panel-card">
+              <div class="section-header">
+                <div>
+                  <p class="eyebrow">{{ authStore.playerName }}</p>
+                  <h2>My Roster</h2>
+                </div>
+                <span class="summary-points">{{ myPointTotal }} / {{ league.pointLimit }} pts</span>
               </div>
-              <span class="summary-points">{{ myPointTotal }} / {{ league.pointLimit }} pts</span>
-            </div>
-
-            <div v-if="myTeam.length" class="pokemon-grid">
-              <article v-for="entry in myTeam" :key="entry.pokemonId" class="pokemon-tile">
-                <img
-                  v-if="entry.pokemon?.spriteUrl"
-                  :src="entry.pokemon.spriteUrl"
-                  :alt="getPokemonName(entry.pokemonId)"
-                  class="pokemon-sprite"
+              <div v-if="myTeam.length" class="roster-grid">
+                <PokemonCard
+                  v-for="entry in myTeam"
+                  :key="entry.pokemonId"
+                  :pokemon="entry.pokemon!"
+                  :point-value="entry.points"
+                  mode="team"
+                  class="roster-card-item"
+                  @click="openDetail(entry.pokemon)"
                 />
-                <div v-else class="sprite-fallback">#{{ entry.pokemonId }}</div>
-                <span class="pokemon-name">{{ getPokemonName(entry.pokemonId) }}</span>
-                <span class="pokemon-meta">{{ entry.points }} pts</span>
-              </article>
-            </div>
-            <p v-else class="empty-text">No Pokémon on your roster yet.</p>
-          </article>
-
-          <article class="summary-card trades-card">
-            <div class="summary-header">
-              <div>
-                <p class="eyebrow">Trading desk</p>
-                <h2>Your trades</h2>
               </div>
-              <span class="trade-count">{{ pendingTrades.length }} pending</span>
-            </div>
+              <p v-else class="empty-text">No Pokémon on your roster yet.</p>
+            </section>
 
-            <p v-if="tradeError" class="error-message">{{ tradeError }}</p>
-
-            <div v-if="pendingTrades.length" class="trade-list">
-              <article v-for="trade in pendingTrades" :key="trade.id" class="trade-card pending-card">
-                <div class="trade-topline">
-                  <div>
-                    <span class="trade-title">
-                      {{ isIncomingTrade(trade) ? `Incoming from ${getPlayerName(trade.initiatorPlayerId)}` : `Sent to ${getPlayerName(trade.targetPlayerId)}` }}
+            <section class="panel-card">
+              <div class="section-header">
+                <div>
+                  <p class="eyebrow">League overview</p>
+                  <h2>Other teams</h2>
+                </div>
+                <span class="section-meta">{{ otherPlayers.length }} opponents</span>
+              </div>
+              <div class="other-teams-list">
+                <div v-for="player in otherPlayers" :key="player.id" class="other-team">
+                  <button class="other-team-toggle" @click="toggleOtherTeam(player.id)">
+                    <div class="other-team-avatar">
+                      <img
+                        v-if="player.teamImageUrl"
+                        :src="player.teamImageUrl"
+                        :alt="player.teamName || player.name"
+                        class="other-team-avatar-img"
+                      />
+                      <div v-else class="other-team-avatar-initials">
+                        {{ (player.teamName || player.name).split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) }}
+                      </div>
+                    </div>
+                    <span class="other-team-name">{{ player.teamName || player.name }}</span>
+                    <span class="other-team-meta">
+                      {{ getTeamEntries(player.id).length }} Pokémon
+                      &middot; {{ getTeamEntries(player.id).reduce((s, e) => s + e.points, 0) }} pts
                     </span>
-                    <span class="trade-date">{{ formatDate(trade.proposedAt) }}</span>
-                  </div>
-                  <span class="status-pill pending">Pending</span>
-                </div>
-
-                <div class="trade-columns">
-                  <div>
-                    <p class="trade-label">
-                      {{ isIncomingTrade(trade) ? `${getPlayerName(trade.initiatorPlayerId)} sends` : 'You send' }}
-                    </p>
-                    <ul>
-                      <li v-for="item in getTradeItems(trade, trade.initiatorPlayerId)" :key="`${trade.id}-offer-${item.pokemonId}`">
-                        {{ getPokemonName(item.pokemonId) }}
-                      </li>
-                    </ul>
-                  </div>
-                  <div>
-                    <p class="trade-label">
-                      {{ isIncomingTrade(trade) ? 'You send back' : `${getPlayerName(trade.targetPlayerId)} sends` }}
-                    </p>
-                    <ul>
-                      <li v-for="item in getTradeItems(trade, trade.targetPlayerId)" :key="`${trade.id}-request-${item.pokemonId}`">
-                        {{ getPokemonName(item.pokemonId) }}
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-
-                <div class="trade-actions">
-                  <template v-if="trade.targetPlayerId === currentPlayerId">
-                    <button
-                      class="success-btn"
-                      :disabled="tradeActionId === trade.id"
-                      @click="actOnTrade(trade, 'accept')"
-                    >
-                      Accept
-                    </button>
-                    <button
-                      class="secondary-btn"
-                      :disabled="tradeActionId === trade.id"
-                      @click="actOnTrade(trade, 'reject')"
-                    >
-                      Reject
-                    </button>
-                  </template>
-                  <button
-                    v-else
-                    class="secondary-btn"
-                    :disabled="tradeActionId === trade.id"
-                    @click="actOnTrade(trade, 'cancel')"
-                  >
-                    Cancel
+                    <span class="other-team-chevron" :class="{ open: expandedOtherTeams.has(player.id) }">&#9660;</span>
                   </button>
+                  <div v-if="expandedOtherTeams.has(player.id)" class="other-team-roster">
+                    <p v-if="!getTeamEntries(player.id).length" class="empty-text">No picks yet.</p>
+                    <div v-else class="roster-grid">
+                      <PokemonCard
+                        v-for="entry in getTeamEntries(player.id)"
+                        :key="entry.pokemonId"
+                        :pokemon="entry.pokemon!"
+                        :point-value="entry.points"
+                        mode="team"
+                        class="roster-card-item"
+                        @click="openDetail(entry.pokemon)"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </article>
-            </div>
-            <p v-else class="empty-text">No pending trades right now.</p>
-          </article>
-        </section>
-
-        <section class="panel-card">
-          <div class="section-header">
-            <div>
-              <p class="eyebrow">League overview</p>
-              <h2>Other teams</h2>
-            </div>
-            <span class="section-meta">{{ otherPlayers.length }} opponents</span>
+              </div>
+            </section>
           </div>
 
-          <div class="team-list">
-            <details v-for="player in otherPlayers" :key="player.id" class="team-details">
-              <summary>
-                <span>{{ player.name }}</span>
-                <span>{{ getTeamEntries(player.id).length }} Pokémon • {{ getTeamEntries(player.id).reduce((sum, entry) => sum + entry.points, 0) }} pts</span>
-              </summary>
-              <div class="team-pokemon-grid">
-                <article v-for="entry in getTeamEntries(player.id)" :key="`${player.id}-${entry.pokemonId}`" class="mini-pokemon-card">
-                  <img
-                    v-if="entry.pokemon?.spriteUrl"
-                    :src="entry.pokemon.spriteUrl"
-                    :alt="getPokemonName(entry.pokemonId)"
-                    class="mini-sprite"
-                  />
-                  <div v-else class="mini-sprite fallback">#{{ entry.pokemonId }}</div>
-                  <div>
-                    <p>{{ getPokemonName(entry.pokemonId) }}</p>
-                    <span>{{ entry.points }} pts</span>
+          <!-- ── Right: Sticky sidebar ── -->
+          <aside class="side-col">
+            <!-- Pending Trades -->
+            <section class="panel-card">
+              <div class="section-header">
+                <div>
+                  <p class="eyebrow">Trading desk</p>
+                  <h2>Trades</h2>
+                </div>
+                <span class="trade-count">{{ pendingTrades.length }} pending</span>
+              </div>
+              <p v-if="tradeError" class="error-message">{{ tradeError }}</p>
+              <div v-if="pendingTrades.length" class="trade-list">
+                <article v-for="trade in pendingTrades" :key="trade.id" class="trade-card pending-card">
+                  <div class="trade-topline">
+                    <div>
+                      <span class="trade-title">
+                        {{ isIncomingTrade(trade) ? `From ${getPlayerName(trade.initiatorPlayerId)}` : `To ${getPlayerName(trade.targetPlayerId)}` }}
+                      </span>
+                      <span class="trade-date">{{ formatDate(trade.proposedAt) }}</span>
+                    </div>
+                    <span class="status-pill pending">Pending</span>
+                  </div>
+                  <div class="trade-columns">
+                    <div>
+                      <p class="trade-label">{{ isIncomingTrade(trade) ? 'They send' : 'You send' }}</p>
+                      <ul>
+                        <li v-for="item in getTradeItems(trade, trade.initiatorPlayerId)" :key="`${trade.id}-offer-${item.pokemonId}`">
+                          {{ getPokemonName(item.pokemonId) }}
+                        </li>
+                      </ul>
+                    </div>
+                    <div>
+                      <p class="trade-label">{{ isIncomingTrade(trade) ? 'You send' : 'They send' }}</p>
+                      <ul>
+                        <li v-for="item in getTradeItems(trade, trade.targetPlayerId)" :key="`${trade.id}-request-${item.pokemonId}`">
+                          {{ getPokemonName(item.pokemonId) }}
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div class="trade-actions">
+                    <template v-if="trade.targetPlayerId === currentPlayerId">
+                      <button class="success-btn" :disabled="tradeActionId === trade.id" @click="actOnTrade(trade, 'accept')">Accept</button>
+                      <button class="secondary-btn" :disabled="tradeActionId === trade.id" @click="actOnTrade(trade, 'reject')">Reject</button>
+                    </template>
+                    <button v-else class="secondary-btn" :disabled="tradeActionId === trade.id" @click="actOnTrade(trade, 'cancel')">Cancel</button>
                   </div>
                 </article>
               </div>
-            </details>
-          </div>
-        </section>
+              <p v-else class="empty-text">No pending trades.</p>
+            </section>
 
-        <section class="panel-card">
-          <div class="section-header">
-            <div>
-              <p class="eyebrow">Archive</p>
-              <h2>Trade history</h2>
-            </div>
-          </div>
-
-          <div v-if="tradeHistory.length" class="trade-list history-list">
-            <article v-for="trade in tradeHistory" :key="trade.id" class="trade-card history-card">
-              <div class="trade-topline">
+            <!-- Trade History -->
+            <section class="panel-card">
+              <div class="section-header">
                 <div>
-                  <span class="trade-title">
-                    {{ getPlayerName(trade.initiatorPlayerId) }} ↔ {{ getPlayerName(trade.targetPlayerId) }}
-                  </span>
-                  <span class="trade-date">{{ formatDate(trade.proposedAt) }}</span>
+                  <p class="eyebrow">Archive</p>
+                  <h2>Trade history</h2>
                 </div>
-                <span class="status-pill" :class="trade.status.toLowerCase()">{{ trade.status }}</span>
               </div>
-
-              <p class="history-summary">
-                {{ getTradeItems(trade, trade.initiatorPlayerId).map((item) => getPokemonName(item.pokemonId)).join(', ') || 'Nothing' }}
-                for
-                {{ getTradeItems(trade, trade.targetPlayerId).map((item) => getPokemonName(item.pokemonId)).join(', ') || 'Nothing' }}
-              </p>
-            </article>
-          </div>
-          <p v-else class="empty-text">No completed trade history yet.</p>
-        </section>
+              <div v-if="tradeHistory.length" class="trade-list history-list">
+                <article v-for="trade in tradeHistory" :key="trade.id" class="trade-card history-card">
+                  <div class="trade-topline">
+                    <div>
+                      <span class="trade-title">
+                        {{ getPlayerName(trade.initiatorPlayerId) }} &harr; {{ getPlayerName(trade.targetPlayerId) }}
+                      </span>
+                      <span class="trade-date">{{ formatDate(trade.proposedAt) }}</span>
+                    </div>
+                    <span class="status-pill" :class="trade.status.toLowerCase()">{{ trade.status }}</span>
+                  </div>
+                  <p class="history-summary">
+                    {{ getTradeItems(trade, trade.initiatorPlayerId).map((item) => getPokemonName(item.pokemonId)).join(', ') || 'Nothing' }}
+                    for
+                    {{ getTradeItems(trade, trade.targetPlayerId).map((item) => getPokemonName(item.pokemonId)).join(', ') || 'Nothing' }}
+                  </p>
+                </article>
+              </div>
+              <p v-else class="empty-text">No trade history yet.</p>
+            </section>
+          </aside>
+        </div>
       </template>
     </template>
   </main>
+
+  <PokemonDetailModal
+    v-if="selectedPokemon"
+    :pokemon="selectedPokemon"
+    :point-value="selectedPokemonPoints"
+    :can-draft="false"
+    :is-picked="true"
+    @close="selectedPokemon = null"
+  />
 </template>
 
 <style scoped>
-.team-view {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 1.5rem 1rem 2rem;
+/* ── Page shell ──────────────────────────────────────── */
+.page-wrap {
+  padding: 1.5rem 2.5rem 3rem;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
 }
 
-.hero-card,
-.summary-card,
+/* ── Shared card base ────────────────────────────────── */
+.hero,
 .panel-card,
 .state-card {
   background: var(--card-bg);
@@ -423,22 +486,136 @@ onUnmounted(disconnect)
   border-radius: 16px;
 }
 
-.hero-card {
-  padding: 1.5rem;
+.panel-card,
+.state-card {
+  padding: 1.25rem;
+}
+
+.warning-card { border-color: rgba(245, 158, 11, 0.45); }
+.error-card   { border-color: rgba(248, 113, 113, 0.5); }
+
+/* ── Hero ────────────────────────────────────────────── */
+.hero {
+  padding: 2rem 2.5rem;
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
   align-items: center;
+  gap: 2.5rem;
   flex-wrap: wrap;
+  background: linear-gradient(135deg, rgba(59, 76, 202, 0.1) 0%, var(--card-bg) 55%);
+}
+
+.hero-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.hero-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero-avatar-initials {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(59, 76, 202, 0.25);
+  color: #a5b4fc;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.hero-left {
+  flex: 1;
+  min-width: 220px;
+}
+
+.hero-sprites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: 0.75rem;
+}
+
+.hero-sprite {
+  width: 64px;
+  height: 64px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+  transition: transform 0.15s;
+}
+
+.hero-sprite:hover {
+  transform: translateY(-4px) scale(1.15);
+  z-index: 1;
+}
+
+.hero-right {
+  display: flex;
+  gap: 2rem;
+}
+
+.stat-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.stat-value {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
 }
 
 .hero-actions {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.65rem;
 }
 
+/* ── Two-column layout ───────────────────────────────── */
+.content-grid {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.main-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.side-col {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+/* ── Typography helpers ──────────────────────────────── */
 .eyebrow {
   color: var(--text-muted);
   text-transform: uppercase;
@@ -447,19 +624,19 @@ onUnmounted(disconnect)
   margin-bottom: 0.35rem;
 }
 
-h1,
-h2 {
-  color: var(--text);
+h1, h2 { color: var(--text); }
+h1 { font-size: 2rem; margin-bottom: 0.25rem; }
+h2 { font-size: 1.15rem; }
+
+.edit-team-link {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-decoration: underline;
+  margin-top: 0.25rem;
+  display: inline-block;
 }
 
-h1 {
-  font-size: 2rem;
-  margin-bottom: 0.35rem;
-}
-
-h2 {
-  font-size: 1.2rem;
-}
+.edit-team-link:hover { color: var(--text); }
 
 .subtitle,
 .state-card p,
@@ -469,53 +646,12 @@ h2 {
 .trade-label,
 .section-meta {
   color: var(--text-muted);
+  font-size: 0.88rem;
 }
 
-.connection-badge,
-.status-pill,
-.summary-points,
-.trade-count {
-  font-size: 0.8rem;
-  font-weight: 700;
-  border-radius: 999px;
-  padding: 0.35rem 0.7rem;
-}
+.empty-text { margin-top: 0.75rem; }
 
-.connection-badge.live {
-  color: #34d399;
-  background: rgba(52, 211, 153, 0.12);
-}
-
-.connection-badge.offline {
-  color: var(--text-muted);
-  background: var(--input-bg);
-}
-
-.summary-grid {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  gap: 1.25rem;
-}
-
-.summary-card,
-.panel-card,
-.state-card {
-  padding: 1.25rem;
-}
-
-.highlight-card {
-  border-color: rgba(59, 76, 202, 0.5);
-}
-
-.warning-card {
-  border-color: rgba(245, 158, 11, 0.45);
-}
-
-.error-card {
-  border-color: rgba(248, 113, 113, 0.5);
-}
-
-.summary-header,
+/* ── Section header ──────────────────────────────────── */
 .section-header,
 .trade-topline {
   display: flex;
@@ -523,252 +659,235 @@ h2 {
   gap: 1rem;
   align-items: flex-start;
   flex-wrap: wrap;
+  margin-bottom: 0.25rem;
 }
 
-.summary-points {
-  background: rgba(59, 76, 202, 0.14);
-  color: #a5b4fc;
+/* ── Pills & badges ──────────────────────────────────── */
+.connection-badge,
+.status-pill,
+.summary-points,
+.trade-count {
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  white-space: nowrap;
 }
 
+.connection-badge.live    { color: #34d399; background: rgba(52, 211, 153, 0.12); }
+.connection-badge.offline { color: var(--text-muted); background: var(--input-bg); }
+.summary-points           { background: rgba(59, 76, 202, 0.14); color: #a5b4fc; }
 .trade-count,
-.status-pill.pending {
-  background: rgba(245, 158, 11, 0.14);
-  color: #fbbf24;
-}
-
-.status-pill.accepted {
-  background: rgba(52, 211, 153, 0.14);
-  color: #34d399;
-}
-
+.status-pill.pending      { background: rgba(245, 158, 11, 0.14); color: #fbbf24; }
+.status-pill.accepted     { background: rgba(52, 211, 153, 0.14); color: #34d399; }
 .status-pill.rejected,
-.status-pill.cancelled {
-  background: rgba(248, 113, 113, 0.14);
-  color: #f87171;
-}
+.status-pill.cancelled    { background: rgba(248, 113, 113, 0.14); color: #f87171; }
 
-.pokemon-grid {
+/* ── Roster grid ─────────────────────────────────────── */
+.roster-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
   gap: 0.9rem;
   margin-top: 1rem;
 }
 
-.pokemon-tile,
-.mini-pokemon-card {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 0.85rem;
+.roster-grid-sm {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
 }
 
-.pokemon-tile {
+.roster-card-item { cursor: pointer; }
+
+/* ── Other teams ─────────────────────────────────────── */
+.other-teams-list {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 0.35rem;
-}
-
-.pokemon-sprite,
-.mini-sprite {
-  image-rendering: pixelated;
-}
-
-.pokemon-sprite {
-  width: 72px;
-  height: 72px;
-}
-
-.sprite-fallback,
-.fallback {
-  display: grid;
-  place-items: center;
-  color: var(--text-muted);
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 10px;
-}
-
-.sprite-fallback {
-  width: 72px;
-  height: 72px;
-}
-
-.pokemon-name {
-  color: var(--text);
-  font-weight: 700;
-}
-
-.pokemon-meta {
-  color: var(--primary);
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.trade-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.6rem;
   margin-top: 1rem;
 }
 
-.trade-card {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 1rem;
-}
-
-.pending-card {
-  border-color: rgba(245, 158, 11, 0.3);
-}
-
-.trade-title {
-  display: block;
-  color: var(--text);
-  font-weight: 700;
-  margin-bottom: 0.25rem;
-}
-
-.trade-columns {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  margin-top: 0.85rem;
-}
-
-.trade-columns ul {
-  margin: 0;
-  padding-left: 1rem;
-  color: var(--text);
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.trade-actions {
-  display: flex;
-  gap: 0.65rem;
-  flex-wrap: wrap;
-  margin-top: 1rem;
-}
-
-.team-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  margin-top: 1rem;
-}
-
-.team-details {
+.other-team {
   background: var(--input-bg);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   overflow: hidden;
 }
 
-.team-details summary {
-  list-style: none;
-  cursor: pointer;
-  padding: 1rem;
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  color: var(--text);
-  font-weight: 700;
-}
-
-.team-details summary::-webkit-details-marker {
-  display: none;
-}
-
-.team-pokemon-grid {
-  padding: 0 1rem 1rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 0.75rem;
-}
-
-.mini-pokemon-card {
+.other-team-toggle {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
 }
 
-.mini-sprite {
-  width: 48px;
-  height: 48px;
+.other-team-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
   flex-shrink: 0;
 }
 
-.mini-pokemon-card p {
+.other-team-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.other-team-avatar-initials {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(59, 76, 202, 0.25);
+  color: #a5b4fc;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.other-team-name {
+  flex: 1;
   color: var(--text);
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.other-team-meta {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.other-team-chevron {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  transition: transform 0.2s ease;
+}
+
+.other-team-chevron.open { transform: rotate(180deg); }
+
+.other-team-roster { padding: 0 1rem 1rem; }
+
+/* ── Trades ──────────────────────────────────────────── */
+.trade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.trade-card {
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 0.9rem;
+}
+
+.pending-card { border-color: rgba(245, 158, 11, 0.3); }
+
+.trade-title {
+  display: block;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.88rem;
   margin-bottom: 0.2rem;
 }
 
-.mini-pokemon-card span {
-  color: var(--text-muted);
-  font-size: 0.82rem;
+.trade-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.trade-columns ul {
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--text);
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.trade-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.85rem;
 }
 
 .error-message {
   color: #f87171;
-  margin-top: 0.75rem;
+  margin-top: 0.6rem;
+  font-size: 0.88rem;
 }
 
+/* ── Buttons ─────────────────────────────────────────── */
 .primary-btn,
 .secondary-btn,
 .success-btn {
   border: none;
   border-radius: 10px;
-  padding: 0.72rem 1rem;
-  font-size: 0.92rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.9rem;
   font-weight: 700;
   cursor: pointer;
 }
 
-.primary-btn {
-  background: var(--primary);
-  color: white;
-}
-
-.secondary-btn {
-  background: var(--input-bg);
-  color: var(--text);
-  border: 1px solid var(--border-color);
-}
-
-.success-btn {
-  background: #059669;
-  color: white;
-}
+.primary-btn  { background: var(--primary); color: white; }
+.secondary-btn { background: var(--input-bg); color: var(--text); border: 1px solid var(--border-color); }
+.success-btn  { background: #059669; color: white; }
 
 .primary-btn:disabled,
 .secondary-btn:disabled,
-.success-btn:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
+.success-btn:disabled { opacity: 0.65; cursor: not-allowed; }
 
-.inline-link {
-  color: var(--secondary);
-  font-weight: 700;
-}
+.inline-link { color: var(--secondary); font-weight: 700; }
 
-@media (max-width: 900px) {
-  .summary-grid {
-    grid-template-columns: 1fr;
+/* ── Responsive ──────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .content-grid {
+    grid-template-columns: 1fr 320px;
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 860px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .side-col {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .hero-right {
+    gap: 1.25rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .page-wrap {
+    padding: 1rem 0.9rem 2rem;
+  }
+
+  .hero {
+    padding: 1.25rem;
+    gap: 1.25rem;
+  }
+
   .trade-columns {
     grid-template-columns: 1fr;
   }
 
-  .team-view {
-    padding-inline: 0.75rem;
+  .stat-value {
+    font-size: 1.6rem;
   }
 }
 </style>

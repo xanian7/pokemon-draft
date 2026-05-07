@@ -15,6 +15,8 @@ const leagueName = ref('')
 const name = ref('')
 const pin = ref('')
 const confirmPin = ref('')
+const teamName = ref('')
+const teamImageUrl = ref('')
 const error = ref('')
 const isLoading = ref(false)
 const step = ref<'form' | 'done'>('form')
@@ -41,7 +43,7 @@ async function register() {
     const res = await fetch(`${API_BASE}/leagues/${leagueCode.value}/players/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.value.trim(), pin: pin.value }),
+      body: JSON.stringify({ name: name.value.trim(), pin: pin.value, teamName: teamName.value.trim() || null, teamImageUrl: teamImageUrl.value.trim() || null }),
     })
 
     const text = await res.text()
@@ -96,6 +98,15 @@ async function register() {
             <label for="confirm">Confirm PIN</label>
             <input id="confirm" v-model="confirmPin" type="password" placeholder="Repeat PIN" />
           </div>
+          <div class="field">
+            <label for="team-name">Team Name <span class="optional">(optional)</span></label>
+            <input id="team-name" v-model="teamName" type="text" placeholder="e.g. Ash's Pokémon" />
+          </div>
+          <div class="field">
+            <label for="team-image">Team Avatar URL <span class="optional">(optional)</span></label>
+            <input id="team-image" v-model="teamImageUrl" type="url" placeholder="https://..." />
+            <span class="hint">Paste any image URL to use as your team's avatar.</span>
+          </div>
 
           <div v-if="error" class="error-msg">{{ error }}</div>
 
@@ -138,6 +149,7 @@ h1 { font-size: 1.5rem; font-weight: 800; margin-bottom: 0.75rem; }
 }
 
 .hint { font-size: 0.74rem; color: var(--text-muted); }
+.optional { color: var(--text-muted); font-size: 0.78rem; font-weight: 400; }
 
 .btn-join {
   background: var(--primary);

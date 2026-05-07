@@ -27,6 +27,8 @@ const authStore = useAuthStore()
       <RouterLink v-if="authStore.isAuthenticated" to="/team">
         My Team
       </RouterLink>
+      <RouterLink v-if="authStore.isAuthenticated" to="/schedule">Schedule</RouterLink>
+      <RouterLink v-if="authStore.isAuthenticated" to="/settings">Settings</RouterLink>
       <RouterLink v-if="authStore.isAuthenticated" to="/draft" class="draft-link">
         Draft Board
       </RouterLink>

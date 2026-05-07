@@ -14,9 +14,11 @@ public record SetPointValuesRequest(Dictionary<int, int> Values);
 
 public record MakePickRequest(string PlayerId, string Pin, int PokemonId);
 
-public record RegisterPlayerRequest(string Name, string Pin);
+public record RegisterPlayerRequest(string Name, string Pin, string? TeamName, string? TeamImageUrl);
 
 public record JoinRequest(string LeagueCode, string Pin);
+
+public record UpdatePlayerProfileRequest(string PlayerId, string Pin, string? TeamName, string? TeamImageUrl);
 
 public record ProposeTradeRequest(string InitiatorPlayerId, string InitiatorPin, string TargetPlayerId, List<int> OfferingPokemonIds, List<int> RequestingPokemonIds);
 
@@ -24,9 +26,12 @@ public record RespondTradeRequest(string PlayerId, string Pin);
 
 public record RosterChangeRequest(string PlayerId, string Pin, int PokemonId);
 
+public record ReportMatchupRequest(string PlayerId, string Pin, int Player1Wins, int Player2Wins);
+public record EditMatchupRequest(string AdminPin, int Player1Wins, int Player2Wins);
+
 // --- Responses ---
 
-public record JoinResponse(string PlayerId, string PlayerName, bool IsAdmin, string LeagueCode);
+public record JoinResponse(string PlayerId, string PlayerName, bool IsAdmin, string LeagueCode, string TeamName, string TeamImageUrl);
 
 public record LeagueResponse(
     string Code,
@@ -39,7 +44,7 @@ public record LeagueResponse(
     DraftStateResponse Draft
 );
 
-public record PlayerResponse(string Id, string Name);
+public record PlayerResponse(string Id, string Name, string TeamName, string TeamImageUrl);
 
 public record DraftStateResponse(
     string Status,
@@ -62,3 +67,18 @@ public record TradeResponse(
 );
 
 public record TradeItemResponse(string FromPlayerId, int PokemonId);
+
+public record MatchupResponse(
+    int Id, int Week,
+    string Player1Id, string Player1Name, string Player1TeamName, string Player1TeamImageUrl,
+    string Player2Id, string Player2Name, string Player2TeamName, string Player2TeamImageUrl,
+    int? Player1Wins, int? Player2Wins,
+    int? Player1MatchPoints, int? Player2MatchPoints);
+
+public record StandingRow(
+    string PlayerId, string PlayerName, string TeamName, string TeamImageUrl,
+    int Wins, int Losses, int MatchPoints, int GamesWon, int GamesLost);
+
+public record WeekGroup(int Week, List<MatchupResponse> Matchups);
+
+public record ScheduleResponse(List<WeekGroup> Weeks, List<StandingRow> Standings);

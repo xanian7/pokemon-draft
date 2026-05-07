@@ -34,8 +34,10 @@ public interface ILeagueService
     /// <param name="leagueCode">The league code.</param>
     /// <param name="name">Desired player name (must be unique).</param>
     /// <param name="pin">Plain-text PIN chosen by the player (must be unique within the league).</param>
+    /// <param name="teamName">Optional team display name.</param>
+    /// <param name="teamImageUrl">Optional team avatar URL.</param>
     /// <returns>The created <see cref="Player"/> and a <see langword="null"/> error on success, or a <see langword="null"/> player and an error message on failure.</returns>
-    (Player? player, string? error) RegisterPlayer(string leagueCode, string name, string pin);
+    (Player? player, string? error) RegisterPlayer(string leagueCode, string name, string pin, string? teamName = null, string? teamImageUrl = null);
 
     /// <summary>Adds a player to the league (admin-managed).</summary>
     /// <param name="leagueCode">The league code.</param>
@@ -78,8 +80,20 @@ public interface ILeagueService
     /// <param name="playerId">ID of the player making the pick.</param>
     /// <param name="pin">Plain-text PIN to authenticate the player.</param>
     /// <param name="pokemonId">ID of the Pokémon to draft.</param>
-    /// <returns><see langword="true"/> and a <see langword="null"/> error on success; <see langword="false"/> and an error message on failure.</returns>
-    (bool success, string? error) MakePick(string leagueCode, string playerId, string pin, int pokemonId);
+    /// <returns><see langword="true"/>, a <see langword="null"/> error, and whether the draft just completed; <see langword="false"/>, an error message, and <see langword="false"/> on failure.</returns>
+    (bool success, string? error, bool draftCompleted) MakePick(string leagueCode, string playerId, string pin, int pokemonId);
+
+    /// <summary>Generates round-robin schedule. Called automatically when draft completes.</summary>
+    void GenerateSchedule(string leagueCode);
+
+    /// <summary>Returns full schedule and current standings.</summary>
+    ScheduleResponse? GetSchedule(string leagueCode);
+
+    /// <summary>Reports match result. Only a player in the matchup can report.</summary>
+    (bool success, string? error) ReportMatchup(string leagueCode, int matchupId, string playerId, string pin, int player1Wins, int player2Wins);
+
+    /// <summary>Commissioner override — edits any matchup score using the admin PIN.</summary>
+    (bool success, string? error) EditMatchup(string leagueCode, int matchupId, string adminPin, int player1Wins, int player2Wins);
 
     /// <summary>Drops a Pokémon from a player's roster (post-draft roster management).</summary>
     /// <param name="leagueCode">The league code.</param>
@@ -122,6 +136,9 @@ public interface ILeagueService
     /// <param name="response">The desired new status (<see cref="TradeStatus.Accepted"/>, <see cref="TradeStatus.Rejected"/>, or <see cref="TradeStatus.Cancelled"/>).</param>
     /// <returns><see langword="true"/> and a <see langword="null"/> error on success; <see langword="false"/> and an error message on failure.</returns>
     (bool success, string? error) RespondToTrade(string leagueCode, int tradeId, string playerId, string pin, TradeStatus response);
+
+    /// <summary>Updates a player's team name and/or avatar image URL.</summary>
+    (bool success, string? error) UpdatePlayerProfile(string leagueCode, string playerId, string pin, string? teamName, string? teamImageUrl);
 
     /// <summary>Projects a <see cref="League"/> to a <see cref="LeagueResponse"/> suitable for sending to clients.</summary>
     /// <param name="league">The league to project.</param>

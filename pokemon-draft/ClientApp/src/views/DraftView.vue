@@ -59,7 +59,7 @@ const currentRound = computed(() => {
 // All remaining picks (snake draft order), grouped by round
 const upcomingPicks = computed(() => {
   if (!league.value || draftStatus.value !== 'Active') return []
-  const players = league.value.players as Array<{ id: string; name: string }>
+  const players = league.value.players as Array<{ id: string; name: string; teamName: string; teamImageUrl: string }>
   const n = players.length
   if (n === 0) return []
   const totalPicks = n * league.value.rounds
@@ -72,7 +72,7 @@ const upcomingPicks = computed(() => {
     const player = players[idx]
     return {
       playerId: player.id,
-      playerName: player.name,
+      playerName: player.teamName || player.name,
       isMe: player.id === authStore.playerId,
       isCurrent: i === 0,
       pickNumber: pickNumber + 1,
@@ -311,7 +311,7 @@ function closeDetail() {
           >
             <div class="team-header">
               <span class="team-name">
-                {{ league.players.find((p: any) => p.id === authStore.playerId)?.name }}
+                {{ (league.players.find((p: any) => p.id === authStore.playerId) as any)?.teamName || league.players.find((p: any) => p.id === authStore.playerId)?.name }}
               </span>
               <span class="team-points">
                 {{ getPlayerPoints(authStore.playerId) }}
@@ -345,7 +345,18 @@ function closeDetail() {
             class="team-header team-toggle"
             @click="toggleExpanded(player.id)"
           >
-            <span class="team-name">{{ player.name }}</span>
+            <div class="team-avatar-sm">
+              <img
+                v-if="(player as any).teamImageUrl"
+                :src="(player as any).teamImageUrl"
+                :alt="(player as any).teamName || player.name"
+                class="team-avatar-img"
+              />
+              <div v-else class="team-avatar-initials">
+                {{ ((player as any).teamName || player.name).split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) }}
+              </div>
+            </div>
+            <span class="team-name">{{ (player as any).teamName || player.name }}</span>
             <span class="team-points">
               {{ getPlayerPoints(player.id) }}
               <span v-if="league.pointLimit > 0"> / {{ league.pointLimit }}</span>
@@ -809,6 +820,33 @@ select {
   align-items: center;
   padding: 0.45rem 0.65rem;
   background: var(--input-bg);
+}
+
+.team-avatar-sm {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  margin-right: 0.4rem;
+}
+
+.team-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.team-avatar-initials {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(59, 76, 202, 0.25);
+  color: #a5b4fc;
+  font-size: 0.6rem;
+  font-weight: 800;
 }
 
 .team-toggle {

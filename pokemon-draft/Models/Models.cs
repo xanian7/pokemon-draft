@@ -16,6 +16,7 @@ public class League
     public List<DraftPick> Picks { get; set; } = [];
     public List<PokemonPointValue> PointValues { get; set; } = [];
     public List<Trade> Trades { get; set; } = [];
+    public List<Matchup> Matchups { get; set; } = [];
 }
 
 public class Player
@@ -25,6 +26,8 @@ public class Player
     public League League { get; set; } = null!;
     public int SortOrder { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string TeamName { get; set; } = string.Empty;
+    public string TeamImageUrl { get; set; } = string.Empty;
     public string Pin { get; set; } = string.Empty;
 }
 
@@ -67,6 +70,20 @@ public class TradeItem
     public Trade Trade { get; set; } = null!;
     public string FromPlayerId { get; set; } = string.Empty;
     public int PokemonId { get; set; }
+}
+
+public class Matchup
+{
+    public int Id { get; set; }
+    public string LeagueCode { get; set; } = string.Empty;
+    public League League { get; set; } = null!;
+    public int Week { get; set; }
+    public string Player1Id { get; set; } = string.Empty;
+    public string Player2Id { get; set; } = string.Empty;
+    public int? Player1Wins { get; set; }
+    public int? Player2Wins { get; set; }
+    public string? ReportedByPlayerId { get; set; }
+    public DateTime? ReportedAt { get; set; }
 }
 
 public enum DraftStatus

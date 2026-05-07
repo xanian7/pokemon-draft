@@ -30,7 +30,12 @@ export const useLeagueStore = defineStore('league', () => {
   function addPlayer(name: string) {
     const trimmed = name.trim()
     if (!trimmed) return
-    config.value.players.push({ id: crypto.randomUUID(), name: trimmed })
+    config.value.players.push({
+      id: crypto.randomUUID(),
+      name: trimmed,
+      teamName: '',
+      teamImageUrl: '',
+    })
     save()
   }
 

@@ -13,6 +13,7 @@ public class DraftDbContext : DbContext
     public DbSet<PokemonPointValue> PointValues { get; set; }
     public DbSet<Trade> Trades { get; set; }
     public DbSet<TradeItem> TradeItems { get; set; }
+    public DbSet<Matchup> Matchups { get; set; }
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -29,6 +30,9 @@ public class DraftDbContext : DbContext
         model.Entity<League>()
             .HasMany(l => l.Trades).WithOne(t => t.League)
             .HasForeignKey(t => t.LeagueCode).OnDelete(DeleteBehavior.Cascade);
+        model.Entity<League>()
+            .HasMany(l => l.Matchups).WithOne(m => m.League)
+            .HasForeignKey(m => m.LeagueCode).OnDelete(DeleteBehavior.Cascade);
         model.Entity<Trade>()
             .HasMany(t => t.Items).WithOne(i => i.Trade)
             .HasForeignKey(i => i.TradeId).OnDelete(DeleteBehavior.Cascade);

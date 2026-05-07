@@ -45,6 +45,16 @@ const router = createRouter({
       component: () => import('../views/MyTeamView.vue'),
     },
     {
+      path: '/schedule',
+      name: 'schedule',
+      component: () => import('../views/ScheduleView.vue'),
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('../views/SettingsView.vue'),
+    },
+    {
       path: '/team/manage',
       name: 'team-manage',
       component: () => import('../views/RosterView.vue'),

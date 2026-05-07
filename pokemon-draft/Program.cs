@@ -33,7 +33,46 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
-    scope.ServiceProvider.GetRequiredService<DraftDbContext>().Database.EnsureCreated();
+{
+    var db = scope.ServiceProvider.GetRequiredService<DraftDbContext>();
+    db.Database.EnsureCreated();
+
+    var conn = db.Database.GetDbConnection();
+    conn.Open();
+    foreach (var colDef in new[] { "TeamName TEXT NOT NULL DEFAULT ''", "TeamImageUrl TEXT NOT NULL DEFAULT ''" })
+    {
+        try
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = $"ALTER TABLE Players ADD COLUMN {colDef}";
+            cmd.ExecuteNonQuery();
+        }
+        catch { }
+    }
+
+    try
+    {
+        using var cmd2 = conn.CreateCommand();
+        cmd2.CommandText = """
+            CREATE TABLE IF NOT EXISTS Matchups (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                LeagueCode TEXT NOT NULL,
+                Week INTEGER NOT NULL,
+                Player1Id TEXT NOT NULL,
+                Player2Id TEXT NOT NULL,
+                Player1Wins INTEGER,
+                Player2Wins INTEGER,
+                ReportedByPlayerId TEXT,
+                ReportedAt TEXT,
+                FOREIGN KEY (LeagueCode) REFERENCES Leagues(Code) ON DELETE CASCADE
+            )
+            """;
+        cmd2.ExecuteNonQuery();
+    }
+    catch { }
+
+    conn.Close();
+}
 
 app.UseCors();
 
@@ -147,7 +186,7 @@ app.MapPost("/api/leagues/{code}/players/register", async (
     if (string.IsNullOrWhiteSpace(req.Name) || string.IsNullOrWhiteSpace(req.Pin))
         return Results.BadRequest("Name and PIN are required.");
 
-    var (player, error) = svc.RegisterPlayer(code, req.Name.Trim(), req.Pin);
+    var (player, error) = svc.RegisterPlayer(code, req.Name.Trim(), req.Pin, req.TeamName, req.TeamImageUrl);
     if (player is null) return Results.BadRequest(error);
 
     await BroadcastLeague(hub, svc, code);
@@ -219,8 +258,9 @@ app.MapPost("/api/leagues/{code}/draft/pick", async (
     string code, MakePickRequest req,
     ILeagueService svc, IHubContext<DraftHub> hub) =>
 {
-    var (success, error) = svc.MakePick(code, req.PlayerId, req.Pin, req.PokemonId);
+    var (success, error, draftCompleted) = svc.MakePick(code, req.PlayerId, req.Pin, req.PokemonId);
     if (!success) return Results.BadRequest(error);
+    if (draftCompleted) svc.GenerateSchedule(code);
     await BroadcastLeague(hub, svc, code);
     return Results.Ok();
 });
@@ -287,6 +327,44 @@ app.MapPost("/api/leagues/{code}/trades/{tradeId}/cancel", async (
     var (success, error) = svc.RespondToTrade(code, tradeId, req.PlayerId, req.Pin, PokemonDraft.Models.TradeStatus.Cancelled);
     if (!success) return Results.BadRequest(error);
     await BroadcastLeague(hub, svc, code);
+    return Results.Ok();
+});
+
+// Player profile
+app.MapPatch("/api/leagues/{code}/players/{playerId}/profile", async (
+    string code, string playerId, UpdatePlayerProfileRequest req,
+    ILeagueService svc, IHubContext<DraftHub> hub) =>
+{
+    var (success, error) = svc.UpdatePlayerProfile(code, playerId, req.Pin, req.TeamName, req.TeamImageUrl);
+    if (!success) return Results.BadRequest(error);
+    await BroadcastLeague(hub, svc, code);
+    return Results.Ok();
+});
+
+// Schedule
+app.MapGet("/api/leagues/{code}/schedule", (string code, ILeagueService svc) =>
+{
+    var schedule = svc.GetSchedule(code);
+    return schedule is null ? Results.NotFound() : Results.Ok(schedule);
+});
+
+app.MapPost("/api/leagues/{code}/schedule/{matchupId}/report", async (
+    string code, int matchupId, ReportMatchupRequest req,
+    ILeagueService svc, IHubContext<DraftHub> hub) =>
+{
+    var (success, error) = svc.ReportMatchup(code, matchupId, req.PlayerId, req.Pin, req.Player1Wins, req.Player2Wins);
+    if (!success) return Results.BadRequest(error);
+    await hub.Clients.Group(code.ToUpperInvariant()).SendAsync("ScheduleUpdate", svc.GetSchedule(code));
+    return Results.Ok();
+});
+
+app.MapPatch("/api/leagues/{code}/schedule/{matchupId}/edit", async (
+    string code, int matchupId, EditMatchupRequest req,
+    ILeagueService svc, IHubContext<DraftHub> hub) =>
+{
+    var (success, error) = svc.EditMatchup(code, matchupId, req.AdminPin, req.Player1Wins, req.Player2Wins);
+    if (!success) return Results.BadRequest(error);
+    await hub.Clients.Group(code.ToUpperInvariant()).SendAsync("ScheduleUpdate", svc.GetSchedule(code));
     return Results.Ok();
 });
 

@@ -11,6 +11,8 @@ export interface Pokemon {
 export interface LeaguePlayer {
   id: string
   name: string
+  teamName: string
+  teamImageUrl: string
 }
 
 export interface DraftPick {
@@ -37,3 +39,42 @@ export interface Trade {
 }
 
 export type DraftStatus = 'setup' | 'active' | 'complete'
+
+export interface MatchupResponse {
+  id: number
+  week: number
+  player1Id: string
+  player1Name: string
+  player1TeamName: string
+  player1TeamImageUrl: string
+  player2Id: string
+  player2Name: string
+  player2TeamName: string
+  player2TeamImageUrl: string
+  player1Wins: number | null
+  player2Wins: number | null
+  player1MatchPoints: number | null
+  player2MatchPoints: number | null
+}
+
+export interface StandingRow {
+  playerId: string
+  playerName: string
+  teamName: string
+  teamImageUrl: string
+  wins: number
+  losses: number
+  matchPoints: number
+  gamesWon: number
+  gamesLost: number
+}
+
+export interface WeekGroup {
+  week: number
+  matchups: MatchupResponse[]
+}
+
+export interface ScheduleData {
+  weeks: WeekGroup[]
+  standings: StandingRow[]
+}

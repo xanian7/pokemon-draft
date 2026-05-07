@@ -75,7 +75,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     }
 
     /// <inheritdoc/>
-    public (Player? player, string? error) RegisterPlayer(string leagueCode, string name, string pin)
+    public (Player? player, string? error) RegisterPlayer(string leagueCode, string name, string pin, string? teamName = null, string? teamImageUrl = null)
     {
         var league = LoadLeague(leagueCode);
         if (league is null)
@@ -97,6 +97,8 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             Name = trimmedName,
             Pin = BC.HashPassword(pin),
             SortOrder = orderedPlayers.Count,
+            TeamName = teamName?.Trim() ?? string.Empty,
+            TeamImageUrl = teamImageUrl?.Trim() ?? string.Empty,
         };
 
         league.Players.Add(player);
@@ -183,14 +185,14 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             var commissioner = GetOrderedPlayers(league).FirstOrDefault(p => p.Id == league.CommissionerPlayerId);
             var name = commissioner?.Name ?? "Commissioner";
             var playerId = commissioner?.Id ?? "admin";
-            return new JoinResponse(playerId, name, true, league.Code);
+            return new JoinResponse(playerId, name, true, league.Code, commissioner?.TeamName ?? string.Empty, commissioner?.TeamImageUrl ?? string.Empty);
         }
 
         var player = GetOrderedPlayers(league)
             .FirstOrDefault(p => p.Id != league.CommissionerPlayerId && BC.Verify(pin, p.Pin));
         if (player is null) return null;
 
-        return new JoinResponse(player.Id, player.Name, false, league.Code);
+        return new JoinResponse(player.Id, player.Name, false, league.Code, player.TeamName, player.TeamImageUrl);
     }
 
     /// <inheritdoc/>
@@ -201,7 +203,9 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (league.Players.Count < 2) return false;
 
         db.Picks.RemoveRange(league.Picks);
+        db.Matchups.RemoveRange(league.Matchups);
         league.Picks.Clear();
+        league.Matchups.Clear();
         league.DraftStatus = DraftStatus.Active;
         league.CurrentPickNumber = 0;
         db.SaveChanges();
@@ -215,7 +219,9 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (league is null) return false;
 
         db.Picks.RemoveRange(league.Picks);
+        db.Matchups.RemoveRange(league.Matchups);
         league.Picks.Clear();
+        league.Matchups.Clear();
         league.DraftStatus = DraftStatus.Setup;
         league.CurrentPickNumber = 0;
         db.SaveChanges();
@@ -223,29 +229,30 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     }
 
     /// <inheritdoc/>
-    public (bool success, string? error) MakePick(string leagueCode, string playerId, string pin, int pokemonId)
+    public (bool success, string? error, bool draftCompleted) MakePick(string leagueCode, string playerId, string pin, int pokemonId)
     {
         var league = LoadLeague(leagueCode);
         if (league is null)
-            return (false, "League not found.");
+            return (false, "League not found.", false);
 
         if (league.DraftStatus != DraftStatus.Active)
-            return (false, "Draft is not active.");
+            return (false, "Draft is not active.", false);
 
         var orderedPlayers = GetOrderedPlayers(league);
         var player = orderedPlayers.FirstOrDefault(p => p.Id == playerId);
         if (player is null || !BC.Verify(pin, player.Pin))
-            return (false, "Invalid player or PIN.");
+            return (false, "Invalid player or PIN.", false);
 
         var expectedPickerId = GetPlayerIdAtPick(league, league.CurrentPickNumber);
         if (expectedPickerId != playerId)
-            return (false, "It is not your turn.");
+            return (false, "It is not your turn.", false);
 
         if (league.Picks.Any(p => p.PokemonId == pokemonId))
-            return (false, "That Pokémon has already been drafted.");
+            return (false, "That Pokémon has already been drafted.", false);
 
         var totalPicks = orderedPlayers.Count * league.Rounds;
         var round = league.CurrentPickNumber / orderedPlayers.Count;
+        var justCompleted = false;
 
         league.Picks.Add(new DraftPick
         {
@@ -258,10 +265,13 @@ public class LeagueService(DraftDbContext db) : ILeagueService
 
         league.CurrentPickNumber++;
         if (league.CurrentPickNumber >= totalPicks)
+        {
             league.DraftStatus = DraftStatus.Complete;
+            justCompleted = true;
+        }
 
         db.SaveChanges();
-        return (true, null);
+        return (true, null, justCompleted);
     }
 
     /// <inheritdoc/>
@@ -285,7 +295,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             PointLimit: league.PointLimit,
             Rounds: league.Rounds,
             RegulationSet: league.RegulationSet,
-            Players: players.Select(p => new PlayerResponse(p.Id, p.Name)).ToList(),
+            Players: players.Select(p => new PlayerResponse(p.Id, p.Name, p.TeamName, p.TeamImageUrl)).ToList(),
             PointValues: league.PointValues.ToDictionary(pv => pv.PokemonId, pv => pv.Value),
             Draft: new DraftStateResponse(
                 Status: league.DraftStatus.ToString(),
@@ -298,6 +308,239 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         );
     }
 
+    /// <inheritdoc/>
+    public void GenerateSchedule(string leagueCode)
+    {
+        var league = LoadLeague(leagueCode);
+        if (league is null) return;
+
+        db.Matchups.RemoveRange(league.Matchups);
+        league.Matchups.Clear();
+
+        var players = GetOrderedPlayers(league).Select(p => p.Id).ToList();
+        if (players.Count < 2)
+        {
+            db.SaveChanges();
+            return;
+        }
+
+        var hasBye = players.Count % 2 == 1;
+        if (hasBye) players.Add("BYE");
+
+        var numRounds = players.Count - 1;
+        var half = players.Count / 2;
+
+        for (var round = 0; round < numRounds; round++)
+        {
+            var week = round + 1;
+            for (var i = 0; i < half; i++)
+            {
+                var p1 = players[i];
+                var p2 = players[players.Count - 1 - i];
+                if (p1 == "BYE" || p2 == "BYE") continue;
+
+                league.Matchups.Add(new Matchup
+                {
+                    LeagueCode = league.Code,
+                    Week = week,
+                    Player1Id = p1,
+                    Player2Id = p2,
+                });
+            }
+
+            var last = players[^1];
+            players.RemoveAt(players.Count - 1);
+            players.Insert(1, last);
+        }
+
+        db.SaveChanges();
+    }
+
+    /// <inheritdoc/>
+    public ScheduleResponse? GetSchedule(string leagueCode)
+    {
+        var league = LoadLeague(leagueCode);
+        if (league is null) return null;
+
+        var players = GetOrderedPlayers(league).ToDictionary(p => p.Id);
+
+        static (int mp1, int mp2) CalcMatchPoints(int? p1w, int? p2w)
+        {
+            if (p1w is null || p2w is null) return (0, 0);
+            if (p1w == 2 && p2w == 0) return (3, 0);
+            if (p1w == 0 && p2w == 2) return (0, 3);
+            if (p1w == 2) return (2, 1);
+            if (p2w == 2) return (1, 2);
+            return (0, 0);
+        }
+
+        MatchupResponse ToMatchupResponse(Matchup matchup)
+        {
+            players.TryGetValue(matchup.Player1Id, out var player1);
+            players.TryGetValue(matchup.Player2Id, out var player2);
+
+            int? player1MatchPoints = null;
+            int? player2MatchPoints = null;
+            if (matchup.Player1Wins.HasValue && matchup.Player2Wins.HasValue)
+            {
+                var (mp1, mp2) = CalcMatchPoints(matchup.Player1Wins, matchup.Player2Wins);
+                player1MatchPoints = mp1;
+                player2MatchPoints = mp2;
+            }
+
+            return new MatchupResponse(
+                matchup.Id,
+                matchup.Week,
+                matchup.Player1Id,
+                player1?.Name ?? "Unknown",
+                player1?.TeamName ?? string.Empty,
+                player1?.TeamImageUrl ?? string.Empty,
+                matchup.Player2Id,
+                player2?.Name ?? "Unknown",
+                player2?.TeamName ?? string.Empty,
+                player2?.TeamImageUrl ?? string.Empty,
+                matchup.Player1Wins,
+                matchup.Player2Wins,
+                player1MatchPoints,
+                player2MatchPoints);
+        }
+
+        var completedMatchups = league.Matchups.Where(m => m.Player1Wins.HasValue && m.Player2Wins.HasValue).ToList();
+
+        var weeks = league.Matchups
+            .OrderBy(m => m.Week)
+            .ThenBy(m => m.Id)
+            .GroupBy(m => m.Week)
+            .Select(g => new WeekGroup(g.Key, g.Select(ToMatchupResponse).ToList()))
+            .ToList();
+
+        var standings = players.Values
+            .Select(player =>
+            {
+                var wins = 0;
+                var losses = 0;
+                var matchPoints = 0;
+                var gamesWon = 0;
+                var gamesLost = 0;
+
+                foreach (var matchup in completedMatchups.Where(m => m.Player1Id == player.Id || m.Player2Id == player.Id))
+                {
+                    var (player1MatchPoints, player2MatchPoints) = CalcMatchPoints(matchup.Player1Wins, matchup.Player2Wins);
+                    if (matchup.Player1Id == player.Id)
+                    {
+                        matchPoints += player1MatchPoints;
+                        gamesWon += matchup.Player1Wins!.Value;
+                        gamesLost += matchup.Player2Wins!.Value;
+                        if (matchup.Player1Wins > matchup.Player2Wins) wins++; else losses++;
+                    }
+                    else
+                    {
+                        matchPoints += player2MatchPoints;
+                        gamesWon += matchup.Player2Wins!.Value;
+                        gamesLost += matchup.Player1Wins!.Value;
+                        if (matchup.Player2Wins > matchup.Player1Wins) wins++; else losses++;
+                    }
+                }
+
+                return new StandingRow(
+                    player.Id,
+                    player.Name,
+                    player.TeamName,
+                    player.TeamImageUrl,
+                    wins,
+                    losses,
+                    matchPoints,
+                    gamesWon,
+                    gamesLost);
+            })
+            .OrderByDescending(s => s.MatchPoints)
+            .ThenByDescending(s => s.Wins)
+            .ThenByDescending(s => s.GamesWon - s.GamesLost)
+            .ToList();
+
+        return new ScheduleResponse(weeks, standings);
+    }
+
+    /// <inheritdoc/>
+    public (bool success, string? error) ReportMatchup(string leagueCode, int matchupId, string playerId, string pin, int player1Wins, int player2Wins)
+    {
+        var league = LoadLeague(leagueCode);
+        if (league is null) return (false, "League not found.");
+
+        var matchup = league.Matchups.FirstOrDefault(m => m.Id == matchupId);
+        if (matchup is null) return (false, "Matchup not found.");
+
+        if (matchup.Player1Id != playerId && matchup.Player2Id != playerId)
+            return (false, "You are not in this matchup.");
+
+        if (matchup.Player1Wins.HasValue || matchup.Player2Wins.HasValue)
+            return (false, "This matchup has already been reported.");
+
+        var player = GetOrderedPlayers(league).FirstOrDefault(p => p.Id == playerId);
+        if (player is null || !BC.Verify(pin, player.Pin))
+            return (false, "Invalid PIN.");
+
+        if (player1Wins < 0 || player2Wins < 0 || player1Wins > 2 || player2Wins > 2)
+            return (false, "Wins must be between 0 and 2.");
+        if (player1Wins + player2Wins > 3)
+            return (false, "A best-of-3 cannot exceed 3 total games.");
+        if (player1Wins != 2 && player2Wins != 2)
+            return (false, "One player must have 2 wins.");
+        if (player1Wins == 2 && player2Wins == 2)
+            return (false, "Both players cannot have 2 wins.");
+
+        matchup.Player1Wins = player1Wins;
+        matchup.Player2Wins = player2Wins;
+        matchup.ReportedByPlayerId = playerId;
+        matchup.ReportedAt = DateTime.UtcNow;
+        db.SaveChanges();
+        return (true, null);
+    }
+
+    /// <inheritdoc/>
+    public (bool success, string? error) EditMatchup(string leagueCode, int matchupId, string adminPin, int player1Wins, int player2Wins)
+    {
+        var league = LoadLeague(leagueCode);
+        if (league is null) return (false, "League not found.");
+
+        if (!BC.Verify(adminPin, league.AdminPin))
+            return (false, "Invalid admin PIN.");
+
+        var matchup = league.Matchups.FirstOrDefault(m => m.Id == matchupId);
+        if (matchup is null) return (false, "Matchup not found.");
+
+        if (player1Wins < 0 || player2Wins < 0 || player1Wins > 2 || player2Wins > 2)
+            return (false, "Wins must be between 0 and 2.");
+        if (player1Wins + player2Wins > 3)
+            return (false, "A best-of-3 cannot exceed 3 total games.");
+        if (player1Wins != 2 && player2Wins != 2)
+            return (false, "One player must have 2 wins.");
+        if (player1Wins == 2 && player2Wins == 2)
+            return (false, "Both players cannot have 2 wins.");
+
+        matchup.Player1Wins = player1Wins;
+        matchup.Player2Wins = player2Wins;
+        matchup.ReportedAt = DateTime.UtcNow;
+        db.SaveChanges();
+        return (true, null);
+    }
+
+    /// <inheritdoc/>
+    public (bool success, string? error) UpdatePlayerProfile(string leagueCode, string playerId, string pin, string? teamName, string? teamImageUrl)
+    {
+        var league = LoadLeague(leagueCode);
+        if (league is null) return (false, "League not found.");
+
+        var player = GetOrderedPlayers(league).FirstOrDefault(p => p.Id == playerId);
+        if (player is null || !BC.Verify(pin, player.Pin))
+            return (false, "Invalid player or PIN.");
+
+        if (teamName is not null) player.TeamName = teamName.Trim();
+        if (teamImageUrl is not null) player.TeamImageUrl = teamImageUrl.Trim();
+        db.SaveChanges();
+        return (true, null);
+    }
+
     private League? LoadLeague(string code)
     {
         var normalizedCode = NormalizeLeagueCode(code);
@@ -306,6 +549,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             .Include(l => l.Picks)
             .Include(l => l.PointValues)
             .Include(l => l.Trades).ThenInclude(t => t.Items)
+            .Include(l => l.Matchups)
             .FirstOrDefault(l => l.Code == normalizedCode);
 
         if (league is null) return null;
@@ -313,6 +557,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         league.Players = league.Players.OrderBy(p => p.SortOrder).ToList();
         league.Picks = league.Picks.OrderBy(p => p.PickNumber).ToList();
         league.PointValues = league.PointValues.OrderBy(p => p.PokemonId).ToList();
+        league.Matchups = league.Matchups.OrderBy(m => m.Week).ThenBy(m => m.Id).ToList();
         return league;
     }
 

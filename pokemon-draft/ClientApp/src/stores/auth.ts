@@ -9,6 +9,8 @@ interface Session {
   playerName: string
   isAdmin: boolean
   pin: string
+  teamName: string
+  teamImageUrl: string
 }
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:5050/api' : '/api'
@@ -55,6 +57,8 @@ export const useAuthStore = defineStore('auth', () => {
         playerName: data.playerName,
         isAdmin: data.isAdmin,
         pin: pin.trim(),
+        teamName: data.teamName ?? '',
+        teamImageUrl: data.teamImageUrl ?? '',
       })
       return null
     } catch {
@@ -68,6 +72,35 @@ export const useAuthStore = defineStore('auth', () => {
   const playerName = computed(() => session.value?.playerName ?? null)
   const isAdmin = computed(() => session.value?.isAdmin ?? false)
   const pin = computed(() => session.value?.pin ?? '')
+  const teamName = computed(() => session.value?.teamName ?? '')
+  const teamImageUrl = computed(() => session.value?.teamImageUrl ?? '')
+
+  async function updateProfile(teamName: string, teamImageUrl: string): Promise<string | null> {
+    if (!session.value) return 'Not logged in.'
+    try {
+      const res = await fetch(
+        `${API_BASE}/leagues/${session.value.leagueCode}/players/${session.value.playerId}/profile`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            playerId: session.value.playerId,
+            pin: session.value.pin,
+            teamName: teamName || null,
+            teamImageUrl: teamImageUrl || null,
+          }),
+        },
+      )
+      if (!res.ok) {
+        const text = await res.text()
+        return text || 'Failed to update profile.'
+      }
+      saveSession({ ...session.value, teamName, teamImageUrl })
+      return null
+    } catch {
+      return 'Could not connect to server.'
+    }
+  }
 
   loadSession()
 
@@ -79,7 +112,10 @@ export const useAuthStore = defineStore('auth', () => {
     playerName,
     isAdmin,
     pin,
+    teamName,
+    teamImageUrl,
     join,
+    updateProfile,
     clearSession,
     saveSession,
   }
