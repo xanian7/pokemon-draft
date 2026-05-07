@@ -797,4 +797,5 @@ function filteredMoves(moves: MoveEntry[]): MoveEntry[] {
   color: var(--text-muted);
   font-style: italic;
 }
+
 </style>
