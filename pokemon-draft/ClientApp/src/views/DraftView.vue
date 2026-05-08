@@ -72,9 +72,9 @@ const upcomingPicks = computed(() => {
     const idx = round % 2 === 0 ? posInRound : n - 1 - posInRound
     const player = players[idx]
     return {
-      playerId: player.id,
-      playerName: player.teamName || player.name,
-      isMe: player.id === authStore.playerId,
+      playerId: player?.id,
+      playerName: player?.teamName || player?.name,
+      isMe: player?.id === authStore.playerId,
       isCurrent: i === 0,
       pickNumber: pickNumber + 1,
       round: round + 1,
@@ -235,7 +235,7 @@ function closeDetail() {
             <div class="connection-badge" :class="isConnected ? 'live' : 'offline'">
               {{ isConnected ? '● Live' : '○ Disconnected' }}
             </div>
-            
+
           </div>
           <div class="draft-queue">
             <template v-for="(group, gi) in picksByRound" :key="group.round">
