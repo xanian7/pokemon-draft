@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.FileProviders;
 using PokemonDraft.Data;
 using PokemonDraft.DTOs;
@@ -10,10 +9,41 @@ using PokemonDraft.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Azure Files (SMB) does not support mmap() or POSIX advisory locks, which
+// SQLite requires for WAL mode and for normal per-operation write locking.
+// Solution: open the database with nolock=1 (URI parameter that tells SQLite
+// to skip all OS-level file locking) and use DELETE journal mode (no mmap).
+// This is safe for a single-container deployment — there is only ever one
+// process accessing the file.
+var rawCs = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=draft.db";
+var dbPath = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(rawCs).DataSource;
+
+// Remove stale WAL artefacts before opening. If the DB header says WAL mode
+// and the -wal/-shm files exist, SQLite will attempt WAL recovery (needs
+// mmap) even with nolock=1.
+foreach (var ext in new[] { "-wal", "-shm" })
+    try { if (File.Exists(dbPath + ext)) File.Delete(dbPath + ext); } catch { }
+
+// Use a URI connection string so we can pass nolock=1.
+// "file:" prefix + absolute path + URI query parameters.
+var noLockCs = $"Data Source=file:{dbPath}?nolock=1&mode=rwc";
+
+// Open ONE connection for the entire app lifetime. With nolock=1 SQLite
+// skips all fcntl/flock calls, so Azure Files can't block us. We then
+// permanently switch the on-disk journal mode to DELETE so WAL mmap is
+// never attempted again.
+var sharedConnection = new Microsoft.Data.Sqlite.SqliteConnection(noLockCs);
+sharedConnection.Open();
+using (var p = sharedConnection.CreateCommand())
+{
+    p.CommandText = "PRAGMA journal_mode=DELETE;";
+    p.ExecuteNonQuery();
+}
+
 builder.Services.AddDbContext<DraftDbContext>(opts =>
 {
-    opts.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
-    opts.AddInterceptors(new SqlitePragmaInterceptor());
+    // Pass the open connection — EF Core reuses it and never closes it.
+    opts.UseSqlite(sharedConnection);
 });
 builder.Services.AddScoped<ILeagueService, LeagueService>();
 builder.Services.AddSignalR();
@@ -36,43 +66,10 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// The CI/CD pipeline explicitly stops the old container before deploying this
-// one, so there is no competing process holding the SQLite file. We still
-// delete any stale WAL artefacts that a previous (WAL-mode) container may have
-// left behind — opening a database that has orphaned WAL files requires
-// exclusive locking that Azure Files (SMB) cannot provide.
-{
-    var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
-    var cs = app.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=draft.db";
-    var dbPath = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(cs).DataSource;
-
-    foreach (var ext in new[] { "-wal", "-shm" })
-    {
-        var f = dbPath + ext;
-        if (File.Exists(f))
-        {
-            try { File.Delete(f); startupLogger.LogInformation("Deleted stale SQLite file: {File}", f); }
-            catch (Exception ex) { startupLogger.LogWarning(ex, "Could not delete stale SQLite file: {File}", f); }
-        }
-    }
-}
-
-// Initialise DB schema synchronously so tables are guaranteed to exist before
-// the first HTTP request is served.
+// Initialise DB schema using the already-open shared connection (no locking
+// issues — nolock=1 is in effect and journal mode is already DELETE).
 {
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
-    var cs = app.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=draft.db";
-
-    using var conn = new Microsoft.Data.Sqlite.SqliteConnection(cs);
-    conn.Open();
-
-    using (var p = conn.CreateCommand())
-    {
-        // A modest busy_timeout as a safety net only — there should be no
-        // contention since the old container was stopped before we started.
-        p.CommandText = "PRAGMA busy_timeout=10000;";
-        p.ExecuteNonQuery();
-    }
 
     foreach (var sql in new[]
     {
@@ -170,7 +167,7 @@ var app = builder.Build();
         @"CREATE INDEX IF NOT EXISTS ""IX_Trades_LeagueCode"" ON ""Trades"" (""LeagueCode"")",
     })
     {
-        using var cmd = conn.CreateCommand();
+        using var cmd = sharedConnection.CreateCommand();
         cmd.CommandText = sql;
         cmd.ExecuteNonQuery();
     }
@@ -180,7 +177,7 @@ var app = builder.Build();
     {
         try
         {
-            using var cmd = conn.CreateCommand();
+            using var cmd = sharedConnection.CreateCommand();
             cmd.CommandText = $"ALTER TABLE \"Players\" ADD COLUMN {colDef}";
             cmd.ExecuteNonQuery();
         }
@@ -490,25 +487,3 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.Run();
-
-// Sets PRAGMA busy_timeout and journal_mode=WAL on every SQLite connection
-// opened by EF Core so that brief lock contention during rolling deploys is
-// handled at the SQLite level without application-level retry loops.
-class SqlitePragmaInterceptor : DbConnectionInterceptor
-{
-    private const string Sql = "PRAGMA busy_timeout=60000;";
-
-    public override void ConnectionOpened(System.Data.Common.DbConnection connection, ConnectionEndEventData eventData)
-    {
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = Sql;
-        cmd.ExecuteNonQuery();
-    }
-
-    public override async Task ConnectionOpenedAsync(System.Data.Common.DbConnection connection, ConnectionEndEventData eventData, CancellationToken cancellationToken = default)
-    {
-        await using var cmd = connection.CreateCommand();
-        cmd.CommandText = Sql;
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
-    }
-}
