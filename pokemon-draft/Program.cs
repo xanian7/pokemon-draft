@@ -32,25 +32,29 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Retry EnsureCreated — during rolling deploys, both old and new containers
-// briefly share /data/draft.db, causing SQLite error 5 "database is locked".
-// Retry with backoff until the old container releases the lock.
-for (int attempt = 1; ; attempt++)
+// Run DB initialisation AFTER the HTTP server starts so Azure Container Apps
+// health probes can reach port 8080 immediately. Previously this blocked
+// startup for up to 60 s, causing the new revision to fail its health check
+// and the old revision to keep serving traffic.
+app.Lifetime.ApplicationStarted.Register(() => Task.Run(() =>
 {
-    try
+    // Retry EnsureCreated — during rolling deploys both containers briefly
+    // share /data/draft.db, causing SQLite error 5 "database is locked".
+    for (int attempt = 1; ; attempt++)
     {
-        using var initScope = app.Services.CreateScope();
-        initScope.ServiceProvider.GetRequiredService<DraftDbContext>().Database.EnsureCreated();
-        break;
+        try
+        {
+            using var initScope = app.Services.CreateScope();
+            initScope.ServiceProvider.GetRequiredService<DraftDbContext>().Database.EnsureCreated();
+            break;
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 5 && attempt < 12)
+        {
+            Thread.Sleep(TimeSpan.FromSeconds(5));
+        }
     }
-    catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 5 && attempt < 12)
-    {
-        Thread.Sleep(TimeSpan.FromSeconds(5));
-    }
-}
 
-using (var scope = app.Services.CreateScope())
-{
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<DraftDbContext>();
     var conn = db.Database.GetDbConnection();
     conn.Open();
@@ -94,7 +98,7 @@ using (var scope = app.Services.CreateScope())
     catch { }
 
     conn.Close();
-}
+}));
 
 app.UseCors();
 
