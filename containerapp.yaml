@@ -1,0 +1,31 @@
+properties:
+  configuration:
+    registries:
+      - server: REGISTRY_SERVER
+        username: REGISTRY_USERNAME
+        passwordSecretRef: registry-password
+    secrets:
+      - name: registry-password
+        value: REGISTRY_PASSWORD
+    ingress:
+      external: true
+      targetPort: 8080
+  template:
+    containers:
+      - name: pokemon-draft
+        image: IMAGE_TAG
+        resources:
+          cpu: 0.25
+          memory: 0.5Gi
+        env:
+          - name: ASPNETCORE_ENVIRONMENT
+            value: Production
+          - name: ConnectionStrings__DefaultConnection
+            value: Data Source=/data/draft.db
+        volumeMounts:
+          - mountPath: /data
+            volumeName: sqlitedata
+    volumes:
+      - name: sqlitedata
+        storageType: AzureFile
+        storageName: sqlitedata

@@ -35,11 +35,14 @@ jobs:
             ${{ secrets.ACR_NAME }}.azurecr.io/pokemon-draft:latest
 
       - name: Deploy to Container Apps
-        uses: azure/container-apps-deploy-action@v1
-        with:
-          resourceGroup: ${{ secrets.RESOURCE_GROUP }}
-          containerAppName: pokemon-draft
-          imageToDeploy: ${{ secrets.ACR_NAME }}.azurecr.io/pokemon-draft:${{ github.sha }}
-          registryUrl: ${{ secrets.ACR_NAME }}.azurecr.io
-          registryUsername: ${{ secrets.ACR_NAME }}
-          registryPassword: ${{ secrets.ACR_PASSWORD }}
+        run: |
+          IMAGE="${{ secrets.ACR_NAME }}.azurecr.io/pokemon-draft:${{ github.sha }}"
+          sed -e "s|IMAGE_TAG|$IMAGE|g" \
+              -e "s|REGISTRY_SERVER|${{ secrets.ACR_NAME }}.azurecr.io|g" \
+              -e "s|REGISTRY_USERNAME|${{ secrets.ACR_NAME }}|g" \
+              -e "s|REGISTRY_PASSWORD|${{ secrets.ACR_PASSWORD }}|g" \
+              containerapp.yaml > containerapp-deploy.yaml
+          az containerapp update \
+            --name pokemon-draft \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --yaml containerapp-deploy.yaml
