@@ -36,6 +36,19 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Set WAL journal mode once, synchronously, before HTTP server starts.
+// journal_mode=WAL requires an exclusive lock — doing it here guarantees
+// no EF Core connections exist yet, so there's no contention.
+// WAL mode is persistent on the DB file; this is a one-time setup.
+{
+    var cs = app.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=draft.db";
+    using var walConn = new Microsoft.Data.Sqlite.SqliteConnection(cs);
+    walConn.Open();
+    using var walCmd = walConn.CreateCommand();
+    walCmd.CommandText = "PRAGMA journal_mode=WAL";
+    walCmd.ExecuteNonQuery();
+}
+
 // Run DB initialisation in the background so the HTTP server starts immediately
 // and Azure Container Apps health probes can reach port 8080.
 //
@@ -56,10 +69,9 @@ app.Lifetime.ApplicationStarted.Register(() => Task.Run(() =>
             var conn = scope.ServiceProvider.GetRequiredService<DraftDbContext>().Database.GetDbConnection();
             conn.Open();
 
-            // The EF Core interceptor only fires when EF Core opens the connection
-            // internally — not when we call Open() on the raw DbConnection directly.
-            // Set pragmas explicitly here so busy_timeout and WAL are active.
-            foreach (var pragma in new[] { "PRAGMA busy_timeout=60000", "PRAGMA journal_mode=WAL" })
+            // Set busy_timeout on the raw connection (interceptor only fires
+            // for EF Core-managed connections, not raw DbConnection.Open()).
+            foreach (var pragma in new[] { "PRAGMA busy_timeout=60000" })
             {
                 using var p = conn.CreateCommand();
                 p.CommandText = pragma;
@@ -502,7 +514,7 @@ app.Run();
 // handled at the SQLite level without application-level retry loops.
 class SqlitePragmaInterceptor : DbConnectionInterceptor
 {
-    private const string Sql = "PRAGMA busy_timeout=60000; PRAGMA journal_mode=WAL;";
+    private const string Sql = "PRAGMA busy_timeout=60000;";
 
     public override void ConnectionOpened(System.Data.Common.DbConnection connection, ConnectionEndEventData eventData)
     {
