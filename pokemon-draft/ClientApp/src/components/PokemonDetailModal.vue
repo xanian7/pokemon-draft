@@ -6,16 +6,18 @@ import { formatPokemonName, TYPE_COLORS } from '@/utils/format'
 import type { Pokemon } from '@/types'
 import { mdiClose } from '@mdi/js'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   pokemon: Pokemon
   pointValue?: number
   canDraft: boolean
   isPicked: boolean
   /** Label for the primary action button. Defaults to 'Draft'. */
   actionLabel?: string
-  /** Hide the draft/picked action entirely (e.g. on the Point Values page). Defaults to true. */
+  /** Show the draft/picked action footer. Set false on non-draft screens. */
   showDraftAction?: boolean
-}>()
+}>(), {
+  showDraftAction: true,
+})
 
 const emit = defineEmits<{
   close: []
@@ -393,7 +395,7 @@ function filteredMoves(moves: MoveEntry[]): MoveEntry[] {
         <!-- Footer -->
         <div class="modal-footer">
           <button class="btn btn-secondary" @click="emit('close')">Close</button>
-          <template v-if="props.showDraftAction !== false">
+          <template v-if="props.showDraftAction">
             <span v-if="isPicked" class="already-drafted">Already Drafted</span>
             <button v-else class="btn btn-primary" :disabled="!canDraft" @click="handleDraft">
               {{ canDraft ? (actionLabel ?? 'Draft') : 'Not Your Turn' }}
