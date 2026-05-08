@@ -1,27 +1,12 @@
 import { fileURLToPath, URL } from 'node:url'
-import { execSync } from 'node:child_process'
 
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueJsx from '@vitejs/plugin-vue-jsx'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
-function getGitSha() {
-  if (process.env.VITE_GIT_SHA) {
-    return process.env.VITE_GIT_SHA.slice(0, 7)
-  }
-  try {
-    return execSync('git rev-parse --short HEAD').toString().trim()
-  } catch {
-    return 'dev'
-  }
-}
-
 // https://vite.dev/config/
 export default defineConfig({
-  define: {
-    __APP_VERSION__: JSON.stringify(getGitSha()),
-  },
   plugins: [
     vue(),
     vueJsx(),

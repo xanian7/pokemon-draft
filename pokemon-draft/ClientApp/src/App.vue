@@ -8,7 +8,7 @@ import { mdiPokeball, mdiLogout, mdiCog } from '@mdi/js'
 const authStore = useAuthStore()
 const router = useRouter()
 
-const appVersion = __APP_VERSION__
+const appVersion = (import.meta.env.VITE_GIT_SHA ?? 'dev').slice(0, 7)
 
 const menuOpen = ref(false)
 const menuRef = ref<HTMLElement | null>(null)
