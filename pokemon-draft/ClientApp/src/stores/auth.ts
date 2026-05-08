@@ -2,9 +2,11 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 const SESSION_KEY = 'pokemon-draft:session'
+const RECENT_LEAGUES_KEY = 'pokemon-draft:recent-leagues'
 
 interface Session {
   leagueCode: string
+  leagueName: string
   playerId: string
   playerName: string
   isAdmin: boolean
@@ -13,10 +15,31 @@ interface Session {
   teamImageUrl: string
 }
 
+interface RecentLeague {
+  code: string
+  name: string
+}
+
 const API_BASE = import.meta.env.DEV ? 'http://localhost:5050/api' : '/api'
+
+function loadRecentLeagues(): RecentLeague[] {
+  try {
+    const stored = localStorage.getItem(RECENT_LEAGUES_KEY)
+    return stored ? JSON.parse(stored) : []
+  } catch {
+    return []
+  }
+}
+
+function persistRecentLeague(league: RecentLeague) {
+  const list = loadRecentLeagues()
+  const updated = [league, ...list.filter((l) => l.code !== league.code)].slice(0, 5)
+  localStorage.setItem(RECENT_LEAGUES_KEY, JSON.stringify(updated))
+}
 
 export const useAuthStore = defineStore('auth', () => {
   const session = ref<Session | null>(null)
+  const recentLeagues = ref<RecentLeague[]>(loadRecentLeagues())
 
   function loadSession() {
     const stored = sessionStorage.getItem(SESSION_KEY)
@@ -51,8 +74,12 @@ export const useAuthStore = defineStore('auth', () => {
       if (!res.ok) return 'Server error. Please try again.'
 
       const data = await res.json()
+      const code = leagueCode.trim().toUpperCase()
+      const lName = data.leagueName ?? ''
+
       saveSession({
-        leagueCode: leagueCode.trim().toUpperCase(),
+        leagueCode: code,
+        leagueName: lName,
         playerId: data.playerId,
         playerName: data.playerName,
         isAdmin: data.isAdmin,
@@ -60,6 +87,10 @@ export const useAuthStore = defineStore('auth', () => {
         teamName: data.teamName ?? '',
         teamImageUrl: data.teamImageUrl ?? '',
       })
+
+      persistRecentLeague({ code, name: lName })
+      recentLeagues.value = loadRecentLeagues()
+
       return null
     } catch {
       return 'Could not connect to server.'
@@ -68,6 +99,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => session.value !== null)
   const leagueCode = computed(() => session.value?.leagueCode ?? null)
+  const leagueName = computed(() => session.value?.leagueName ?? '')
   const playerId = computed(() => session.value?.playerId ?? null)
   const playerName = computed(() => session.value?.playerName ?? null)
   const isAdmin = computed(() => session.value?.isAdmin ?? false)
@@ -106,8 +138,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     session,
+    recentLeagues,
     isAuthenticated,
     leagueCode,
+    leagueName,
     playerId,
     playerName,
     isAdmin,

@@ -31,7 +31,7 @@ public record EditMatchupRequest(string AdminPin, int Player1Wins, int Player2Wi
 
 // --- Responses ---
 
-public record JoinResponse(string PlayerId, string PlayerName, bool IsAdmin, string LeagueCode, string TeamName, string TeamImageUrl);
+public record JoinResponse(string PlayerId, string PlayerName, bool IsAdmin, string LeagueCode, string TeamName, string TeamImageUrl, string LeagueName);
 
 public record LeagueResponse(
     string Code,

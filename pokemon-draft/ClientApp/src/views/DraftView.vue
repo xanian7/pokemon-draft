@@ -4,13 +4,14 @@ import { useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
+import PokeballLoader from '@/components/PokeballLoader.vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
 import { useSignalR, API_BASE } from '@/services/signalr'
 import { useRegulationFilter } from '@/composables/useRegulationFilter'
 import type { Pokemon } from '@/types'
 import { formatPokemonName, TYPE_COLORS } from '@/utils/format'
-import { mdiTrophy, mdiCrosshairs, mdiAccountGroup, mdiChevronDown } from '@mdi/js'
+import { mdiTrophy, mdiCrosshairs, mdiAccountGroup, mdiChevronDown, mdiViewGrid, mdiViewColumn } from '@mdi/js'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -141,6 +142,7 @@ const searchQuery = ref('')
 const selectedType = ref('')
 const showAvailableOnly = ref(true)
 const pickError = ref('')
+const viewMode = ref<'grid' | 'tier'>('grid')
 
 const filteredPokemon = computed(() => {
   const q = searchQuery.value.toLowerCase()
@@ -154,8 +156,18 @@ const filteredPokemon = computed(() => {
   })
 })
 
-async function makePick(pokemonId: number) {
-  if (!isMyTurn.value || draftStatus.value !== 'Active') return
+const tierGroups = computed(() => {
+  const groups = new Map<number, typeof filteredPokemon.value>()
+  for (const p of filteredPokemon.value) {
+    if (!groups.has(p.pointValue)) groups.set(p.pointValue, [])
+    groups.get(p.pointValue)!.push(p)
+  }
+  return Array.from(groups.entries())
+    .sort((a, b) => b[0] - a[0])
+    .map(([pts, pokemon]) => ({ pts, pokemon }))
+})
+
+async function makePick(pokemonId: number) {  if (!isMyTurn.value || draftStatus.value !== 'Active') return
   pickError.value = ''
   const res = await fetch(`${API_BASE}/leagues/${authStore.leagueCode}/draft/pick`, {
     method: 'POST',
@@ -177,6 +189,11 @@ const detailPokemon = ref<(typeof filteredPokemon.value)[0] | null>(null)
 
 function openDetail(p: (typeof filteredPokemon.value)[0]) {
   detailPokemon.value = p
+}
+
+function openDetailById(id: number) {
+  const p = pokemonStore.pokemonWithPoints.find((p) => p.id === id)
+  if (p) detailPokemon.value = p
 }
 
 function closeDetail() {
@@ -261,7 +278,9 @@ function closeDetail() {
           </span>
         </div>
 
-        <div v-if="pokemonStore.isLoading" class="loading"><span class="spinner" /> Loading…</div>
+        <div v-if="pokemonStore.isLoading" class="loading">
+          <PokeballLoader variant="page" label="Loading…" />
+        </div>
 
         <template v-else>
           <div class="filters">
@@ -276,9 +295,44 @@ function closeDetail() {
               <input v-model="showAvailableOnly" type="checkbox" />
               Available only
             </label>
+            <div class="view-toggle">
+              <button :class="{ active: viewMode === 'grid' }" title="Grid view" @click="viewMode = 'grid'">
+                <AppIcon :path="mdiViewGrid" :size="15" />
+              </button>
+              <button :class="{ active: viewMode === 'tier' }" title="Tier view" @click="viewMode = 'tier'">
+                <AppIcon :path="mdiViewColumn" :size="15" />
+              </button>
+            </div>
           </div>
 
-          <div class="pokemon-grid">
+          <!-- Tier view -->
+          <div v-if="viewMode === 'tier'" class="tier-view">
+            <div v-for="group in tierGroups" :key="group.pts" class="tier-col">
+              <div class="tier-col-header">
+                <span class="tier-badge">{{ group.pts }} pts</span>
+                <span class="tier-count">{{ group.pokemon.length }}</span>
+              </div>
+              <div class="tier-col-body">
+                <div
+                  v-for="p in group.pokemon"
+                  :key="p.id"
+                  class="pick-wrapper"
+                  :class="{ 'can-pick': isMyTurn && draftStatus === 'Active' && !pickedIds.has(p.id) }"
+                >
+                  <PokemonCard
+                    :pokemon="p"
+                    :point-value="p.pointValue"
+                    :is-picked="pickedIds.has(p.id)"
+                    mode="draft"
+                    @click="openDetail(p)"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Grid view -->
+          <div v-else class="pokemon-grid">
             <div
               v-for="p in filteredPokemon"
               :key="p.id"
@@ -326,6 +380,8 @@ function closeDetail() {
                   :pokemon="getPlayerPicks(authStore.playerId)[round - 1]!"
                   :point-value="pokemonStore.getPointValue(getPlayerPicks(authStore.playerId)[round - 1]!.id)"
                   mode="team"
+                  class="clickable"
+                  @click="openDetailById(getPlayerPicks(authStore.playerId)[round - 1]!.id)"
                 />
                 <div v-else class="empty-pick"><span>R{{ round }}</span></div>
               </div>
@@ -376,6 +432,8 @@ function closeDetail() {
                 :pokemon="getPlayerPicks(player.id)[round - 1]!"
                 :point-value="pokemonStore.getPointValue(getPlayerPicks(player.id)[round - 1]!.id)"
                 mode="team"
+                class="clickable"
+                @click="openDetailById(getPlayerPicks(player.id)[round - 1]!.id)"
               />
               <div v-else class="empty-pick"><span>R{{ round }}</span></div>
             </div>
@@ -751,6 +809,93 @@ select {
   box-shadow: 0 0 0 1px rgba(204, 0, 0, 0.3);
 }
 
+/* ── View toggle ─────────────────────────────────────────────────────────── */
+.view-toggle {
+  display: flex;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.view-toggle button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 0.28rem 0.45rem;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.view-toggle button:first-child {
+  border-right: 1px solid var(--border-color);
+}
+
+.view-toggle button:hover { background: var(--input-bg); color: var(--text); }
+.view-toggle button.active { background: var(--input-bg); color: var(--text); }
+
+/* ── Tier view ───────────────────────────────────────────────────────────── */
+.tier-view {
+  display: flex;
+  flex-direction: row;
+  gap: 0.65rem;
+  overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+  padding-top: 4px;
+  align-items: flex-start;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+.tier-col {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 100px;
+}
+
+.tier-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.6rem;
+  margin-bottom: 0.45rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-top: 2px solid var(--primary);
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.tier-badge {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.tier-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--input-bg);
+  border-radius: 10px;
+  padding: 0.1rem 0.4rem;
+}
+
+.tier-col-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
 .overflow-hint,
 .empty {
   font-size: 0.78rem;
@@ -893,6 +1038,9 @@ select {
 .pick-slot {
   min-height: 52px;
 }
+
+.pick-slot :deep(.clickable) { cursor: pointer; }
+.pick-slot :deep(.clickable:hover) { opacity: 0.85; }
 .empty-pick {
   border: 1px dashed var(--border-color);
   border-radius: 6px;
@@ -906,19 +1054,8 @@ select {
 
 .loading {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  color: var(--text-muted);
+  justify-content: center;
   padding: 2rem;
-}
-
-.spinner {
-  width: 20px;
-  height: 20px;
-  border: 3px solid var(--border-color);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
 }
 
 /* Completion modal */

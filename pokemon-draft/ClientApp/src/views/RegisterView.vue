@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { API_BASE } from '@/services/signalr'
 import AppIcon from '@/components/AppIcon.vue'
+import PokeballLoader from '@/components/PokeballLoader.vue'
 import { mdiPokeball } from '@mdi/js'
 
 const router = useRouter()
@@ -66,7 +67,7 @@ async function register() {
   <div class="page-center">
     <div class="auth-card">
       <div class="logo"><AppIcon :path="mdiPokeball" :size="52" /></div>
-      <h1>Join the Draft</h1>
+      <h1>Join a League</h1>
 
       <div v-if="leagueName" class="league-badge">
         {{ leagueName }}
@@ -87,7 +88,7 @@ async function register() {
           </div>
           <div class="field">
             <label for="name">Your Name</label>
-            <input id="name" v-model="name" type="text" placeholder="e.g. Misty" autofocus />
+            <input id="name" v-model="name" type="text" autofocus />
           </div>
           <div class="field">
             <label for="pin">Choose a PIN</label>
@@ -100,7 +101,7 @@ async function register() {
           </div>
           <div class="field">
             <label for="team-name">Team Name <span class="optional">(optional)</span></label>
-            <input id="team-name" v-model="teamName" type="text" placeholder="e.g. Ash's Pokémon" />
+            <input id="team-name" v-model="teamName" type="text" placeholder="" />
           </div>
           <div class="field">
             <label for="team-image">Team Avatar URL <span class="optional">(optional)</span></label>
@@ -111,8 +112,8 @@ async function register() {
           <div v-if="error" class="error-msg">{{ error }}</div>
 
           <button type="submit" class="btn-join" :disabled="isLoading">
-            <span v-if="isLoading" class="spinner" />
-            {{ isLoading ? 'Joining…' : 'Join League →' }}
+          <PokeballLoader v-if="isLoading" variant="inline" :size="16" />
+            {{ isLoading ? 'Joining…' : 'Join League' }}
           </button>
         </form>
 

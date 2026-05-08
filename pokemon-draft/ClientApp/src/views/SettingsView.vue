@@ -59,7 +59,7 @@ async function save() {
         </div>
         <div class="avatar-info">
           <p class="avatar-label">Team Avatar</p>
-          <p class="avatar-hint">Your avatar is shown on the My Team page and to other players.</p>
+          <p class="avatar-hint">Your avatar is shown to other players. You can change this later.</p>
         </div>
       </div>
 
@@ -70,7 +70,7 @@ async function save() {
             id="team-name"
             v-model="teamName"
             type="text"
-            placeholder="e.g. Ash's Champions"
+            placeholder=""
             maxlength="40"
           />
           <span class="hint">{{ 40 - teamName.length }} characters remaining</span>
@@ -84,7 +84,7 @@ async function save() {
             type="url"
             placeholder="https://example.com/avatar.png"
           />
-          <span class="hint">Paste any direct image URL — Discord profile pics, Pokémon artwork, etc.</span>
+          <span class="hint">Paste any direct image URL.</span>
         </div>
 
         <div v-if="saveError" class="feedback error">{{ saveError }}</div>

@@ -3,12 +3,13 @@ import { ref, computed, onMounted } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
+import PokeballLoader from '@/components/PokeballLoader.vue'
 import { REGULATIONS, getRegulation } from '@/data/regulations'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
 import { API_BASE } from '@/services/signalr'
 import { formatPokemonName } from '@/utils/format'
-import { mdiClipboardList, mdiFlash, mdiContentSave, mdiCheck } from '@mdi/js'
+import { mdiClipboardList, mdiFlash, mdiContentSave, mdiCheck, mdiViewGrid, mdiViewColumn } from '@mdi/js'
 
 const pokemonStore = usePokemonStore()
 const authStore = useAuthStore()
@@ -77,6 +78,19 @@ const filtered = computed(() => {
 })
 
 const valuedCount = computed(() => Object.keys(pokemonStore.pointValues).length)
+
+const viewMode = ref<'grid' | 'tier'>('grid')
+
+const tierGroups = computed(() => {
+  const groups = new Map<number, typeof filtered.value>()
+  for (const p of filtered.value) {
+    if (!groups.has(p.pointValue)) groups.set(p.pointValue, [])
+    groups.get(p.pointValue)!.push(p)
+  }
+  return Array.from(groups.entries())
+    .sort((a, b) => b[0] - a[0])
+    .map(([pts, pokemon]) => ({ pts, pokemon }))
+})
 
 async function onRegulationChange() {
   legalIds.value = null
@@ -201,11 +215,19 @@ async function saveToServer() {
       </label>
       <span v-if="regulationLoading" class="filter-status">Loading regulation…</span>
       <span v-else-if="regulationError" class="filter-status filter-error">{{ regulationError }}</span>
+      <div class="view-toggle">
+        <button :class="{ active: viewMode === 'grid' }" title="Grid view" @click="viewMode = 'grid'">
+          <AppIcon :path="mdiViewGrid" :size="16" />
+        </button>
+        <button :class="{ active: viewMode === 'tier' }" title="Tier view" @click="viewMode = 'tier'">
+          <AppIcon :path="mdiViewColumn" :size="16" />
+        </button>
+      </div>
     </div>
 
     <!-- Grid -->
     <div v-if="pokemonStore.isLoading" class="loading">
-      <span class="spinner" /> Loading Pokémon data…
+      <PokeballLoader variant="page" label="Loading Pokémon data…" />
     </div>
     <div v-else-if="pokemonStore.error" class="loading">
       {{ pokemonStore.error }}
@@ -213,6 +235,36 @@ async function saveToServer() {
     </div>
     <div v-else-if="filtered.length === 0" class="loading">No Pokémon match your filters.</div>
 
+    <!-- Tier view -->
+    <div v-else-if="viewMode === 'tier'" class="tier-view">
+      <div v-for="group in tierGroups" :key="group.pts" class="tier-col">
+        <div class="tier-col-header">
+          <span class="tier-badge">{{ group.pts }} pts</span>
+          <span class="tier-count">{{ group.pokemon.length }}</span>
+        </div>
+        <div class="tier-col-body">
+          <div v-for="pokemon in group.pokemon" :key="pokemon.id" class="pokemon-entry">
+            <PokemonCard
+              :pokemon="pokemon"
+              :point-value="pokemon.pointValue"
+              mode="draft"
+              @click="openDetail(pokemon)"
+            />
+            <input
+              v-if="authStore.isAdmin"
+              type="number"
+              min="0"
+              :value="pokemon.pointValue || ''"
+              placeholder="pts"
+              class="pts-input"
+              @change="onPointInput(pokemon.id, $event)"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid view -->
     <div v-else class="pokemon-grid">
       <div
         v-for="pokemon in filtered"
@@ -244,6 +296,7 @@ async function saveToServer() {
     :point-value="detailPokemon.pointValue"
     :can-draft="false"
     :is-picked="false"
+    :show-draft-action="false"
     @close="closeDetail"
     @draft="closeDetail"
   />
@@ -362,14 +415,10 @@ select {
   color: var(--text-muted);
 }
 
-.spinner {
-  width: 20px;
-  height: 20px;
-  border: 3px solid var(--border-color);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  flex-shrink: 0;
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 2rem;
 }
 
 .pokemon-grid {
@@ -396,5 +445,93 @@ select {
   border: 1px solid var(--border-color);
   border-radius: 5px;
   color: var(--text);
+}
+
+/* ── View toggle ─────────────────────────────────────────────────────────── */
+.view-toggle {
+  display: flex;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.view-toggle button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.view-toggle button:first-child {
+  border-right: 1px solid var(--border-color);
+}
+
+.view-toggle button:hover { background: var(--input-bg); color: var(--text); }
+.view-toggle button.active { background: var(--input-bg); color: var(--text); }
+
+/* ── Tier view ───────────────────────────────────────────────────────────── */
+.tier-view {
+  display: flex;
+  flex-direction: row;
+  gap: 0.65rem;
+  overflow-x: auto;
+  overflow-y: auto;
+  padding: 0.75rem;
+  flex: 1;
+  align-items: flex-start;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+.tier-col {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 108px;
+}
+
+.tier-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.6rem;
+  margin-bottom: 0.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-top: 2px solid var(--primary);
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.tier-badge {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.tier-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--input-bg);
+  border-radius: 10px;
+  padding: 0.1rem 0.4rem;
+}
+
+.tier-col-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 </style>

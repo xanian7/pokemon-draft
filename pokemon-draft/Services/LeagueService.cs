@@ -185,14 +185,14 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             var commissioner = GetOrderedPlayers(league).FirstOrDefault(p => p.Id == league.CommissionerPlayerId);
             var name = commissioner?.Name ?? "Commissioner";
             var playerId = commissioner?.Id ?? "admin";
-            return new JoinResponse(playerId, name, true, league.Code, commissioner?.TeamName ?? string.Empty, commissioner?.TeamImageUrl ?? string.Empty);
+            return new JoinResponse(playerId, name, true, league.Code, commissioner?.TeamName ?? string.Empty, commissioner?.TeamImageUrl ?? string.Empty, league.Name);
         }
 
         var player = GetOrderedPlayers(league)
             .FirstOrDefault(p => p.Id != league.CommissionerPlayerId && BC.Verify(pin, p.Pin));
         if (player is null) return null;
 
-        return new JoinResponse(player.Id, player.Name, false, league.Code, player.TeamName, player.TeamImageUrl);
+        return new JoinResponse(player.Id, player.Name, false, league.Code, player.TeamName, player.TeamImageUrl, league.Name);
     }
 
     /// <inheritdoc/>

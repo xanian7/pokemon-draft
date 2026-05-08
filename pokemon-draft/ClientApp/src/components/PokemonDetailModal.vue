@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
+import PokeballLoader from '@/components/PokeballLoader.vue'
 import { formatPokemonName, TYPE_COLORS } from '@/utils/format'
 import type { Pokemon } from '@/types'
 import { mdiClose } from '@mdi/js'
@@ -12,6 +13,8 @@ const props = defineProps<{
   isPicked: boolean
   /** Label for the primary action button. Defaults to 'Draft'. */
   actionLabel?: string
+  /** Hide the draft/picked action entirely (e.g. on the Point Values page). Defaults to true. */
+  showDraftAction?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -291,7 +294,9 @@ function filteredMoves(moves: MoveEntry[]): MoveEntry[] {
 
         <!-- Body -->
         <div class="modal-body">
-          <div v-if="isLoading" class="loading-state">Loading details…</div>
+          <div v-if="isLoading" class="loading-state">
+            <PokeballLoader variant="page" label="Loading details…" />
+          </div>
           <div v-else-if="fetchError" class="error-state">{{ fetchError }}</div>
           <template v-else-if="detail">
             <!-- Base Stats -->
@@ -388,10 +393,12 @@ function filteredMoves(moves: MoveEntry[]): MoveEntry[] {
         <!-- Footer -->
         <div class="modal-footer">
           <button class="btn btn-secondary" @click="emit('close')">Close</button>
-          <span v-if="isPicked" class="already-drafted">Already Drafted</span>
-          <button v-else class="btn btn-primary" :disabled="!canDraft" @click="handleDraft">
-            {{ canDraft ? (actionLabel ?? 'Draft') : 'Not Your Turn' }}
-          </button>
+          <template v-if="props.showDraftAction !== false">
+            <span v-if="isPicked" class="already-drafted">Already Drafted</span>
+            <button v-else class="btn btn-primary" :disabled="!canDraft" @click="handleDraft">
+              {{ canDraft ? (actionLabel ?? 'Draft') : 'Not Your Turn' }}
+            </button>
+          </template>
         </div>
       </div>
     </div>

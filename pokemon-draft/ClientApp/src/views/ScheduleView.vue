@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import PokeballLoader from '@/components/PokeballLoader.vue'
 import type { MatchupResponse, ScheduleData } from '@/types'
 
 const router = useRouter()
@@ -188,7 +189,9 @@ function avatarInitials(name: string, teamName: string) {
       </div>
     </div>
 
-    <div v-if="isLoading" class="loading">Loading schedule…</div>
+    <div v-if="isLoading" class="loading">
+      <PokeballLoader variant="page" label="Loading schedule…" />
+    </div>
     <div v-else-if="error" class="error-msg">{{ error }}</div>
     <div v-else-if="!schedule || !schedule.weeks.length" class="empty-msg">
       The schedule will appear here once the draft is complete.
@@ -393,6 +396,8 @@ h1 {
   color: var(--text-muted);
   padding: 3rem 0;
   text-align: center;
+  display: flex;
+  justify-content: center;
 }
 
 .error-msg {

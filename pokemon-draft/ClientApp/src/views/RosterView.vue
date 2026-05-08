@@ -10,6 +10,7 @@ import { formatPokemonName } from '@/utils/format'
 import AppIcon from '@/components/AppIcon.vue'
 import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
+import PokeballLoader from '@/components/PokeballLoader.vue'
 import { mdiAccountGroup, mdiMagnify } from '@mdi/js'
 
 interface LeagueState {
@@ -310,9 +311,8 @@ onUnmounted(disconnect)
 
 <template>
   <main class="roster-view">
-    <section v-if="isLoading" class="state-card">
-      <h1>Loading roster tools…</h1>
-      <p>Syncing your league state.</p>
+    <section v-if="isLoading" class="state-card loading-card">
+      <PokeballLoader variant="page" label="Loading roster tools…" />
     </section>
 
     <section v-else-if="loadError" class="state-card error-card">
@@ -675,6 +675,7 @@ onUnmounted(disconnect)
 
 .state-card h1 { font-size: 1.4rem; margin-bottom: 0.4rem; }
 .state-card h2 { font-size: 1.1rem; margin-bottom: 0.4rem; }
+.loading-card  { display: flex; justify-content: center; padding: 3rem 1.5rem; }
 
 .section-header,
 .hero-actions,

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
 import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
+import PokeballLoader from '@/components/PokeballLoader.vue'
 import type { DraftPick, LeaguePlayer, Pokemon, Trade } from '@/types'
 import { formatPokemonName } from '@/utils/format'
 
@@ -230,9 +231,8 @@ onUnmounted(disconnect)
 
 <template>
   <main class="page-wrap">
-    <section v-if="isLoading" class="state-card">
-      <h1>Loading your team&hellip;</h1>
-      <p>Syncing league state and trades.</p>
+    <section v-if="isLoading" class="state-card loading-card">
+      <PokeballLoader variant="page" label="Loading your team…" />
     </section>
 
     <section v-else-if="loadError" class="state-card error-card">
@@ -493,6 +493,7 @@ onUnmounted(disconnect)
 
 .warning-card { border-color: rgba(245, 158, 11, 0.45); }
 .error-card   { border-color: rgba(248, 113, 113, 0.5); }
+.loading-card { display: flex; justify-content: center; padding: 3rem 1.25rem; }
 
 /* ── Hero ────────────────────────────────────────────── */
 .hero {
