@@ -35,14 +35,11 @@ jobs:
             ${{ secrets.ACR_NAME }}.azurecr.io/pokemon-draft:latest
 
       - name: Deploy to Container Apps
-        run: |
-          az containerapp update \
-            --name pokemon-draft \
-            --resource-group ${{ secrets.RESOURCE_GROUP }} \
-            --image ${{ secrets.ACR_NAME }}.azurecr.io/pokemon-draft:${{ github.sha }} \
-            --set-env-vars \
-              ASPNETCORE_ENVIRONMENT=Production \
-              "ConnectionStrings__DefaultConnection=Data Source=/data/draft.db" \
-            --registry-server ${{ secrets.ACR_NAME }}.azurecr.io \
-            --registry-username ${{ secrets.ACR_NAME }} \
-            --registry-password ${{ secrets.ACR_PASSWORD }}
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ secrets.RESOURCE_GROUP }}
+          containerAppName: pokemon-draft
+          imageToDeploy: ${{ secrets.ACR_NAME }}.azurecr.io/pokemon-draft:${{ github.sha }}
+          registryUrl: ${{ secrets.ACR_NAME }}.azurecr.io
+          registryUsername: ${{ secrets.ACR_NAME }}
+          registryPassword: ${{ secrets.ACR_PASSWORD }}
