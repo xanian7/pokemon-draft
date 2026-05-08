@@ -36,17 +36,31 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Set WAL journal mode once, synchronously, before HTTP server starts.
-// journal_mode=WAL requires an exclusive lock — doing it here guarantees
-// no EF Core connections exist yet, so there's no contention.
-// WAL mode is persistent on the DB file; this is a one-time setup.
+// Attempt to enable WAL journal mode. This may fail on network-mounted volumes
+// (e.g. Azure Files/SMB) that don't support the required file locking primitives.
+// A failure here is non-fatal — SQLite falls back to the default DELETE journal
+// mode which is less concurrent but works correctly on SMB mounts.
 {
+    var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
     var cs = app.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=draft.db";
-    using var walConn = new Microsoft.Data.Sqlite.SqliteConnection(cs);
-    walConn.Open();
-    using var walCmd = walConn.CreateCommand();
-    walCmd.CommandText = "PRAGMA journal_mode=WAL";
-    walCmd.ExecuteNonQuery();
+    try
+    {
+        using var walConn = new Microsoft.Data.Sqlite.SqliteConnection(cs);
+        walConn.Open();
+        using (var busyCmd = walConn.CreateCommand())
+        {
+            busyCmd.CommandText = "PRAGMA busy_timeout=60000";
+            busyCmd.ExecuteNonQuery();
+        }
+        using var walCmd = walConn.CreateCommand();
+        walCmd.CommandText = "PRAGMA journal_mode=WAL";
+        walCmd.ExecuteNonQuery();
+        startupLogger.LogInformation("SQLite WAL mode enabled.");
+    }
+    catch (Exception ex)
+    {
+        startupLogger.LogWarning(ex, "Could not enable SQLite WAL mode (likely a network-mounted volume). Continuing with default journal mode.");
+    }
 }
 
 // Run DB initialisation in the background so the HTTP server starts immediately

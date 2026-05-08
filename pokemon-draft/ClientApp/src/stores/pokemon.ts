@@ -131,7 +131,7 @@ export const usePokemonStore = defineStore('pokemon', () => {
   }
 
   async function fetchAllPokemon() {
-    if (allPokemon.value.length > 0 && allPokemon.value[0].speciesId !== undefined) return
+    if (allPokemon.value.length > 0 && allPokemon?.value[0]?.speciesId !== undefined) return
 
     const cached = localStorage.getItem(CACHE_KEY)
     if (cached) {
