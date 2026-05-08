@@ -54,9 +54,21 @@ app.Lifetime.ApplicationStarted.Register(() => Task.Run(() =>
         {
             using var scope = app.Services.CreateScope();
             var conn = scope.ServiceProvider.GetRequiredService<DraftDbContext>().Database.GetDbConnection();
-            conn.Open(); // interceptor sets busy_timeout=60000 + WAL mode
+            conn.Open();
+
+            // The EF Core interceptor only fires when EF Core opens the connection
+            // internally — not when we call Open() on the raw DbConnection directly.
+            // Set pragmas explicitly here so busy_timeout and WAL are active.
+            foreach (var pragma in new[] { "PRAGMA busy_timeout=60000", "PRAGMA journal_mode=WAL" })
+            {
+                using var p = conn.CreateCommand();
+                p.CommandText = pragma;
+                p.ExecuteNonQuery();
+            }
 
             // Each statement auto-commits individually — no large COMMIT to fail.
+            // CommandTimeout=0 disables the .NET-level 30s cancellation so SQLite's
+            // busy_timeout (60s) is what controls how long we wait for a write lock.
             foreach (var sql in new[]
             {
                 """
@@ -155,6 +167,7 @@ app.Lifetime.ApplicationStarted.Register(() => Task.Run(() =>
             {
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = sql;
+                cmd.CommandTimeout = 0; // rely on SQLite busy_timeout (60s), not .NET's default 30s
                 cmd.ExecuteNonQuery();
             }
 
@@ -165,6 +178,7 @@ app.Lifetime.ApplicationStarted.Register(() => Task.Run(() =>
                 {
                     using var cmd = conn.CreateCommand();
                     cmd.CommandText = $"ALTER TABLE \"Players\" ADD COLUMN {colDef}";
+                    cmd.CommandTimeout = 0;
                     cmd.ExecuteNonQuery();
                 }
                 catch { } // column already exists — ignore
