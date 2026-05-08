@@ -38,15 +38,40 @@ jobs:
           cache-from: type=registry,ref=${{ secrets.ACR_NAME }}.azurecr.io/pokemon-draft:latest
           cache-to: type=inline
 
-      - name: Set single-revision mode
+      - name: Stop old revisions before deploy
         uses: azure/cli@v2
         with:
           azcliversion: latest
           inlineScript: |
+            # Ensure single-revision mode so Azure won't spin up a second replica.
             az containerapp revision set-mode \
               --name pokemon-draft \
               --resource-group ${{ secrets.RESOURCE_GROUP }} \
               --mode single
+
+            # Explicitly deactivate every currently-active revision so the old
+            # container releases its SQLite file lock on Azure Files before the
+            # new container starts. Without this, Azure starts the new container
+            # while the old one is still alive, causing a SQLite "database is
+            # locked" deadlock (new container blocks on schema init → never
+            # answers the health probe → Azure never kills the old container).
+            REVISIONS=$(az containerapp revision list \
+              --name pokemon-draft \
+              --resource-group ${{ secrets.RESOURCE_GROUP }} \
+              --query "[?properties.active].name" \
+              --output tsv 2>/dev/null || true)
+
+            for rev in $REVISIONS; do
+              echo "Deactivating revision: $rev"
+              az containerapp revision deactivate \
+                --name pokemon-draft \
+                --resource-group ${{ secrets.RESOURCE_GROUP }} \
+                --revision "$rev" || true
+            done
+
+            # Give Azure Files a moment to release SMB file locks after the
+            # old container exits.
+            sleep 10
 
       - name: Deploy to Container Apps
         uses: azure/container-apps-deploy-action@v1

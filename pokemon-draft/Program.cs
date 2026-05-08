@@ -36,12 +36,11 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// SQLite on Azure Files (SMB) does not support WAL mode or the shared-memory
-// locking it requires. If a previous container left behind .db-wal / .db-shm
-// files, SQLite will attempt WAL recovery on the next open — which also requires
-// those locks and immediately throws "database is locked", blocking every
-// operation. Since this app has no rolling deploys the previous container is
-// always stopped before this one starts, so deleting stale WAL artefacts is safe.
+// The CI/CD pipeline explicitly stops the old container before deploying this
+// one, so there is no competing process holding the SQLite file. We still
+// delete any stale WAL artefacts that a previous (WAL-mode) container may have
+// left behind — opening a database that has orphaned WAL files requires
+// exclusive locking that Azure Files (SMB) cannot provide.
 {
     var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
     var cs = app.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=draft.db";
@@ -52,162 +51,143 @@ var app = builder.Build();
         var f = dbPath + ext;
         if (File.Exists(f))
         {
-            try
-            {
-                File.Delete(f);
-                startupLogger.LogInformation("Deleted stale SQLite file: {File}", f);
-            }
-            catch (Exception ex)
-            {
-                startupLogger.LogWarning(ex, "Could not delete stale SQLite file: {File}", f);
-            }
+            try { File.Delete(f); startupLogger.LogInformation("Deleted stale SQLite file: {File}", f); }
+            catch (Exception ex) { startupLogger.LogWarning(ex, "Could not delete stale SQLite file: {File}", f); }
         }
     }
 }
 
-// Initialise the DB schema synchronously before the HTTP server starts so that
-// every request is guaranteed to find the tables present. Individual
-// CREATE TABLE IF NOT EXISTS statements auto-commit one at a time — no large
-// COMMIT that needs an exclusive lock.
+// Initialise DB schema synchronously so tables are guaranteed to exist before
+// the first HTTP request is served.
 {
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
     var cs = app.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=draft.db";
 
-    for (int attempt = 1; attempt <= 10; attempt++)
+    using var conn = new Microsoft.Data.Sqlite.SqliteConnection(cs);
+    conn.Open();
+
+    using (var p = conn.CreateCommand())
+    {
+        // A modest busy_timeout as a safety net only — there should be no
+        // contention since the old container was stopped before we started.
+        p.CommandText = "PRAGMA busy_timeout=10000;";
+        p.ExecuteNonQuery();
+    }
+
+    foreach (var sql in new[]
+    {
+        """
+        CREATE TABLE IF NOT EXISTS "Leagues" (
+            "Code" TEXT NOT NULL CONSTRAINT "PK_Leagues" PRIMARY KEY,
+            "Name" TEXT NOT NULL,
+            "AdminPin" TEXT NOT NULL,
+            "CommissionerPlayerId" TEXT NOT NULL,
+            "PointLimit" INTEGER NOT NULL,
+            "Rounds" INTEGER NOT NULL,
+            "RegulationSet" TEXT NOT NULL,
+            "CurrentPickNumber" INTEGER NOT NULL,
+            "DraftStatus" INTEGER NOT NULL,
+            "CreatedAt" TEXT NOT NULL
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS "Players" (
+            "Id" TEXT NOT NULL CONSTRAINT "PK_Players" PRIMARY KEY,
+            "LeagueCode" TEXT NOT NULL,
+            "SortOrder" INTEGER NOT NULL,
+            "Name" TEXT NOT NULL,
+            "TeamName" TEXT NOT NULL DEFAULT '',
+            "TeamImageUrl" TEXT NOT NULL DEFAULT '',
+            "Pin" TEXT NOT NULL,
+            CONSTRAINT "FK_Players_Leagues_LeagueCode"
+                FOREIGN KEY ("LeagueCode") REFERENCES "Leagues" ("Code") ON DELETE CASCADE
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS "Picks" (
+            "Id" INTEGER NOT NULL CONSTRAINT "PK_Picks" PRIMARY KEY AUTOINCREMENT,
+            "LeagueCode" TEXT NOT NULL,
+            "PickNumber" INTEGER NOT NULL,
+            "Round" INTEGER NOT NULL,
+            "PlayerId" TEXT NOT NULL,
+            "PokemonId" INTEGER NOT NULL,
+            CONSTRAINT "FK_Picks_Leagues_LeagueCode"
+                FOREIGN KEY ("LeagueCode") REFERENCES "Leagues" ("Code") ON DELETE CASCADE
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS "PointValues" (
+            "Id" INTEGER NOT NULL CONSTRAINT "PK_PointValues" PRIMARY KEY AUTOINCREMENT,
+            "LeagueCode" TEXT NOT NULL,
+            "PokemonId" INTEGER NOT NULL,
+            "Value" INTEGER NOT NULL,
+            CONSTRAINT "FK_PointValues_Leagues_LeagueCode"
+                FOREIGN KEY ("LeagueCode") REFERENCES "Leagues" ("Code") ON DELETE CASCADE
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS "Trades" (
+            "Id" INTEGER NOT NULL CONSTRAINT "PK_Trades" PRIMARY KEY AUTOINCREMENT,
+            "LeagueCode" TEXT NOT NULL,
+            "InitiatorPlayerId" TEXT NOT NULL,
+            "TargetPlayerId" TEXT NOT NULL,
+            "Status" INTEGER NOT NULL,
+            "ProposedAt" TEXT NOT NULL,
+            CONSTRAINT "FK_Trades_Leagues_LeagueCode"
+                FOREIGN KEY ("LeagueCode") REFERENCES "Leagues" ("Code") ON DELETE CASCADE
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS "TradeItems" (
+            "Id" INTEGER NOT NULL CONSTRAINT "PK_TradeItems" PRIMARY KEY AUTOINCREMENT,
+            "TradeId" INTEGER NOT NULL,
+            "FromPlayerId" TEXT NOT NULL,
+            "PokemonId" INTEGER NOT NULL,
+            CONSTRAINT "FK_TradeItems_Trades_TradeId"
+                FOREIGN KEY ("TradeId") REFERENCES "Trades" ("Id") ON DELETE CASCADE
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS "Matchups" (
+            "Id" INTEGER NOT NULL CONSTRAINT "PK_Matchups" PRIMARY KEY AUTOINCREMENT,
+            "LeagueCode" TEXT NOT NULL,
+            "Week" INTEGER NOT NULL,
+            "Player1Id" TEXT NOT NULL,
+            "Player2Id" TEXT NOT NULL,
+            "Player1Wins" INTEGER NULL,
+            "Player2Wins" INTEGER NULL,
+            "ReportedByPlayerId" TEXT NULL,
+            "ReportedAt" TEXT NULL,
+            CONSTRAINT "FK_Matchups_Leagues_LeagueCode"
+                FOREIGN KEY ("LeagueCode") REFERENCES "Leagues" ("Code") ON DELETE CASCADE
+        )
+        """,
+        @"CREATE INDEX IF NOT EXISTS ""IX_Matchups_LeagueCode"" ON ""Matchups"" (""LeagueCode"")",
+        @"CREATE INDEX IF NOT EXISTS ""IX_Picks_LeagueCode"" ON ""Picks"" (""LeagueCode"")",
+        @"CREATE INDEX IF NOT EXISTS ""IX_Players_LeagueCode"" ON ""Players"" (""LeagueCode"")",
+        @"CREATE INDEX IF NOT EXISTS ""IX_PointValues_LeagueCode"" ON ""PointValues"" (""LeagueCode"")",
+        @"CREATE INDEX IF NOT EXISTS ""IX_TradeItems_TradeId"" ON ""TradeItems"" (""TradeId"")",
+        @"CREATE INDEX IF NOT EXISTS ""IX_Trades_LeagueCode"" ON ""Trades"" (""LeagueCode"")",
+    })
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.ExecuteNonQuery();
+    }
+
+    // Migration: add columns that may not exist in older database files.
+    foreach (var colDef in new[] { "\"TeamName\" TEXT NOT NULL DEFAULT ''", "\"TeamImageUrl\" TEXT NOT NULL DEFAULT ''" })
     {
         try
         {
-            using var conn = new Microsoft.Data.Sqlite.SqliteConnection(cs);
-            conn.Open();
-
-            using (var p = conn.CreateCommand())
-            {
-                p.CommandText = "PRAGMA busy_timeout=30000; PRAGMA journal_mode=DELETE;";
-                p.ExecuteNonQuery();
-            }
-
-            foreach (var sql in new[]
-            {
-                """
-                CREATE TABLE IF NOT EXISTS "Leagues" (
-                    "Code" TEXT NOT NULL CONSTRAINT "PK_Leagues" PRIMARY KEY,
-                    "Name" TEXT NOT NULL,
-                    "AdminPin" TEXT NOT NULL,
-                    "CommissionerPlayerId" TEXT NOT NULL,
-                    "PointLimit" INTEGER NOT NULL,
-                    "Rounds" INTEGER NOT NULL,
-                    "RegulationSet" TEXT NOT NULL,
-                    "CurrentPickNumber" INTEGER NOT NULL,
-                    "DraftStatus" INTEGER NOT NULL,
-                    "CreatedAt" TEXT NOT NULL
-                )
-                """,
-                """
-                CREATE TABLE IF NOT EXISTS "Players" (
-                    "Id" TEXT NOT NULL CONSTRAINT "PK_Players" PRIMARY KEY,
-                    "LeagueCode" TEXT NOT NULL,
-                    "SortOrder" INTEGER NOT NULL,
-                    "Name" TEXT NOT NULL,
-                    "TeamName" TEXT NOT NULL DEFAULT '',
-                    "TeamImageUrl" TEXT NOT NULL DEFAULT '',
-                    "Pin" TEXT NOT NULL,
-                    CONSTRAINT "FK_Players_Leagues_LeagueCode"
-                        FOREIGN KEY ("LeagueCode") REFERENCES "Leagues" ("Code") ON DELETE CASCADE
-                )
-                """,
-                """
-                CREATE TABLE IF NOT EXISTS "Picks" (
-                    "Id" INTEGER NOT NULL CONSTRAINT "PK_Picks" PRIMARY KEY AUTOINCREMENT,
-                    "LeagueCode" TEXT NOT NULL,
-                    "PickNumber" INTEGER NOT NULL,
-                    "Round" INTEGER NOT NULL,
-                    "PlayerId" TEXT NOT NULL,
-                    "PokemonId" INTEGER NOT NULL,
-                    CONSTRAINT "FK_Picks_Leagues_LeagueCode"
-                        FOREIGN KEY ("LeagueCode") REFERENCES "Leagues" ("Code") ON DELETE CASCADE
-                )
-                """,
-                """
-                CREATE TABLE IF NOT EXISTS "PointValues" (
-                    "Id" INTEGER NOT NULL CONSTRAINT "PK_PointValues" PRIMARY KEY AUTOINCREMENT,
-                    "LeagueCode" TEXT NOT NULL,
-                    "PokemonId" INTEGER NOT NULL,
-                    "Value" INTEGER NOT NULL,
-                    CONSTRAINT "FK_PointValues_Leagues_LeagueCode"
-                        FOREIGN KEY ("LeagueCode") REFERENCES "Leagues" ("Code") ON DELETE CASCADE
-                )
-                """,
-                """
-                CREATE TABLE IF NOT EXISTS "Trades" (
-                    "Id" INTEGER NOT NULL CONSTRAINT "PK_Trades" PRIMARY KEY AUTOINCREMENT,
-                    "LeagueCode" TEXT NOT NULL,
-                    "InitiatorPlayerId" TEXT NOT NULL,
-                    "TargetPlayerId" TEXT NOT NULL,
-                    "Status" INTEGER NOT NULL,
-                    "ProposedAt" TEXT NOT NULL,
-                    CONSTRAINT "FK_Trades_Leagues_LeagueCode"
-                        FOREIGN KEY ("LeagueCode") REFERENCES "Leagues" ("Code") ON DELETE CASCADE
-                )
-                """,
-                """
-                CREATE TABLE IF NOT EXISTS "TradeItems" (
-                    "Id" INTEGER NOT NULL CONSTRAINT "PK_TradeItems" PRIMARY KEY AUTOINCREMENT,
-                    "TradeId" INTEGER NOT NULL,
-                    "FromPlayerId" TEXT NOT NULL,
-                    "PokemonId" INTEGER NOT NULL,
-                    CONSTRAINT "FK_TradeItems_Trades_TradeId"
-                        FOREIGN KEY ("TradeId") REFERENCES "Trades" ("Id") ON DELETE CASCADE
-                )
-                """,
-                """
-                CREATE TABLE IF NOT EXISTS "Matchups" (
-                    "Id" INTEGER NOT NULL CONSTRAINT "PK_Matchups" PRIMARY KEY AUTOINCREMENT,
-                    "LeagueCode" TEXT NOT NULL,
-                    "Week" INTEGER NOT NULL,
-                    "Player1Id" TEXT NOT NULL,
-                    "Player2Id" TEXT NOT NULL,
-                    "Player1Wins" INTEGER NULL,
-                    "Player2Wins" INTEGER NULL,
-                    "ReportedByPlayerId" TEXT NULL,
-                    "ReportedAt" TEXT NULL,
-                    CONSTRAINT "FK_Matchups_Leagues_LeagueCode"
-                        FOREIGN KEY ("LeagueCode") REFERENCES "Leagues" ("Code") ON DELETE CASCADE
-                )
-                """,
-                @"CREATE INDEX IF NOT EXISTS ""IX_Matchups_LeagueCode"" ON ""Matchups"" (""LeagueCode"")",
-                @"CREATE INDEX IF NOT EXISTS ""IX_Picks_LeagueCode"" ON ""Picks"" (""LeagueCode"")",
-                @"CREATE INDEX IF NOT EXISTS ""IX_Players_LeagueCode"" ON ""Players"" (""LeagueCode"")",
-                @"CREATE INDEX IF NOT EXISTS ""IX_PointValues_LeagueCode"" ON ""PointValues"" (""LeagueCode"")",
-                @"CREATE INDEX IF NOT EXISTS ""IX_TradeItems_TradeId"" ON ""TradeItems"" (""TradeId"")",
-                @"CREATE INDEX IF NOT EXISTS ""IX_Trades_LeagueCode"" ON ""Trades"" (""LeagueCode"")",
-            })
-            {
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = sql;
-                cmd.ExecuteNonQuery();
-            }
-
-            // Migration: add columns that may not exist in older database files.
-            foreach (var colDef in new[] { "\"TeamName\" TEXT NOT NULL DEFAULT ''", "\"TeamImageUrl\" TEXT NOT NULL DEFAULT ''" })
-            {
-                try
-                {
-                    using var cmd = conn.CreateCommand();
-                    cmd.CommandText = $"ALTER TABLE \"Players\" ADD COLUMN {colDef}";
-                    cmd.ExecuteNonQuery();
-                }
-                catch { } // column already exists — ignore
-            }
-
-            logger.LogInformation("DB schema ready (attempt {Attempt})", attempt);
-            break;
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = $"ALTER TABLE \"Players\" ADD COLUMN {colDef}";
+            cmd.ExecuteNonQuery();
         }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "DB init attempt {Attempt}/10 failed, retrying in 3 s", attempt);
-            if (attempt < 10) Thread.Sleep(TimeSpan.FromSeconds(3));
-        }
+        catch { } // column already exists — ignore
     }
+
+    logger.LogInformation("DB schema ready.");
 }
 
 if (app.Environment.IsDevelopment())
