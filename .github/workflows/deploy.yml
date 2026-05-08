@@ -33,6 +33,8 @@ jobs:
           tags: |
             ${{ secrets.ACR_NAME }}.azurecr.io/pokemon-draft:${{ github.sha }}
             ${{ secrets.ACR_NAME }}.azurecr.io/pokemon-draft:latest
+          cache-from: type=registry,ref=${{ secrets.ACR_NAME }}.azurecr.io/pokemon-draft:latest
+          cache-to: type=inline
 
       - name: Deploy to Container Apps
         run: |
