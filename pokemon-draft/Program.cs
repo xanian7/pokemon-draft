@@ -32,13 +32,35 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Retry EnsureCreated — during rolling deploys, both old and new containers
+// briefly share /data/draft.db, causing SQLite error 5 "database is locked".
+// Retry with backoff until the old container releases the lock.
+for (int attempt = 1; ; attempt++)
+{
+    try
+    {
+        using var initScope = app.Services.CreateScope();
+        initScope.ServiceProvider.GetRequiredService<DraftDbContext>().Database.EnsureCreated();
+        break;
+    }
+    catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 5 && attempt < 12)
+    {
+        Thread.Sleep(TimeSpan.FromSeconds(5));
+    }
+}
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<DraftDbContext>();
-    db.Database.EnsureCreated();
-
     var conn = db.Database.GetDbConnection();
     conn.Open();
+
+    // Enable WAL mode for better concurrency and set busy timeout as a safety net.
+    using (var pragma = conn.CreateCommand())
+    {
+        pragma.CommandText = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=10000;";
+        pragma.ExecuteNonQuery();
+    }
     foreach (var colDef in new[] { "TeamName TEXT NOT NULL DEFAULT ''", "TeamImageUrl TEXT NOT NULL DEFAULT ''" })
     {
         try
