@@ -69,7 +69,6 @@ async function enterAsAdmin() {
               id="commissionerName"
               v-model="commissionerName"
               type="text"
-              placeholder="e.g. Ash Ketchum"
             />
           </div>
           <div class="field">
