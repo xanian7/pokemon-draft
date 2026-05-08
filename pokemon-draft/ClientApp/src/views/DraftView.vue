@@ -235,6 +235,7 @@ function closeDetail() {
             <div class="connection-badge" :class="isConnected ? 'live' : 'offline'">
               {{ isConnected ? '● Live' : '○ Disconnected' }}
             </div>
+            
           </div>
           <div class="draft-queue">
             <template v-for="(group, gi) in picksByRound" :key="group.round">
