@@ -36,65 +36,56 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Attempt to enable WAL journal mode. This may fail on network-mounted volumes
-// (e.g. Azure Files/SMB) that don't support the required file locking primitives.
-// A failure here is non-fatal — SQLite falls back to the default DELETE journal
-// mode which is less concurrent but works correctly on SMB mounts.
+// SQLite on Azure Files (SMB) does not support WAL mode or the shared-memory
+// locking it requires. If a previous container left behind .db-wal / .db-shm
+// files, SQLite will attempt WAL recovery on the next open — which also requires
+// those locks and immediately throws "database is locked", blocking every
+// operation. Since this app has no rolling deploys the previous container is
+// always stopped before this one starts, so deleting stale WAL artefacts is safe.
 {
     var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
     var cs = app.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=draft.db";
-    try
+    var dbPath = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(cs).DataSource;
+
+    foreach (var ext in new[] { "-wal", "-shm" })
     {
-        using var walConn = new Microsoft.Data.Sqlite.SqliteConnection(cs);
-        walConn.Open();
-        using (var busyCmd = walConn.CreateCommand())
+        var f = dbPath + ext;
+        if (File.Exists(f))
         {
-            busyCmd.CommandText = "PRAGMA busy_timeout=60000";
-            busyCmd.ExecuteNonQuery();
+            try
+            {
+                File.Delete(f);
+                startupLogger.LogInformation("Deleted stale SQLite file: {File}", f);
+            }
+            catch (Exception ex)
+            {
+                startupLogger.LogWarning(ex, "Could not delete stale SQLite file: {File}", f);
+            }
         }
-        using var walCmd = walConn.CreateCommand();
-        walCmd.CommandText = "PRAGMA journal_mode=WAL";
-        walCmd.ExecuteNonQuery();
-        startupLogger.LogInformation("SQLite WAL mode enabled.");
-    }
-    catch (Exception ex)
-    {
-        startupLogger.LogWarning(ex, "Could not enable SQLite WAL mode (likely a network-mounted volume). Continuing with default journal mode.");
     }
 }
 
-// Run DB initialisation in the background so the HTTP server starts immediately
-// and Azure Container Apps health probes can reach port 8080.
-//
-// KEY: We use individual CREATE TABLE IF NOT EXISTS statements instead of
-// EnsureCreated(). EnsureCreated() wraps everything in one deferred transaction
-// whose COMMIT requires an EXCLUSIVE lock — which the old container holds for
-// 30-60 s during the rolling deploy. Individual auto-committed DDL statements
-// each wait up to 60 s (busy_timeout via SqlitePragmaInterceptor) and succeed
-// as soon as they can acquire a brief write lock.
-app.Lifetime.ApplicationStarted.Register(() => Task.Run(() =>
+// Initialise the DB schema synchronously before the HTTP server starts so that
+// every request is guaranteed to find the tables present. Individual
+// CREATE TABLE IF NOT EXISTS statements auto-commit one at a time — no large
+// COMMIT that needs an exclusive lock.
 {
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
-    for (int attempt = 1; attempt <= 20; attempt++)
+    var cs = app.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=draft.db";
+
+    for (int attempt = 1; attempt <= 10; attempt++)
     {
         try
         {
-            using var scope = app.Services.CreateScope();
-            var conn = scope.ServiceProvider.GetRequiredService<DraftDbContext>().Database.GetDbConnection();
+            using var conn = new Microsoft.Data.Sqlite.SqliteConnection(cs);
             conn.Open();
 
-            // Set busy_timeout on the raw connection (interceptor only fires
-            // for EF Core-managed connections, not raw DbConnection.Open()).
-            foreach (var pragma in new[] { "PRAGMA busy_timeout=60000" })
+            using (var p = conn.CreateCommand())
             {
-                using var p = conn.CreateCommand();
-                p.CommandText = pragma;
+                p.CommandText = "PRAGMA busy_timeout=30000; PRAGMA journal_mode=DELETE;";
                 p.ExecuteNonQuery();
             }
 
-            // Each statement auto-commits individually — no large COMMIT to fail.
-            // CommandTimeout=0 disables the .NET-level 30s cancellation so SQLite's
-            // busy_timeout (60s) is what controls how long we wait for a write lock.
             foreach (var sql in new[]
             {
                 """
@@ -193,34 +184,31 @@ app.Lifetime.ApplicationStarted.Register(() => Task.Run(() =>
             {
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = sql;
-                cmd.CommandTimeout = 0; // rely on SQLite busy_timeout (60s), not .NET's default 30s
                 cmd.ExecuteNonQuery();
             }
 
-            // Migration: add columns to existing tables that pre-date these columns.
+            // Migration: add columns that may not exist in older database files.
             foreach (var colDef in new[] { "\"TeamName\" TEXT NOT NULL DEFAULT ''", "\"TeamImageUrl\" TEXT NOT NULL DEFAULT ''" })
             {
                 try
                 {
                     using var cmd = conn.CreateCommand();
                     cmd.CommandText = $"ALTER TABLE \"Players\" ADD COLUMN {colDef}";
-                    cmd.CommandTimeout = 0;
                     cmd.ExecuteNonQuery();
                 }
                 catch { } // column already exists — ignore
             }
 
-            conn.Close();
             logger.LogInformation("DB schema ready (attempt {Attempt})", attempt);
             break;
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "DB init attempt {Attempt}/20 failed, retrying in 5 s", attempt);
-            Thread.Sleep(TimeSpan.FromSeconds(5));
+            logger.LogWarning(ex, "DB init attempt {Attempt}/10 failed, retrying in 3 s", attempt);
+            if (attempt < 10) Thread.Sleep(TimeSpan.FromSeconds(3));
         }
     }
-}));
+}
 
 if (app.Environment.IsDevelopment())
 {
