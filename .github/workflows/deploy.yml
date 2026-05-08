@@ -38,6 +38,16 @@ jobs:
           cache-from: type=registry,ref=${{ secrets.ACR_NAME }}.azurecr.io/pokemon-draft:latest
           cache-to: type=inline
 
+      - name: Set single-revision mode
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az containerapp revision set-mode \
+              --name pokemon-draft \
+              --resource-group ${{ secrets.RESOURCE_GROUP }} \
+              --mode single
+
       - name: Deploy to Container Apps
         uses: azure/container-apps-deploy-action@v1
         with:
