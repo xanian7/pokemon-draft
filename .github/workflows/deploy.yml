@@ -37,8 +37,11 @@ jobs:
           cache-to: type=inline
 
       - name: Deploy to Container Apps
-        run: |
-          az containerapp update \
-            --name pokemon-draft \
-            --resource-group ${{ secrets.RESOURCE_GROUP }} \
-            --image ${{ secrets.ACR_NAME }}.azurecr.io/pokemon-draft:${{ github.sha }}
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ secrets.RESOURCE_GROUP }}
+          containerAppName: pokemon-draft
+          imageToDeploy: ${{ secrets.ACR_NAME }}.azurecr.io/pokemon-draft:${{ github.sha }}
+          registryUrl: ${{ secrets.ACR_NAME }}.azurecr.io
+          registryUsername: ${{ secrets.ACR_NAME }}
+          registryPassword: ${{ secrets.ACR_PASSWORD }}
