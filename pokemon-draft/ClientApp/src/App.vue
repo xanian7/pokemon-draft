@@ -8,6 +8,8 @@ import { mdiPokeball, mdiLogout, mdiCog } from '@mdi/js'
 const authStore = useAuthStore()
 const router = useRouter()
 
+const appVersion = __APP_VERSION__
+
 const menuOpen = ref(false)
 const menuRef = ref<HTMLElement | null>(null)
 
@@ -95,6 +97,8 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
                 <AppIcon :path="mdiLogout" :size="16" />
                 Leave league
               </button>
+              <div class="dropdown-divider" />
+              <div class="dropdown-version">v{{ appVersion }}</div>
             </div>
           </Transition>
         </div>
@@ -305,6 +309,13 @@ nav a.router-link-exact-active {
 .dropdown-item--danger:hover {
   background: rgba(204, 0, 0, 0.08);
   color: var(--primary);
+}
+
+.dropdown-version {
+  padding: 0.4rem 1rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  opacity: 0.6;
 }
 
 /* Dropdown transition */
