@@ -6,6 +6,9 @@ COPY pokemon-draft/ClientApp/package*.json ./
 RUN npm ci
 
 COPY pokemon-draft/ClientApp ./
+
+ARG VITE_GIT_SHA=dev
+ENV VITE_GIT_SHA=$VITE_GIT_SHA
 RUN npm run build-only
 
 # ── Stage 2: Build .NET API ───────────────────────────────────────────────────
