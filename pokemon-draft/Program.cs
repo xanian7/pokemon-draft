@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.FileProviders;
 using PokemonDraft.Data;
 using PokemonDraft.DTOs;
@@ -10,7 +11,10 @@ using PokemonDraft.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<DraftDbContext>(opts =>
-    opts.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    opts.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
+    opts.AddInterceptors(new SqlitePragmaInterceptor());
+});
 builder.Services.AddScoped<ILeagueService, LeagueService>();
 builder.Services.AddSignalR();
 builder.Services.AddCors(options =>
@@ -32,45 +36,28 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Signal set when DB init completes. API middleware awaits this so requests
-// don't hit uninitialized tables during the brief window after startup.
-var dbReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-// Run DB initialisation AFTER the HTTP server starts so Azure Container Apps
-// health probes can reach port 8080 immediately. Previously this blocked
-// startup for up to 60 s, causing the new revision to fail its health check
-// and the old revision to keep serving traffic.
+// Run DB initialisation in the background so the HTTP server starts immediately
+// and Azure Container Apps health probes can reach port 8080.
+// busy_timeout (30 s) is set on every EF Core connection via SqlitePragmaInterceptor,
+// so any brief SQLite lock during the rolling-deploy window is handled automatically.
 app.Lifetime.ApplicationStarted.Register(() => Task.Run(() =>
 {
     try
     {
-        // Retry EnsureCreated — during rolling deploys both containers briefly
-        // share /data/draft.db, causing SQLite error 5 "database is locked".
-        for (int attempt = 1; ; attempt++)
-        {
-            try
-            {
-                using var initScope = app.Services.CreateScope();
-                initScope.ServiceProvider.GetRequiredService<DraftDbContext>().Database.EnsureCreated();
-                break;
-            }
-            catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 5 && attempt < 12)
-            {
-                Thread.Sleep(TimeSpan.FromSeconds(5));
-            }
-        }
+        using var initScope = app.Services.CreateScope();
+        initScope.ServiceProvider.GetRequiredService<DraftDbContext>().Database.EnsureCreated();
+    }
+    catch (Exception ex)
+    {
+        var log = app.Services.GetRequiredService<ILogger<Program>>();
+        log.LogError(ex, "DB EnsureCreated failed on startup");
+    }
 
+    try
+    {
         using var scope = app.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<DraftDbContext>();
-        var conn = db.Database.GetDbConnection();
+        var conn = scope.ServiceProvider.GetRequiredService<DraftDbContext>().Database.GetDbConnection();
         conn.Open();
-
-        // Enable WAL mode for better concurrency and set busy timeout as a safety net.
-        using (var pragma = conn.CreateCommand())
-        {
-            pragma.CommandText = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=10000;";
-            pragma.ExecuteNonQuery();
-        }
         foreach (var colDef in new[] { "TeamName TEXT NOT NULL DEFAULT ''", "TeamImageUrl TEXT NOT NULL DEFAULT ''" })
         {
             try
@@ -81,11 +68,10 @@ app.Lifetime.ApplicationStarted.Register(() => Task.Run(() =>
             }
             catch { }
         }
-
         try
         {
-            using var cmd2 = conn.CreateCommand();
-            cmd2.CommandText = """
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
                 CREATE TABLE IF NOT EXISTS Matchups (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
                     LeagueCode TEXT NOT NULL,
@@ -99,28 +85,17 @@ app.Lifetime.ApplicationStarted.Register(() => Task.Run(() =>
                     FOREIGN KEY (LeagueCode) REFERENCES Leagues(Code) ON DELETE CASCADE
                 )
                 """;
-            cmd2.ExecuteNonQuery();
+            cmd.ExecuteNonQuery();
         }
         catch { }
-
         conn.Close();
     }
-    finally
+    catch (Exception ex)
     {
-        dbReady.TrySetResult();
+        var log = app.Services.GetRequiredService<ILogger<Program>>();
+        log.LogError(ex, "DB schema migration failed on startup");
     }
 }));
-
-app.UseCors();
-
-// Hold API requests until DB is initialised (typically < 1 s after first request;
-// up to ~60 s on first deploy while the old container releases the SQLite lock).
-app.Use(async (context, next) =>
-{
-    if (context.Request.Path.StartsWithSegments("/api") && !dbReady.Task.IsCompleted)
-        await dbReady.Task.WaitAsync(TimeSpan.FromSeconds(70));
-    await next(context);
-});
 
 if (app.Environment.IsDevelopment())
 {
@@ -423,3 +398,24 @@ if (!app.Environment.IsDevelopment())
 
 app.Run();
 
+// Sets PRAGMA busy_timeout and journal_mode=WAL on every SQLite connection
+// opened by EF Core so that brief lock contention during rolling deploys is
+// handled at the SQLite level without application-level retry loops.
+class SqlitePragmaInterceptor : DbConnectionInterceptor
+{
+    private const string Sql = "PRAGMA busy_timeout=30000; PRAGMA journal_mode=WAL;";
+
+    public override void ConnectionOpened(System.Data.Common.DbConnection connection, ConnectionEndEventData eventData)
+    {
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = Sql;
+        cmd.ExecuteNonQuery();
+    }
+
+    public override async Task ConnectionOpenedAsync(System.Data.Common.DbConnection connection, ConnectionEndEventData eventData, CancellationToken cancellationToken = default)
+    {
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = Sql;
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+}
