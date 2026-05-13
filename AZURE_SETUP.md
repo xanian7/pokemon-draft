@@ -57,28 +57,36 @@ This is where your Docker image gets stored.
 
 ---
 
-## Step 4 — Create a Storage Account (for SQLite)
-
-SQLite needs a persistent disk so data survives restarts.
+## Step 4 — Create an Azure SQL Database
 
 **Via portal:**
-1. Search **"Storage accounts"** → click **+ Create**
+1. Search **"SQL databases"** → click **+ Create**
 2. Fill in:
    - **Resource group**: `pokemon-draft-rg`
-   - **Storage account name**: something unique, e.g. `pokemondraftsa`
-   - **Region**: same as above
-   - **Performance**: `Standard`
-   - **Redundancy**: `LRS` (cheapest)
+   - **Database name**: `pokemon-draft`
+   - **Server**: click **Create new**
+     - Server name: something unique, e.g. `pokemon-draft-sql`
+     - Location: same region as above
+     - Authentication: **SQL authentication**
+     - Admin login: pick a username (e.g. `sqladmin`)
+     - Password: pick a strong password and save it
+   - **Compute + storage**: click **Configure** → choose **Basic** (cheapest, ~$5/month)
 3. Click **Review + create** → **Create**
 
-**Create a file share:**
-1. Open your storage account
-2. Go to **Data storage → File shares** → **+ File share**
-3. Name it `draftsqlite`, quota `1` GB → **Create**
+**Allow Azure services to connect:**
+1. Open your new SQL server (not the database)
+2. Go to **Security → Networking**
+3. Under **Firewall rules**, enable **"Allow Azure services and resources to access this server"**
+4. Click **Save**
 
-**Copy your storage key:**
-1. Go to **Security + networking → Access keys**
-2. Click **Show** next to key1 and copy it
+**Get your connection string:**
+1. Open the SQL **database** (not the server)
+2. Go to **Settings → Connection strings**
+3. Copy the **ADO.NET** string — it looks like:
+   ```
+   Server=tcp:pokemon-draft-sql.database.windows.net,1433;Initial Catalog=pokemon-draft;Persist Security Info=False;User ID=sqladmin;Password=<your-password>;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;
+   ```
+4. Replace `<your-password>` with the password you chose — keep this safe, you'll add it as a GitHub secret.
 
 ---
 
@@ -93,25 +101,6 @@ This is the hosting platform that runs your container.
    - **Name**: `pokemon-draft-env`
    - **Region**: same as above
 3. Click **Review + create** → **Create**
-
-**Mount the file share (so SQLite has persistent storage):**
-
-This part requires the CLI. Open a terminal and run:
-
-```powershell
-az login
-
-az containerapp env storage set `
-  --name pokemon-draft-env `
-  --resource-group pokemon-draft-rg `
-  --storage-name sqlitedata `
-  --azure-file-account-name <YOUR_STORAGE_ACCOUNT_NAME> `
-  --azure-file-account-key <YOUR_STORAGE_KEY> `
-  --azure-file-share-name draftsqlite `
-  --access-mode ReadWrite
-```
-
-Replace `<YOUR_STORAGE_ACCOUNT_NAME>` and `<YOUR_STORAGE_KEY>` with the values from Step 4.
 
 ---
 
@@ -136,16 +125,12 @@ Replace `<YOUR_STORAGE_ACCOUNT_NAME>` and `<YOUR_STORAGE_KEY>` with the values f
    | Name | Value |
    |---|---|
    | `ASPNETCORE_ENVIRONMENT` | `Production` |
-   | `ConnectionStrings__DefaultConnection` | `Data Source=/data/draft.db` |
-5. **Volumes tab:**
-   - Click **+ Add** → Volume type: **Azure file volume**
-   - Storage name: `sqlitedata`
-   - Mount path: `/data`
-6. **Ingress tab:**
+   | `ConnectionStrings__DefaultConnection` | your Azure SQL connection string from Step 4 |
+5. **Ingress tab:**
    - **Ingress**: Enabled
    - **Ingress traffic**: Accepting traffic from anywhere
    - **Target port**: `8080`
-7. Click **Review + create** → **Create**
+6. Click **Review + create** → **Create**
 
 ---
 
@@ -153,7 +138,7 @@ Replace `<YOUR_STORAGE_ACCOUNT_NAME>` and `<YOUR_STORAGE_KEY>` with the values f
 
 Go to your GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**
 
-Add these 4 secrets:
+Add these secrets:
 
 | Secret name | Where to get the value |
 |---|---|
@@ -206,8 +191,8 @@ Your app URL appears in the Azure portal under your Container App → **Overview
 |---|---|---|
 | Container App | Consumption (scale to zero) | $0–5 |
 | Container Registry | Basic | ~$5 |
-| Storage Account | Standard LRS | ~$1 |
-| **Total** | | **~$6–11/month** |
+| Azure SQL Database | Basic (5 DTU) | ~$5 |
+| **Total** | | **~$10–15/month** |
 
 Well within your $50 credit budget.
 

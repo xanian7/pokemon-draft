@@ -9,9 +9,9 @@ public class DraftHub(ILeagueService leagueService) : Hub
     public async Task JoinLeagueGroup(string leagueCode)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, leagueCode.ToUpperInvariant());
-        var league = leagueService.GetLeague(leagueCode);
-        if (league is not null)
-            await Clients.Caller.SendAsync("LeagueState", leagueService.ToResponse(league));
+        var response = leagueService.GetLeagueResponse(leagueCode);
+        if (response is not null)
+            await Clients.Caller.SendAsync("LeagueState", response);
     }
 
     public async Task LeaveLeagueGroup(string leagueCode)

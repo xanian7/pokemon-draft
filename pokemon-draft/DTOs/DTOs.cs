@@ -31,6 +31,10 @@ public record EditMatchupRequest(string AdminPin, int Player1Wins, int Player2Wi
 
 // --- Responses ---
 
+public record CreateLeagueResponse(string Code, string Name);
+public record PlayerCreatedResponse(string Id, string Name);
+public record PokemonResponse(int Id, int SpeciesId, string Name, string SpriteUrl, List<string> Types, int Bst);
+
 public record JoinResponse(string PlayerId, string PlayerName, bool IsAdmin, string LeagueCode, string TeamName, string TeamImageUrl, string LeagueName);
 
 public record LeagueResponse(

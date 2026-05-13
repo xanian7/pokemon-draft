@@ -10,14 +10,21 @@ namespace PokemonDraft.Services;
 public class LeagueService(DraftDbContext db) : ILeagueService
 {
     /// <inheritdoc/>
-    public League CreateLeague(string name, string commissionerName, string adminPin)
+    public (CreateLeagueResponse? result, string? error) CreateLeague(CreateLeagueRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.Name) || string.IsNullOrWhiteSpace(req.AdminPin) || string.IsNullOrWhiteSpace(req.CommissionerName))
+            return (null, "Name, commissioner name, and admin PIN are required.");
+
+        var name = req.Name.Trim();
+        var commissionerName = req.CommissionerName.Trim();
+        var adminPin = req.AdminPin;
+
         var code = GenerateCode();
         var commissioner = new Player
         {
             Id = Guid.NewGuid().ToString(),
             LeagueCode = code,
-            Name = commissionerName.Trim(),
+            Name = commissionerName,
             Pin = BC.HashPassword(adminPin),
             SortOrder = 0,
         };
@@ -35,59 +42,68 @@ public class LeagueService(DraftDbContext db) : ILeagueService
 
         db.Leagues.Add(league);
         db.SaveChanges();
-        return LoadLeague(code)!;
+        return (new CreateLeagueResponse(code, name), null);
+    }
+
+    public LeagueResponse? GetLeagueResponse(string code)
+    {
+        var league = LoadLeague(code);
+        return league is null ? null : ToResponse(league);
     }
 
     /// <inheritdoc/>
-    public League? GetLeague(string code) => LoadLeague(code);
-
-    /// <inheritdoc/>
-    public bool UpdateConfig(string code, UpdateLeagueConfigRequest req)
+    public (bool success, string? error) UpdateConfig(string code, UpdateLeagueConfigRequest req)
     {
         var league = LoadLeague(code);
-        if (league is null) return false;
+        if (league is null) return (false, null);
         if (req.Name is not null) league.Name = req.Name;
         if (req.PointLimit is not null) league.PointLimit = req.PointLimit.Value;
         if (req.Rounds is not null) league.Rounds = req.Rounds.Value;
         if (req.RegulationSet is not null) league.RegulationSet = req.RegulationSet;
         db.SaveChanges();
-        return true;
+        return (true, null);
     }
 
     /// <inheritdoc/>
-    public Player? AddPlayer(string leagueCode, string name, string pin)
+    public (PlayerCreatedResponse? result, string? error) AddPlayer(string leagueCode, AddPlayerRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.Name) || string.IsNullOrWhiteSpace(req.Pin))
+            return (null, "Name and PIN are required.");
+
         var league = LoadLeague(leagueCode);
-        if (league is null) return null;
+        if (league is null) return (null, null);
 
         var player = new Player
         {
             Id = Guid.NewGuid().ToString(),
             LeagueCode = league.Code,
-            Name = name,
-            Pin = BC.HashPassword(pin),
+            Name = req.Name.Trim(),
+            Pin = BC.HashPassword(req.Pin),
             SortOrder = GetOrderedPlayers(league).Count,
         };
 
         league.Players.Add(player);
         db.SaveChanges();
-        return player;
+        return (new PlayerCreatedResponse(player.Id, player.Name), null);
     }
 
     /// <inheritdoc/>
-    public (Player? player, string? error) RegisterPlayer(string leagueCode, string name, string pin, string? teamName = null, string? teamImageUrl = null)
+    public (PlayerCreatedResponse? result, string? error) RegisterPlayer(string leagueCode, RegisterPlayerRequest req)
     {
+        if (string.IsNullOrWhiteSpace(req.Name) || string.IsNullOrWhiteSpace(req.Pin))
+            return (null, "Name and PIN are required.");
+
         var league = LoadLeague(leagueCode);
         if (league is null)
             return (null, "League not found.");
 
-        var trimmedName = name.Trim();
+        var trimmedName = req.Name.Trim();
         var orderedPlayers = GetOrderedPlayers(league);
 
         if (orderedPlayers.Any(p => p.Name.Equals(trimmedName, StringComparison.OrdinalIgnoreCase)))
             return (null, "That name is already taken in this league.");
 
-        if (orderedPlayers.Any(p => BC.Verify(pin, p.Pin)))
+        if (orderedPlayers.Any(p => BC.Verify(req.Pin, p.Pin)))
             return (null, "That PIN is already in use. Please choose a different one.");
 
         var player = new Player
@@ -95,55 +111,55 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             Id = Guid.NewGuid().ToString(),
             LeagueCode = league.Code,
             Name = trimmedName,
-            Pin = BC.HashPassword(pin),
+            Pin = BC.HashPassword(req.Pin),
             SortOrder = orderedPlayers.Count,
-            TeamName = teamName?.Trim() ?? string.Empty,
-            TeamImageUrl = teamImageUrl?.Trim() ?? string.Empty,
+            TeamName = req.TeamName?.Trim() ?? string.Empty,
+            TeamImageUrl = req.TeamImageUrl?.Trim() ?? string.Empty,
         };
 
         league.Players.Add(player);
         db.SaveChanges();
-        return (player, null);
+        return (new PlayerCreatedResponse(player.Id, player.Name), null);
     }
 
     /// <inheritdoc/>
-    public bool RemovePlayer(string leagueCode, string playerId)
+    public (bool success, string? error) RemovePlayer(string leagueCode, string playerId)
     {
         var league = LoadLeague(leagueCode);
-        if (league is null) return false;
+        if (league is null) return (false, null);
 
         var player = league.Players.FirstOrDefault(p => p.Id == playerId);
-        if (player is null) return false;
+        if (player is null) return (false, null);
 
         db.Players.Remove(player);
         ReindexPlayers(league.Players.Where(p => p.Id != playerId).OrderBy(p => p.SortOrder).ToList());
         db.SaveChanges();
-        return true;
+        return (true, null);
     }
 
     /// <inheritdoc/>
-    public bool MovePlayer(string leagueCode, int fromIndex, int toIndex)
+    public (bool success, string? error) MovePlayer(string leagueCode, int fromIndex, int toIndex)
     {
         var league = LoadLeague(leagueCode);
-        if (league is null) return false;
+        if (league is null) return (false, null);
 
         var players = GetOrderedPlayers(league);
-        if (fromIndex < 0 || fromIndex >= players.Count) return false;
-        if (toIndex < 0 || toIndex >= players.Count) return false;
+        if (fromIndex < 0 || fromIndex >= players.Count) return (false, "Invalid player index.");
+        if (toIndex < 0 || toIndex >= players.Count) return (false, "Invalid player index.");
 
         var player = players[fromIndex];
         players.RemoveAt(fromIndex);
         players.Insert(toIndex, player);
         ReindexPlayers(players);
         db.SaveChanges();
-        return true;
+        return (true, null);
     }
 
     /// <inheritdoc/>
-    public bool SetPointValues(string leagueCode, Dictionary<int, int> values)
+    public (bool success, string? error) SetPointValues(string leagueCode, Dictionary<int, int> values)
     {
         var league = LoadLeague(leagueCode);
-        if (league is null) return false;
+        if (league is null) return (false, null);
 
         var existing = league.PointValues.ToDictionary(pv => pv.PokemonId);
         foreach (var (pokemonId, pts) in values)
@@ -171,7 +187,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         }
 
         db.SaveChanges();
-        return true;
+        return (true, null);
     }
 
     /// <inheritdoc/>
@@ -196,11 +212,11 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     }
 
     /// <inheritdoc/>
-    public bool StartDraft(string leagueCode)
+    public (bool success, string? error) StartDraft(string leagueCode)
     {
         var league = LoadLeague(leagueCode);
-        if (league is null) return false;
-        if (league.Players.Count < 2) return false;
+        if (league is null) return (false, null);
+        if (league.Players.Count < 2) return (false, "Need at least 2 players to start the draft.");
 
         db.Picks.RemoveRange(league.Picks);
         db.Matchups.RemoveRange(league.Matchups);
@@ -209,14 +225,14 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         league.DraftStatus = DraftStatus.Active;
         league.CurrentPickNumber = 0;
         db.SaveChanges();
-        return true;
+        return (true, null);
     }
 
     /// <inheritdoc/>
-    public bool ResetDraft(string leagueCode)
+    public (bool success, string? error) ResetDraft(string leagueCode)
     {
         var league = LoadLeague(leagueCode);
-        if (league is null) return false;
+        if (league is null) return (false, null);
 
         db.Picks.RemoveRange(league.Picks);
         db.Matchups.RemoveRange(league.Matchups);
@@ -225,7 +241,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         league.DraftStatus = DraftStatus.Setup;
         league.CurrentPickNumber = 0;
         db.SaveChanges();
-        return true;
+        return (true, null);
     }
 
     /// <inheritdoc/>
@@ -275,7 +291,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     }
 
     /// <inheritdoc/>
-    public LeagueResponse ToResponse(League league)
+    private LeagueResponse ToResponse(League league)
     {
         var players = GetOrderedPlayers(league);
         var picks = league.Picks.OrderBy(p => p.PickNumber).ToList();

@@ -29,86 +29,6 @@ function bstToPoints(bst: number): number {
   return 1
 }
 
-// Forms that are cosmetic only (same types/stats as base, purely visual differences)
-// These would appear as separate rows in the API but shouldn't be separate draftable Pokémon.
-const COSMETIC_FORM_PREFIXES = [
-  'pikachu-',      // costume/cap variants (pikachu-rock-star, pikachu-original-cap, etc.)
-  'minior-',       // color variants of meteor and core forms (only default minior is needed)
-  'squawkabilly-', // plumage color variants (same stats/types)
-  'koraidon-',     // riding/mode builds (traversal forms)
-  'miraidon-',     // riding/mode builds (traversal forms)
-]
-
-const COSMETIC_FORM_NAMES = new Set([
-  'eevee-starter',      // special partner eevee
-  'magearna-original',  // original color Magearna (cosmetic)
-  'zarude-dada',        // dada Zarude (cosmetic)
-  'gimmighoul-roaming', // same species, different overworld encounter form
-  'keldeo-resolute',    // same stats/types as Keldeo-Ordinary
-])
-
-function isCosmeticForm(name: string, isDefault: boolean): boolean {
-  if (isDefault) return false
-  if (name.endsWith('-gmax')) return true
-  if (name.endsWith('-totem') || name.includes('-totem-')) return true
-  if (name.includes('-power-construct')) return true
-  if (COSMETIC_FORM_NAMES.has(name)) return true
-  return COSMETIC_FORM_PREFIXES.some((prefix) => name.startsWith(prefix))
-}
-
-interface PokeApiStatEntry {
-  base_stat: number
-}
-
-interface PokeApiTypeEntry {
-  pokemon_v2_type: { name: string }
-}
-
-interface PokeApiPokemon {
-  id: number
-  name: string
-  is_default: boolean
-  pokemon_v2_pokemontypes: PokeApiTypeEntry[]
-  pokemon_v2_pokemonstats: PokeApiStatEntry[]
-  pokemon_v2_pokemonspecy: { id: number } | null
-}
-
-interface PokeApiResponse {
-  data: {
-    pokemon_v2_pokemon: PokeApiPokemon[]
-  }
-}
-// Alternate forms with distinct types/stats (regional variants, Rotom forms, etc.)
-// are included. Cosmetic-only forms are filtered out client-side.
-const GRAPHQL_QUERY = `
-  query {
-    pokemon_v2_pokemon(
-      where: {
-        pokemon_v2_pokemonforms: {
-          is_battle_only: { _eq: false }
-          is_mega: { _eq: false }
-        }
-      }
-      order_by: { id: asc }
-    ) {
-      id
-      name
-      is_default
-      pokemon_v2_pokemonspecy {
-        id
-      }
-      pokemon_v2_pokemontypes {
-        pokemon_v2_type {
-          name
-        }
-      }
-      pokemon_v2_pokemonstats {
-        base_stat
-      }
-    }
-  }
-`
-
 export const usePokemonStore = defineStore('pokemon', () => {
   const allPokemon = ref<Pokemon[]>([])
   const pointValues = ref<Record<number, number>>({})
@@ -152,30 +72,9 @@ export const usePokemonStore = defineStore('pokemon', () => {
     error.value = null
 
     try {
-      const res = await fetch('https://beta.pokeapi.co/graphql/v1beta', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: GRAPHQL_QUERY }),
-      })
-
+      const res = await fetch('/api/pokemon')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-
-      const json: PokeApiResponse = await res.json()
-
-      allPokemon.value = json.data.pokemon_v2_pokemon
-        .filter((p) => !isCosmeticForm(p.name, p.is_default))
-        .map((p) => ({
-        id: p.id,
-        speciesId: p.pokemon_v2_pokemonspecy?.id ?? p.id,
-        name: p.name,
-        spriteUrl: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png`,
-        types: p.pokemon_v2_pokemontypes.map((t) => t.pokemon_v2_type.name),
-        bst: p.pokemon_v2_pokemonstats.reduce(
-          (sum, stat) => sum + stat.base_stat,
-          0,
-        ),
-      }))
-
+      allPokemon.value = await res.json()
       localStorage.setItem(
         CACHE_KEY,
         JSON.stringify({ pokemon: allPokemon.value, timestamp: Date.now() }),
