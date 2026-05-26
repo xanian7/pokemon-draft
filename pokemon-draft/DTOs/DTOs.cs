@@ -35,6 +35,15 @@ public record CreateLeagueResponse(string Code, string Name);
 public record PlayerCreatedResponse(string Id, string Name);
 public record PokemonResponse(int Id, int SpeciesId, string Name, string SpriteUrl, List<string> Types, int Bst);
 
+public record PokemonDetailResponse(
+    List<PokemonDetailStat> Stats,
+    List<PokemonDetailAbility> Abilities,
+    List<PokemonDetailMove> Moves
+);
+public record PokemonDetailStat(string Name, int BaseStat);
+public record PokemonDetailAbility(string Name, bool IsHidden);
+public record PokemonDetailMove(string Name, string Type, int? Power, int? Pp, string Category);
+
 public record JoinResponse(string PlayerId, string PlayerName, bool IsAdmin, string LeagueCode, string TeamName, string TeamImageUrl, string LeagueName);
 
 public record LeagueResponse(

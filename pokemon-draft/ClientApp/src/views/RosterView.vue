@@ -908,11 +908,10 @@ h3,
 
 .available-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 0.45rem;
   overflow-y: auto;
   flex: 1;
-  padding-right: 0.15rem;
   padding-top: 4px;
 }
 

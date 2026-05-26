@@ -1,151 +1,92 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { DraftPick, DraftStatus } from '@/types'
-import { useLeagueStore } from './league'
-import { usePokemonStore } from './pokemon'
-
-const STORAGE_KEY = 'pokemon-draft:draft'
+import { useAuthStore } from './auth'
+import { API_BASE } from '@/services/signalr'
 
 export const useDraftStore = defineStore('draft', () => {
-  const leagueStore = useLeagueStore()
-  const pokemonStore = usePokemonStore()
+  // Source of truth: the full LeagueResponse broadcast from the server via SignalR.
+  // Call applyServerState() whenever a LeagueState message is received.
+  const serverState = ref<any>(null)
 
-  const picks = ref<DraftPick[]>([])
-  const status = ref<DraftStatus>('setup')
-  const currentPickNumber = ref(0)
-
-  function load() {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      try {
-        const data = JSON.parse(stored)
-        picks.value = data.picks ?? []
-        status.value = data.status ?? 'setup'
-        currentPickNumber.value = data.currentPickNumber ?? 0
-      } catch {
-        // ignore
-      }
-    }
+  function applyServerState(state: any) {
+    serverState.value = state
   }
 
-  function save() {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ picks: picks.value, status: status.value, currentPickNumber: currentPickNumber.value }),
-    )
-  }
+  const draftData = computed(() => serverState.value?.draft ?? null)
 
-  /** Returns the player ID whose turn it is at the given overall pick number (0-indexed). */
-  function getPlayerIdAtPick(pickNumber: number): string {
-    const players = leagueStore.config.players
-    const n = players.length
-    if (n === 0) return ''
-    const round = Math.floor(pickNumber / n)
-    const posInRound = pickNumber % n
-    // Even rounds go 0→n-1, odd rounds reverse (snake)
-    const idx = round % 2 === 0 ? posInRound : n - 1 - posInRound
-    return players[idx]?.id ?? ''
-  }
-
-  const totalPicks = computed(
-    () => leagueStore.config.players.length * leagueStore.config.rounds,
-  )
-
-  const isDraftComplete = computed(
-    () => status.value !== 'setup' && currentPickNumber.value >= totalPicks.value,
-  )
-
-  const currentPickerId = computed(() =>
-    status.value === 'active' && !isDraftComplete.value
-      ? getPlayerIdAtPick(currentPickNumber.value)
-      : null,
-  )
-
-  const currentPicker = computed(
-    () => leagueStore.config.players.find((p) => p.id === currentPickerId.value) ?? null,
-  )
-
-  const pickedPokemonIds = computed(() => new Set(picks.value.map((p) => p.pokemonId)))
-
-  /** Full ordered schedule of every pick, showing who picks and what they picked. */
-  const pickSchedule = computed(() => {
-    const n = leagueStore.config.players.length
-    if (n === 0) return []
-    return Array.from({ length: totalPicks.value }, (_, i) => ({
-      pickNumber: i,
-      round: Math.floor(i / n),
-      playerId: getPlayerIdAtPick(i),
-      pick: picks.value.find((p) => p.pickNumber === i) ?? null,
-    }))
+  const status = computed<'setup' | 'active' | 'complete'>(() => {
+    const s: string = draftData.value?.status?.toLowerCase() ?? ''
+    if (s === 'active') return 'active'
+    if (s === 'complete') return 'complete'
+    return 'setup'
   })
 
-  function getPlayerPicks(playerId: string) {
-    return picks.value
-      .filter((p) => p.playerId === playerId)
-      .sort((a, b) => a.pickNumber - b.pickNumber)
-      .map((p) => pokemonStore.getPokemonById(p.pokemonId))
-      .filter(Boolean) as NonNullable<ReturnType<typeof pokemonStore.getPokemonById>>[]
+  const currentPickNumber = computed<number>(() => draftData.value?.currentPickNumber ?? 0)
+  const totalPicks = computed<number>(() => draftData.value?.totalPicks ?? 0)
+
+  // The DB player ID of whoever's turn it is — comes directly from the server.
+  const currentPickerId = computed<string | null>(() => draftData.value?.currentPickerId ?? null)
+  const currentPickerName = computed<string | null>(() => draftData.value?.currentPickerName ?? null)
+
+  const isDraftComplete = computed(() => status.value === 'complete')
+
+  const picks = computed<any[]>(() => draftData.value?.picks ?? [])
+
+  const pickedPokemonIds = computed<Set<number>>(
+    () => new Set(picks.value.map((p: any) => p.pokemonId as number)),
+  )
+
+  const players = computed<any[]>(() => serverState.value?.players ?? [])
+  const leagueName = computed<string>(() => serverState.value?.name ?? '')
+  const regulationSet = computed<string>(() => serverState.value?.regulationSet ?? 'national')
+  const rounds = computed<number>(() => serverState.value?.rounds ?? 0)
+
+  const currentPicker = computed(() =>
+    players.value.find((p: any) => p.id === currentPickerId.value) ?? null,
+  )
+
+  function playerCanDraft(playerId: string): boolean {
+    return status.value === 'active' && !isDraftComplete.value && currentPickerId.value === playerId
   }
 
-  function getPlayerPoints(playerId: string): number {
-    return picks.value
-      .filter((p) => p.playerId === playerId)
-      .reduce((sum, p) => sum + pokemonStore.getPointValue(p.pokemonId), 0)
-  }
-
-  function startDraft() {
-    picks.value = []
-    currentPickNumber.value = 0
-    status.value = 'active'
-    save()
-  }
-
-  function resetDraft() {
-    picks.value = []
-    currentPickNumber.value = 0
-    status.value = 'setup'
-    localStorage.removeItem(STORAGE_KEY)
-  }
-
-  function makePick(pokemonId: number): boolean {
-    if (status.value !== 'active' || isDraftComplete.value) return false
-    if (pickedPokemonIds.value.has(pokemonId)) return false
-
-    const playerId = currentPickerId.value!
-    const n = leagueStore.config.players.length
-    picks.value.push({
-      pickNumber: currentPickNumber.value,
-      round: Math.floor(currentPickNumber.value / n),
-      playerId,
-      pokemonId,
+  /** Posts a draft pick to the API. Returns null on success or an error message. */
+  async function makePick(pokemonId: number): Promise<string | null> {
+    const authStore = useAuthStore()
+    if (!authStore.leagueCode || !authStore.playerId || !authStore.pin) return 'Not authenticated.'
+    const res = await fetch(`${API_BASE}/leagues/${authStore.leagueCode}/draft/pick`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerId: authStore.playerId, pin: authStore.pin, pokemonId }),
     })
-
-    currentPickNumber.value++
-
-    if (currentPickNumber.value >= totalPicks.value) {
-      status.value = 'complete'
-    }
-
-    save()
-    return true
+    if (res.ok) return null
+    const text = await res.text()
+    return text || 'Failed to make pick.'
   }
 
-  load()
+  function getPlayerPicks(playerId: string): any[] {
+    return picks.value
+      .filter((p: any) => p.playerId === playerId)
+      .sort((a: any, b: any) => a.pickNumber - b.pickNumber)
+  }
 
   return {
-    picks,
+    serverState,
+    applyServerState,
     status,
     currentPickNumber,
-    currentPickerId,
-    currentPicker,
     totalPicks,
+    currentPickerId,
+    currentPickerName,
     isDraftComplete,
+    picks,
     pickedPokemonIds,
-    pickSchedule,
-    getPlayerPicks,
-    getPlayerPoints,
-    startDraft,
-    resetDraft,
+    players,
+    leagueName,
+    regulationSet,
+    rounds,
+    currentPicker,
+    playerCanDraft,
     makePick,
+    getPlayerPicks,
   }
 })

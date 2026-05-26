@@ -51,10 +51,53 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
 
 <template>
   <header class="app-header">
-    <RouterLink to="/" class="logo">
-      <AppIcon :path="mdiPokeball" :size="22" class="logo-icon" />
-      PokéDraft
-    </RouterLink>
+    <div class="header-top">
+      <RouterLink to="/" class="logo">
+        <AppIcon :path="mdiPokeball" :size="22" class="logo-icon" />
+        PokéDraft
+      </RouterLink>
+      <span class="nav-divider" />
+      <span class="league-name">{{ authStore.leagueName }}</span>
+
+      <div class="header-right">
+        <template v-if="authStore.isAuthenticated">
+          <!-- Avatar button -->
+          <div ref="menuRef" class="user-menu">
+            <button class="avatar-btn" :title="authStore.playerName ?? ''" @click="toggleMenu">
+              <img
+                v-if="authStore.teamImageUrl"
+                :src="authStore.teamImageUrl"
+                :alt="authStore.playerName ?? ''"
+                class="avatar-img"
+              />
+              <span v-else class="avatar-initials">{{ avatarInitials }}</span>
+            </button>
+
+            <!-- Dropdown -->
+            <Transition name="menu">
+              <div v-if="menuOpen" class="user-dropdown">
+                <div class="dropdown-header">
+                  <span class="dropdown-name">{{ authStore.playerName }}</span>
+                  <span v-if="authStore.teamName" class="dropdown-team">{{ authStore.teamName }}</span>
+                </div>
+                <div class="dropdown-divider" />
+                <button class="dropdown-item" @click="goToSettings">
+                  <AppIcon :path="mdiCog" :size="16" />
+                  Settings
+                </button>
+                <button class="dropdown-item dropdown-item--danger" @click="logout">
+                  <AppIcon :path="mdiLogout" :size="16" />
+                  Logout
+                </button>
+                <div class="dropdown-divider" />
+                <div class="dropdown-version">v{{ appVersion }}</div>
+              </div>
+            </Transition>
+          </div>
+        </template>
+        <RouterLink v-else to="/join" class="btn-login">Log In</RouterLink>
+      </div>
+    </div>
 
     <nav v-if="authStore.isAuthenticated">
       <RouterLink to="/team">My Team</RouterLink>
@@ -66,45 +109,6 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
         <RouterLink to="/pokemon">Point Values</RouterLink>
       </template>
     </nav>
-
-    <div class="header-right">
-      <template v-if="authStore.isAuthenticated">
-        <!-- Avatar button -->
-        <div ref="menuRef" class="user-menu">
-          <button class="avatar-btn" :title="authStore.playerName ?? ''" @click="toggleMenu">
-            <img
-              v-if="authStore.teamImageUrl"
-              :src="authStore.teamImageUrl"
-              :alt="authStore.playerName ?? ''"
-              class="avatar-img"
-            />
-            <span v-else class="avatar-initials">{{ avatarInitials }}</span>
-          </button>
-
-          <!-- Dropdown -->
-          <Transition name="menu">
-            <div v-if="menuOpen" class="user-dropdown">
-              <div class="dropdown-header">
-                <span class="dropdown-name">{{ authStore.playerName }}</span>
-                <span v-if="authStore.teamName" class="dropdown-team">{{ authStore.teamName }}</span>
-              </div>
-              <div class="dropdown-divider" />
-              <button class="dropdown-item" @click="goToSettings">
-                <AppIcon :path="mdiCog" :size="16" />
-                Settings
-              </button>
-              <button class="dropdown-item dropdown-item--danger" @click="logout">
-                <AppIcon :path="mdiLogout" :size="16" />
-                Leave league
-              </button>
-              <div class="dropdown-divider" />
-              <div class="dropdown-version">v{{ appVersion }}</div>
-            </div>
-          </Transition>
-        </div>
-      </template>
-      <RouterLink v-else to="/join" class="btn-login">Log In</RouterLink>
-    </div>
   </header>
 
   <RouterView />
@@ -112,14 +116,17 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
 
 <style>
 :root {
-  --primary: #cc0000;
-  --secondary: #3b4cca;
+  --primary: #0facf5;
+  --secondary: #f50f0f;
   --text: #e8e8e8;
   --text-muted: #888;
-  --bg: #111118;
-  --card-bg: #1c1c28;
-  --input-bg: #252535;
-  --border-color: #2e2e42;
+  --bg: #1a1a1a;
+  --card-bg: #222222;
+  --input-bg: #111111;
+  --border-color: #363636;
+  --primary-hover-bg: #282c30;
+  --secondary-hover-bg: #331e1e;
+  color-scheme: light dark;
 }
 
 * {
@@ -141,15 +148,29 @@ a { color: inherit; text-decoration: none; }
 <style scoped>
 .app-header {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0 1.25rem;
-  height: 56px;
+  flex-direction: column;
   background: var(--card-bg);
   border-bottom: 1px solid var(--border-color);
   position: sticky;
   top: 0;
   z-index: 100;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 1.25rem;
+  height: 56px;
+}
+
+.league-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .logo {
@@ -158,7 +179,7 @@ a { color: inherit; text-decoration: none; }
   gap: 0.35rem;
   font-size: 1.1rem;
   font-weight: 800;
-  color: var(--primary);
+  color: var(--secondary);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -169,13 +190,12 @@ nav {
   display: flex;
   align-items: center;
   gap: 0.15rem;
-  margin-left: 1rem;
-  flex: 1;
+  padding: 0 1.25rem;
+  border-top: 1px solid var(--border-color);
 }
 
 nav a {
-  padding: 0.3rem 0.65rem;
-  border-radius: 6px;
+  padding: 0.4rem 0.65rem;
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--text-muted);
@@ -187,9 +207,9 @@ nav a:hover { color: var(--text); background: var(--input-bg); }
 nav a.router-link-active { color: var(--text); background: var(--input-bg); }
 nav a.router-link-exact-active {
   color: var(--primary);
-  background: rgba(204, 0, 0, 0.08);
-  box-shadow: 0 2px 0 var(--primary);
+  background: var(--primary-hover-bg);
   font-weight: 700;
+  border-bottom: 2px solid var(--primary);
 }
 
 .nav-divider {
@@ -232,7 +252,7 @@ nav a.router-link-exact-active {
 
 .avatar-btn:hover {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(204, 0, 0, 0.15);
+  box-shadow: 0 0 0 3px var(--primary-hover-bg);
 }
 
 .avatar-img {
@@ -307,8 +327,8 @@ nav a.router-link-exact-active {
 }
 
 .dropdown-item--danger:hover {
-  background: rgba(204, 0, 0, 0.08);
-  color: var(--primary);
+  background: var(--secondary-hover-bg);
+  color: var(--secondary);
 }
 
 .dropdown-version {

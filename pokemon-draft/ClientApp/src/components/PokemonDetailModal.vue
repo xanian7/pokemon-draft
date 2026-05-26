@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
 import { formatPokemonName, TYPE_COLORS } from '@/utils/format'
@@ -24,40 +24,12 @@ const emit = defineEmits<{
   draft: [pokemonId: number]
 }>()
 
-// ── GraphQL types ─────────────────────────────────────────────────────────────
+// ── Backend DTO shapes ────────────────────────────────────────────────────────
 
-interface GqlStat {
-  base_stat: number
-  pokemon_v2_stat: { name: string }
-}
-
-interface GqlAbility {
-  is_hidden: boolean
-  pokemon_v2_ability: { name: string }
-}
-
-interface GqlMove {
-  pokemon_v2_move: {
-    name: string
-    power: number | null
-    pp: number | null
-    pokemon_v2_type: { name: string } | null
-    pokemon_v2_movedamageclass: { name: string } | null
-  }
-}
-
-interface GqlPokemon {
-  pokemon_v2_pokemonstats: GqlStat[]
-  pokemon_v2_pokemonabilities: GqlAbility[]
-  pokemon_v2_pokemonmoves: GqlMove[]
-}
-
-interface GqlResponse {
-  errors?: { message: string }[]
-  data: {
-    pokemon_v2_pokemon_by_pk: GqlPokemon | null
-  }
-}
+interface ApiStat { name: string; baseStat: number }
+interface ApiAbility { name: string; isHidden: boolean }
+interface ApiMove { name: string; type: string; power: number | null; pp: number | null; category: string }
+interface ApiPokemonDetail { stats: ApiStat[]; abilities: ApiAbility[]; moves: ApiMove[] }
 
 // ── Parsed detail ─────────────────────────────────────────────────────────────
 
@@ -105,30 +77,6 @@ const CATEGORY_COLOR: Record<string, string> = {
   special: '#4f46e5',
   status: '#64748b',
 }
-
-const GRAPHQL_QUERY = `
-  query PokemonDetail($id: Int!) {
-    pokemon_v2_pokemon_by_pk(id: $id) {
-      pokemon_v2_pokemonstats {
-        base_stat
-        pokemon_v2_stat { name }
-      }
-      pokemon_v2_pokemonabilities {
-        is_hidden
-        pokemon_v2_ability { name }
-      }
-      pokemon_v2_pokemonmoves(distinct_on: move_id) {
-        pokemon_v2_move {
-          name
-          power
-          pp
-          pokemon_v2_type { name }
-          pokemon_v2_movedamageclass { name }
-        }
-      }
-    }
-  }
-`
 
 const STAT_MAX = 255
 
@@ -197,6 +145,7 @@ function statColor(value: number): string {
 }
 
 onMounted(async () => {
+  fetchMegaForms()
   if (detailCache.has(props.pokemon.id)) {
     detail.value = detailCache.get(props.pokemon.id)!
     isLoading.value = false
@@ -204,35 +153,26 @@ onMounted(async () => {
   }
 
   try {
-    const res = await fetch('https://beta.pokeapi.co/graphql/v1beta', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: GRAPHQL_QUERY, variables: { id: props.pokemon.id } }),
-    })
+    const res = await fetch(`/api/pokemon/${props.pokemon.id}/detail`)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const json: GqlResponse = await res.json()
-    if (json.errors) throw new Error(JSON.stringify(json.errors))
-    const raw = json.data?.pokemon_v2_pokemon_by_pk
-    if (!raw) throw new Error('Not found')
+    const raw: ApiPokemonDetail = await res.json()
 
     const parsed: PokemonDetail = {
-      stats: raw.pokemon_v2_pokemonstats.map((s) => ({
-        label: STAT_LABELS[s.pokemon_v2_stat.name] ?? s.pokemon_v2_stat.name,
-        value: s.base_stat,
+      stats: raw.stats.map((s) => ({
+        label: STAT_LABELS[s.name] ?? s.name,
+        value: s.baseStat,
       })),
-      abilities: raw.pokemon_v2_pokemonabilities.map((a) => ({
-        name: formatPokemonName(a.pokemon_v2_ability.name),
-        isHidden: a.is_hidden,
+      abilities: raw.abilities.map((a) => ({
+        name: formatPokemonName(a.name),
+        isHidden: a.isHidden,
       })),
-      moves: raw.pokemon_v2_pokemonmoves
-        .map((m) => ({
-          name: formatPokemonName(m.pokemon_v2_move.name),
-          type: m.pokemon_v2_move.pokemon_v2_type?.name ?? 'normal',
-          power: m.pokemon_v2_move.power,
-          pp: m.pokemon_v2_move.pp,
-          category: m.pokemon_v2_move.pokemon_v2_movedamageclass?.name ?? 'status',
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
+      moves: raw.moves.map((m) => ({
+        name: formatPokemonName(m.name),
+        type: m.type,
+        power: m.power,
+        pp: m.pp,
+        category: m.category,
+      })),
     }
 
     detailCache.set(props.pokemon.id, parsed)
@@ -260,6 +200,90 @@ function handleDraft() {
 function filteredMoves(moves: MoveEntry[]): MoveEntry[] {
   const q = moveFilter.value.toLowerCase()
   return q ? moves.filter((m) => m.name.toLowerCase().includes(q)) : moves
+}
+
+// ── Mega evolution ─────────────────────────────────────────────────────────────
+
+interface MegaForm {
+  name: string
+  label: string
+  sprite: string | null
+  types: string[]
+  stats: StatEntry[]
+  abilities: AbilityEntry[]
+  isLoading: boolean
+  error: string | null
+}
+
+const megaForms = ref<MegaForm[]>([])
+const activeTab = ref<'base' | string>('base')
+
+const activeMegaForm = computed(() =>
+  activeTab.value !== 'base'
+    ? megaForms.value.find((f) => f.name === activeTab.value) ?? null
+    : null,
+)
+
+function parseMegaLabel(name: string): string {
+  const idx = name.indexOf('-mega')
+  if (idx === -1) return name
+  return name.slice(idx + 1).replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+async function fetchMegaForms() {
+  try {
+    const res = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${props.pokemon.speciesId}`)
+    if (!res.ok) return
+    const json = await res.json()
+    const megaNames = (json.varieties as any[])
+      .map((v: any) => v.pokemon.name as string)
+      .filter((n: string) => n.includes('-mega'))
+
+    megaForms.value = megaNames.map((name) => ({
+      name,
+      label: parseMegaLabel(name),
+      sprite: null,
+      types: [],
+      stats: [],
+      abilities: [],
+      isLoading: false,
+      error: null,
+    }))
+  } catch {
+    // No megas available, tab won't show
+  }
+}
+
+async function fetchMegaData(form: MegaForm) {
+  if (form.stats.length > 0 || form.isLoading) return
+  form.isLoading = true
+  try {
+    const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${form.name}`)
+    if (!res.ok) throw new Error()
+    const json = await res.json()
+    form.sprite = json.sprites.front_default
+    form.types = (json.types as any[]).map((t: any) => t.type.name as string)
+    form.stats = (json.stats as any[]).map((s: any) => ({
+      label: STAT_LABELS[s.stat.name] ?? s.stat.name,
+      value: s.base_stat as number,
+    }))
+    form.abilities = (json.abilities as any[]).map((a: any) => ({
+      name: formatPokemonName(a.ability.name),
+      isHidden: a.is_hidden as boolean,
+    }))
+  } catch {
+    form.error = 'Failed to load mega evolution data.'
+  } finally {
+    form.isLoading = false
+  }
+}
+
+function switchTab(tab: 'base' | string) {
+  activeTab.value = tab
+  if (tab !== 'base') {
+    const form = megaForms.value.find((f) => f.name === tab)
+    if (form) fetchMegaData(form)
+  }
 }
 </script>
 
@@ -294,101 +318,190 @@ function filteredMoves(moves: MoveEntry[]): MoveEntry[] {
           </button>
         </div>
 
+        <!-- Tabs (shown only when mega forms exist) -->
+        <div v-if="megaForms.length > 0" class="modal-tabs">
+          <button
+            class="modal-tab"
+            :class="{ 'modal-tab--active': activeTab === 'base' }"
+            @click="switchTab('base')"
+          >
+            Base
+          </button>
+          <button
+            v-for="form in megaForms"
+            :key="form.name"
+            class="modal-tab"
+            :class="{ 'modal-tab--active': activeTab === form.name }"
+            @click="switchTab(form.name)"
+          >
+            {{ form.label }}
+          </button>
+        </div>
+
         <!-- Body -->
         <div class="modal-body">
-          <div v-if="isLoading" class="loading-state">
-            <PokeballLoader variant="page" label="Loading details…" />
-          </div>
-          <div v-else-if="fetchError" class="error-state">{{ fetchError }}</div>
-          <template v-else-if="detail">
-            <!-- Base Stats -->
-            <section class="detail-section">
-              <h3>Base Stats</h3>
-              <div class="stats-grid">
-                <template v-for="stat in detail.stats" :key="stat.label">
-                  <span class="stat-label">{{ stat.label }}</span>
-                  <span class="stat-value">{{ stat.value }}</span>
-                  <div class="stat-bar-track">
-                    <div
-                      class="stat-bar-fill"
-                      :style="{
-                        width: `${(stat.value / STAT_MAX) * 100}%`,
-                        backgroundColor: statColor(stat.value),
-                      }"
-                    />
-                  </div>
-                </template>
-              </div>
-            </section>
-
-            <!-- Abilities -->
-            <section class="detail-section">
-              <h3>Abilities</h3>
-              <div class="abilities">
-                <span
-                  v-for="ability in detail.abilities"
-                  :key="ability.name"
-                  class="ability-chip"
-                  :class="{ hidden: ability.isHidden }"
-                  @mouseenter="showTooltip($event, ability.name)"
-                  @mouseleave="hideTooltip"
-                >
-                  {{ ability.name }}
-                  <em v-if="ability.isHidden">(Hidden)</em>
-                </span>
-              </div>
-            </section>
-
-            <!-- Moves -->
-            <section class="detail-section">
-              <div class="moves-header">
-                <h3>
-                  Learnable Moves
-                  <span class="move-count">({{ detail.moves.length }})</span>
-                </h3>
-                <input
-                  v-model="moveFilter"
-                  class="move-search"
-                  type="text"
-                  placeholder="Filter moves…"
-                />
-              </div>
-              <div class="moves-table">
-                <div class="moves-table-header">
-                  <span>Type</span>
-                  <span>Move</span>
-                  <span>Cat</span>
-                  <span class="col-right">Pow</span>
-                  <span class="col-right">PP</span>
+          <!-- Base tab -->
+          <template v-if="activeTab === 'base'">
+            <div v-if="isLoading" class="loading-state">
+              <PokeballLoader variant="page" label="Loading details…" />
+            </div>
+            <div v-else-if="fetchError" class="error-state">{{ fetchError }}</div>
+            <template v-else-if="detail">
+              <!-- Base Stats -->
+              <section class="detail-section">
+                <h3>Base Stats</h3>
+                <div class="stats-grid">
+                  <template v-for="stat in detail.stats" :key="stat.label">
+                    <span class="stat-label">{{ stat.label }}</span>
+                    <span class="stat-value">{{ stat.value }}</span>
+                    <div class="stat-bar-track">
+                      <div
+                        class="stat-bar-fill"
+                        :style="{
+                          width: `${(stat.value / STAT_MAX) * 100}%`,
+                          backgroundColor: statColor(stat.value),
+                        }"
+                      />
+                    </div>
+                  </template>
                 </div>
-                <div class="moves-table-rows">
-                  <div
-                    v-for="move in filteredMoves(detail.moves)"
-                    :key="move.name"
-                    class="moves-table-row"
+              </section>
+
+              <!-- Abilities -->
+              <section class="detail-section">
+                <h3>Abilities</h3>
+                <div class="abilities">
+                  <span
+                    v-for="ability in detail.abilities"
+                    :key="ability.name"
+                    class="ability-chip"
+                    :class="{ hidden: ability.isHidden }"
+                    @mouseenter="showTooltip($event, ability.name)"
+                    @mouseleave="hideTooltip"
                   >
-                    <span
-                      class="type-badge"
-                      :style="{ backgroundColor: TYPE_COLORS[move.type] ?? '#888' }"
-                    >
-                      {{ move.type }}
-                    </span>
-                    <span class="move-name">{{ move.name }}</span>
-                    <span
-                      class="category-badge"
-                      :style="{ backgroundColor: CATEGORY_COLOR[move.category] ?? '#64748b' }"
-                    >
-                      {{ CATEGORY_LABEL[move.category] ?? move.category }}
-                    </span>
-                    <span class="col-right stat-val">{{ move.power ?? '—' }}</span>
-                    <span class="col-right stat-val">{{ move.pp ?? '—' }}</span>
+                    {{ ability.name }}
+                    <em v-if="ability.isHidden">(Hidden)</em>
+                  </span>
+                </div>
+              </section>
+
+              <!-- Moves -->
+              <section class="detail-section">
+                <div class="moves-header">
+                  <h3>
+                    Learnable Moves
+                    <span class="move-count">({{ detail.moves.length }})</span>
+                  </h3>
+                  <input
+                    v-model="moveFilter"
+                    class="move-search"
+                    type="text"
+                    placeholder="Filter moves…"
+                  />
+                </div>
+                <div class="moves-table">
+                  <div class="moves-table-header">
+                    <span>Type</span>
+                    <span>Move</span>
+                    <span>Cat</span>
+                    <span class="col-right">Pow</span>
+                    <span class="col-right">PP</span>
                   </div>
-                  <div v-if="filteredMoves(detail.moves).length === 0" class="no-moves">
-                    No moves match "{{ moveFilter }}"
+                  <div class="moves-table-rows">
+                    <div
+                      v-for="move in filteredMoves(detail.moves)"
+                      :key="move.name"
+                      class="moves-table-row"
+                    >
+                      <span
+                        class="type-badge"
+                        :style="{ backgroundColor: TYPE_COLORS[move.type] ?? '#888' }"
+                      >
+                        {{ move.type }}
+                      </span>
+                      <span class="move-name">{{ move.name }}</span>
+                      <span
+                        class="category-badge"
+                        :style="{ backgroundColor: CATEGORY_COLOR[move.category] ?? '#64748b' }"
+                      >
+                        {{ CATEGORY_LABEL[move.category] ?? move.category }}
+                      </span>
+                      <span class="col-right stat-val">{{ move.power ?? '—' }}</span>
+                      <span class="col-right stat-val">{{ move.pp ?? '—' }}</span>
+                    </div>
+                    <div v-if="filteredMoves(detail.moves).length === 0" class="no-moves">
+                      No moves match "{{ moveFilter }}"
+                    </div>
                   </div>
                 </div>
+              </section>
+            </template>
+          </template>
+
+          <!-- Mega tab -->
+          <template v-else-if="activeMegaForm">
+            <div v-if="activeMegaForm.isLoading" class="loading-state">
+              <PokeballLoader variant="page" label="Loading mega data…" />
+            </div>
+            <div v-else-if="activeMegaForm.error" class="error-state">{{ activeMegaForm.error }}</div>
+            <template v-else>
+              <div class="mega-header">
+                <img
+                  v-if="activeMegaForm.sprite"
+                  :src="activeMegaForm.sprite"
+                  :alt="activeMegaForm.label"
+                  class="mega-sprite"
+                />
+                <div class="modal-types">
+                  <span
+                    v-for="type in activeMegaForm.types"
+                    :key="type"
+                    class="type-badge"
+                    :style="{ backgroundColor: TYPE_COLORS[type] ?? '#888' }"
+                  >
+                    {{ type }}
+                  </span>
+                </div>
               </div>
-            </section>
+
+              <!-- Mega Stats -->
+              <section class="detail-section">
+                <h3>Base Stats</h3>
+                <div class="stats-grid">
+                  <template v-for="stat in activeMegaForm.stats" :key="stat.label">
+                    <span class="stat-label">{{ stat.label }}</span>
+                    <span class="stat-value">{{ stat.value }}</span>
+                    <div class="stat-bar-track">
+                      <div
+                        class="stat-bar-fill"
+                        :style="{
+                          width: `${(stat.value / STAT_MAX) * 100}%`,
+                          backgroundColor: statColor(stat.value),
+                        }"
+                      />
+                    </div>
+                  </template>
+                </div>
+              </section>
+
+              <!-- Mega Ability -->
+              <section class="detail-section">
+                <h3>Ability</h3>
+                <div class="abilities">
+                  <span
+                    v-for="ability in activeMegaForm.abilities"
+                    :key="ability.name"
+                    class="ability-chip"
+                    :class="{ hidden: ability.isHidden }"
+                    @mouseenter="showTooltip($event, ability.name)"
+                    @mouseleave="hideTooltip"
+                  >
+                    {{ ability.name }}
+                    <em v-if="ability.isHidden">(Hidden)</em>
+                  </span>
+                </div>
+              </section>
+            </template>
           </template>
         </div>
 
@@ -805,6 +918,54 @@ function filteredMoves(moves: MoveEntry[]): MoveEntry[] {
   font-size: 0.82rem;
   color: var(--text-muted);
   font-style: italic;
+}
+
+/* ── Tabs ── */
+.modal-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 1.25rem;
+  flex-shrink: 0;
+  background: var(--card-bg);
+}
+
+.modal-tab {
+  padding: 0.45rem 1rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.modal-tab:hover {
+  color: var(--text);
+}
+
+.modal-tab--active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* ── Mega tab content ── */
+.mega-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.mega-sprite {
+  width: 96px;
+  height: 96px;
+  image-rendering: pixelated;
+  flex-shrink: 0;
 }
 
 </style>

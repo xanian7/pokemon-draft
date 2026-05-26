@@ -1,31 +1,24 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import AppIcon from '@/components/AppIcon.vue'
-import PokemonCard from '@/components/PokemonCard.vue'
-import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
-import PokeballLoader from '@/components/PokeballLoader.vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
-import { useSignalR, API_BASE } from '@/services/signalr'
+import { useDraftStore } from '@/stores/draft'
+import { useSignalR } from '@/services/signalr'
 import { useRegulationFilter } from '@/composables/useRegulationFilter'
-import type { Pokemon } from '@/types'
-import { formatPokemonName, TYPE_COLORS } from '@/utils/format'
-import { mdiTrophy, mdiCrosshairs, mdiAccountGroup, mdiChevronDown, mdiViewGrid, mdiViewColumn } from '@mdi/js'
+import PokemonGrid from '@/components/PokemonGrid.vue'
+import DraftRoster from '@/components/DraftRoster.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const pokemonStore = usePokemonStore()
-const { connect, disconnect, isConnected } = useSignalR()
+const draftStore = useDraftStore()
+const { connect, disconnect } = useSignalR()
 
 if (!authStore.isAuthenticated) router.replace('/join')
 
-// ── Server state ──────────────────────────────────────────────────────────────
-const league = ref<any>(null)
-
 function applyState(state: any) {
-  league.value = state
-  // Keep local point values in sync with server
+  draftStore.applyServerState(state)
   if (state.pointValues) {
     for (const [id, pts] of Object.entries(state.pointValues as Record<string, number>)) {
       pokemonStore.setPointValue(Number(id), pts as number)
@@ -41,39 +34,32 @@ onMounted(async () => {
 
 onUnmounted(disconnect)
 
-// ── Computed helpers ──────────────────────────────────────────────────────────
-const isMyTurn = computed(() => league.value?.draft?.currentPickerId === authStore.playerId)
-
-const currentPicker = computed(() => league.value?.draft?.currentPickerName ?? '—')
-const draftStatus = computed(() => league.value?.draft?.status ?? 'Setup')
-const pickedIds = computed<Set<number>>(
-  () => new Set((league.value?.draft?.picks ?? []).map((p: any) => p.pokemonId)),
-)
-
+// ── Draft header ──────────────────────────────────────────────────────────────
 const currentRound = computed(() => {
-  if (!league.value) return 0
-  const n = league.value.players.length
+  const n = draftStore.players.length
   if (n === 0) return 0
-  return Math.floor(league.value.draft.currentPickNumber / n) + 1
+  return Math.floor(draftStore.currentPickNumber / n) + 1
 })
 
-// All remaining picks (snake draft order), grouped by round
+// ── Upcoming picks (snake order) ──────────────────────────────────────────────
 const upcomingPicks = computed(() => {
-  if (!league.value || draftStatus.value !== 'Active') return []
-  const players = league.value.players as Array<{ id: string; name: string; teamName: string; teamImageUrl: string }>
+  if (draftStore.status !== 'active') return []
+  const players = draftStore.players
   const n = players.length
   if (n === 0) return []
-  const totalPicks = n * league.value.rounds
-  const currentPick = league.value.draft.currentPickNumber
-  return Array.from({ length: totalPicks - currentPick }, (_, i) => {
-    const pickNumber = currentPick + i
+  const remaining = draftStore.totalPicks - draftStore.currentPickNumber
+  return Array.from({ length: remaining }, (_, i) => {
+    const pickNumber = draftStore.currentPickNumber + i
     const round = Math.floor(pickNumber / n)
     const posInRound = pickNumber % n
     const idx = round % 2 === 0 ? posInRound : n - 1 - posInRound
     const player = players[idx]
+    const displayName = player?.teamName || player?.name || '?'
     return {
       playerId: player?.id,
-      playerName: player?.teamName || player?.name,
+      playerName: displayName,
+      teamImageUrl: player?.teamImageUrl || null,
+      initials: displayName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase(),
       isMe: player?.id === authStore.playerId,
       isCurrent: i === 0,
       pickNumber: pickNumber + 1,
@@ -92,12 +78,7 @@ const picksByRound = computed(() => {
   return groups
 })
 
-const completionModalDismissed = ref(false)
-
-const showCompletionModal = computed(
-  () => draftStatus.value === 'Complete' && !completionModalDismissed.value,
-)
-
+// ── Player roster panels ──────────────────────────────────────────────────────
 const expandedPlayers = ref<Set<string>>(new Set())
 
 function toggleExpanded(playerId: string) {
@@ -111,1051 +92,324 @@ function isExpanded(playerId: string) {
   return playerId === authStore.playerId || expandedPlayers.value.has(playerId)
 }
 
-function getPlayerPicks(playerId: string): Pokemon[] {
-  if (!league.value) return []
-  return (league.value.draft.picks as any[])
-    .filter((p: any) => p.playerId === playerId)
-    .sort((a: any, b: any) => a.pickNumber - b.pickNumber)
+function getPlayerPicks(playerId: string) {
+  return draftStore.getPlayerPicks(playerId)
     .map((p: any) => pokemonStore.getPokemonById(p.pokemonId))
-    .filter((pokemon): pokemon is Pokemon => Boolean(pokemon))
+    .filter(Boolean)
 }
 
 function getPlayerPoints(playerId: string): number {
-  if (!league.value) return 0
-  return (league.value.draft.picks as any[])
-    .filter((p: any) => p.playerId === playerId)
+  return draftStore.getPlayerPicks(playerId)
     .reduce((sum: number, p: any) => sum + pokemonStore.getPointValue(p.pokemonId), 0)
 }
 
-const myPicks = computed(() => (authStore.playerId ? getPlayerPicks(authStore.playerId) : []))
+const myPicks = computed(() =>
+  authStore.playerId ? getPlayerPicks(authStore.playerId) : [],
+)
 
-watch(draftStatus, (status) => {
-  if (status !== 'Complete') completionModalDismissed.value = false
+// ── Completion modal ──────────────────────────────────────────────────────────
+const completionModalDismissed = ref(false)
+const showCompletionModal = computed(
+  () => draftStore.isDraftComplete && !completionModalDismissed.value,
+)
+watch(() => draftStore.isDraftComplete, (complete) => {
+  if (!complete) completionModalDismissed.value = false
 })
 
-// ── Regulation filter ─────────────────────────────────────────────────────────
-const leagueRegulationId = computed(() => league.value?.regulationSet ?? 'national')
-const { isLegalPokemon } = useRegulationFilter(leagueRegulationId)
-
-// ── Pokemon browser ───────────────────────────────────────────────────────────
-const searchQuery = ref('')
-const selectedType = ref('')
-const showAvailableOnly = ref(true)
-const pickError = ref('')
-const viewMode = ref<'grid' | 'tier'>('grid')
-
-const filteredPokemon = computed(() => {
-  const q = searchQuery.value.toLowerCase()
-  return pokemonStore.pokemonWithPoints.filter((p) => {
-    if (!isLegalPokemon(p)) return false
-    if (showAvailableOnly.value && pickedIds.value.has(p.id)) return false
-    if (q && !p.name.includes(q) && !formatPokemonName(p.name).toLowerCase().includes(q))
-      return false
-    if (selectedType.value && !p.types.includes(selectedType.value)) return false
-    return true
-  })
+const statusLabel = computed(() => {
+  if (draftStore.status === 'active') return 'Live'
+  if (draftStore.status === 'complete') return 'Complete'
+  return 'Setup'
 })
 
-const tierGroups = computed(() => {
-  const groups = new Map<number, typeof filteredPokemon.value>()
-  for (const p of filteredPokemon.value) {
-    if (!groups.has(p.pointValue)) groups.set(p.pointValue, [])
-    groups.get(p.pointValue)!.push(p)
-  }
-  return Array.from(groups.entries())
-    .sort((a, b) => b[0] - a[0])
-    .map(([pts, pokemon]) => ({ pts, pokemon }))
-})
-
-async function makePick(pokemonId: number) {  if (!isMyTurn.value || draftStatus.value !== 'Active') return
-  pickError.value = ''
-  const res = await fetch(`${API_BASE}/leagues/${authStore.leagueCode}/draft/pick`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      playerId: authStore.playerId,
-      pin: authStore.pin,
-      pokemonId,
-    }),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    pickError.value = text || 'Failed to make pick.'
-  }
-}
-
-// ── Detail modal ──────────────────────────────────────────────────────────────
-const detailPokemon = ref<(typeof filteredPokemon.value)[0] | null>(null)
-
-function openDetail(p: (typeof filteredPokemon.value)[0]) {
-  detailPokemon.value = p
-}
-
-function openDetailById(id: number) {
-  const p = pokemonStore.pokemonWithPoints.find((p) => p.id === id)
-  if (p) detailPokemon.value = p
-}
-
-function closeDetail() {
-  detailPokemon.value = null
-}
+// ── Regulation filter (passed to PokemonGrid if needed) ───────────────────────
+const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulationSet))
 </script>
 
 <template>
-  <main class="draft-view">
-    <!-- Header -->
-    <div class="draft-header">
-      <div v-if="!league || draftStatus === 'Setup'" class="status-banner setup">
-        Waiting for commissioner to start the draft…
-        <button v-if="authStore.isAdmin" @click="router.push('/league/setup')">
-          Go to Setup →
-        </button>
+  <main class="draft-page">
+
+    <!-- ── Draft bar ── -->
+    <div class="draft-bar">
+
+      <!-- Status -->
+      <div class="draft-bar__status">
+        <span class="status-dot" :class="`status-dot--${draftStore.status}`" />
+        <span class="status-label">{{ statusLabel }}</span>
       </div>
-      <div v-else-if="draftStatus === 'Complete'" class="status-banner complete">
-        <AppIcon :path="mdiTrophy" :size="20" />
-        Draft Complete!
+
+      <div class="bar-divider" />
+
+      <!-- Picker info when active -->
+      <div v-if="draftStore.status === 'active'" class="draft-bar__current">
+        <span class="current-label">Now picking</span>
+        <span class="current-name">{{ draftStore.currentPickerName ?? '—' }}</span>
       </div>
-      <template v-else >
-        <div class="round-header">
-          <div class="header-stats">
-            <div class="header-stats-row">
-              <div class="round-info">
-                <span class="label">Round</span>
-                <span class="value">{{ currentRound }} / {{ league?.rounds }}</span>
-              </div>
-              <div class="round-info">
-                <span class="label">Pick</span>
-                <span class="value"
-                  >{{ (league?.draft?.currentPickNumber ?? 0) + 1 }} /
-                  {{ league?.draft?.totalPicks }}</span
-                >
-              </div>
-              <div v-if="pickError" class="pick-error">{{ pickError }}</div>
-            </div>
-            <div class="connection-badge" :class="isConnected ? 'live' : 'offline'">
-              {{ isConnected ? '● Live' : '○ Disconnected' }}
-            </div>
 
+      <div v-if="draftStore.status === 'active'" class="bar-divider" />
+
+      <!-- Scrollable timeline -->
+      <div v-if="draftStore.status === 'active'" class="draft-bar__timeline">
+        <template v-for="group in picksByRound" :key="group.round">
+          <div class="round-separator">
+            <span class="round-label">R{{ group.round }}</span>
           </div>
-          <div class="draft-queue">
-            <template v-for="(group, gi) in picksByRound" :key="group.round">
-              <div v-if="gi > 0" class="queue-round-divider" />
-              <div class="queue-round-group">
-                <div class="queue-round-label">Round {{ group.round }}</div>
-                <div class="queue-round-picks">
-                  <div
-                    v-for="entry in group.picks"
-                    :key="entry.pickNumber"
-                    class="queue-entry"
-                    :class="{ 'queue-current': entry.isCurrent, 'queue-me': entry.isMe }"
-                  >
-                    <span class="queue-badge">
-                      {{ entry.isCurrent ? 'NOW' : entry.pickNumber === (league?.draft?.currentPickNumber ?? 0) + 2 ? 'NEXT' : '' }}
-                    </span>
-                    <span class="queue-name">
-                      <template v-if="entry.isCurrent && entry.isMe">
-                        <AppIcon :path="mdiCrosshairs" :size="14" />
-                        YOU
-                      </template>
-                      <template v-else>{{ entry.playerName }}</template>
-                    </span>
-                    <span class="queue-pick-num">Pick {{ entry.pickNumber }}</span>
-                  </div>
-                </div>
-              </div>
-            </template>
-          </div>
-        </div>
-      </template>
-    </div>
-
-    <div v-if="league && draftStatus !== 'Setup'" class="draft-layout">
-      <!-- Pokemon browser -->
-      <section class="pokemon-panel">
-        <div class="panel-header">
-          <h2>Available Pokémon</h2>
-          <span v-if="!isMyTurn && draftStatus === 'Active'" class="not-your-turn">
-            Waiting for {{ currentPicker }}…
-          </span>
-        </div>
-
-        <div v-if="pokemonStore.isLoading" class="loading">
-          <PokeballLoader variant="page" label="Loading…" />
-        </div>
-
-        <template v-else>
-          <div class="filters">
-            <input v-model="searchQuery" type="text" placeholder="Search…" class="search-input" />
-            <select v-model="selectedType">
-              <option value="">All Types</option>
-              <option v-for="type in pokemonStore.allTypes" :key="type" :value="type">
-                {{ type.charAt(0).toUpperCase() + type.slice(1) }}
-              </option>
-            </select>
-            <label class="toggle">
-              <input v-model="showAvailableOnly" type="checkbox" />
-              Available only
-            </label>
-            <div class="view-toggle">
-              <button :class="{ active: viewMode === 'grid' }" title="Grid view" @click="viewMode = 'grid'">
-                <AppIcon :path="mdiViewGrid" :size="15" />
-              </button>
-              <button :class="{ active: viewMode === 'tier' }" title="Tier view" @click="viewMode = 'tier'">
-                <AppIcon :path="mdiViewColumn" :size="15" />
-              </button>
+          <div
+            v-for="pick in group.picks"
+            :key="pick.pickNumber"
+            class="pick-chip"
+            :class="{ 'pick-chip--current': pick.isCurrent, 'pick-chip--mine': pick.isMe }"
+          >
+            <div class="pick-chip__avatar">
+              <img v-if="pick.teamImageUrl" :src="pick.teamImageUrl" :alt="pick.playerName" />
+              <span v-else>{{ pick.initials }}</span>
             </div>
-          </div>
-
-          <!-- Tier view -->
-          <div v-if="viewMode === 'tier'" class="tier-view">
-            <div v-for="group in tierGroups" :key="group.pts" class="tier-col">
-              <div class="tier-col-header">
-                <span class="tier-badge">{{ group.pts }} pts</span>
-                <span class="tier-count">{{ group.pokemon.length }}</span>
-              </div>
-              <div class="tier-col-body">
-                <div
-                  v-for="p in group.pokemon"
-                  :key="p.id"
-                  class="pick-wrapper"
-                  :class="{ 'can-pick': isMyTurn && draftStatus === 'Active' && !pickedIds.has(p.id) }"
-                >
-                  <PokemonCard
-                    :pokemon="p"
-                    :point-value="p.pointValue"
-                    :is-picked="pickedIds.has(p.id)"
-                    mode="draft"
-                    @click="openDetail(p)"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Grid view -->
-          <div v-else class="pokemon-grid">
-            <div
-              v-for="p in filteredPokemon"
-              :key="p.id"
-              class="pick-wrapper"
-              :class="{ 'can-pick': isMyTurn && draftStatus === 'Active' && !pickedIds.has(p.id) }"
-            >
-              <PokemonCard
-                :pokemon="p"
-                :point-value="p.pointValue"
-                :is-picked="pickedIds.has(p.id)"
-                mode="draft"
-                @click="openDetail(p)"
-              />
+            <div class="pick-chip__info">
+              <span class="pick-chip__name">{{ pick.playerName }}</span>
+              <span class="pick-chip__num">#{{ pick.pickNumber }}</span>
             </div>
           </div>
         </template>
-      </section>
+      </div>
 
-      <!-- Teams sidebar -->
-      <section class="teams-panel">
-        <!-- My team — always expanded, prominent -->
-        <div v-if="authStore.playerId" class="my-team-section">
-          <div class="my-team-label">
-            <AppIcon :path="mdiAccountGroup" :size="13" />
-            My Team
-          </div>
-          <div
-            class="team-card is-me"
-            :class="{ 'active-picker': league.draft.currentPickerId === authStore.playerId }"
-          >
-            <div class="team-header">
-              <span class="team-name">
-                {{ (league.players.find((p: any) => p.id === authStore.playerId) as any)?.teamName || league.players.find((p: any) => p.id === authStore.playerId)?.name }}
-              </span>
-              <span class="team-points">
-                {{ getPlayerPoints(authStore.playerId) }}
-                <span v-if="league.pointLimit > 0"> / {{ league.pointLimit }}</span>
-                pts
-              </span>
-            </div>
-            <div class="team-picks">
-              <div v-for="round in league.rounds" :key="round" class="pick-slot">
-                <PokemonCard
-                  v-if="getPlayerPicks(authStore.playerId)[round - 1]"
-                  :pokemon="getPlayerPicks(authStore.playerId)[round - 1]!"
-                  :point-value="pokemonStore.getPointValue(getPlayerPicks(authStore.playerId)[round - 1]!.id)"
-                  mode="team"
-                  class="clickable"
-                  @click="openDetailById(getPlayerPicks(authStore.playerId)[round - 1]!.id)"
-                />
-                <div v-else class="empty-pick"><span>R{{ round }}</span></div>
-              </div>
-            </div>
-          </div>
-        </div>
+      <!-- Draft complete / setup message -->
+      <span v-else class="bar-message">
+        {{ draftStore.status === 'complete' ? 'Draft is complete.' : 'Draft has not started yet.' }}
+      </span>
 
-        <!-- Other teams — collapsible -->
-        <div class="other-teams-label">Other Teams</div>
-        <div
-          v-for="player in league.players.filter((p: any) => p.id !== authStore.playerId)"
-          :key="player.id"
-          class="team-card"
-          :class="{ 'active-picker': player.id === league.draft.currentPickerId }"
-        >
-          <button
-            class="team-header team-toggle"
-            @click="toggleExpanded(player.id)"
-          >
-            <div class="team-avatar-sm">
-              <img
-                v-if="(player as any).teamImageUrl"
-                :src="(player as any).teamImageUrl"
-                :alt="(player as any).teamName || player.name"
-                class="team-avatar-img"
-              />
-              <div v-else class="team-avatar-initials">
-                {{ ((player as any).teamName || player.name).split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) }}
-              </div>
-            </div>
-            <span class="team-name">{{ (player as any).teamName || player.name }}</span>
-            <span class="team-points">
-              {{ getPlayerPoints(player.id) }}
-              <span v-if="league.pointLimit > 0"> / {{ league.pointLimit }}</span>
-              pts
-            </span>
-            <AppIcon
-              :path="mdiChevronDown"
-              :size="16"
-              class="team-chevron"
-              :class="{ expanded: isExpanded(player.id) }"
-            />
-          </button>
-          <div v-if="isExpanded(player.id)" class="team-picks">
-            <div v-for="round in league.rounds" :key="round" class="pick-slot">
-              <PokemonCard
-                v-if="getPlayerPicks(player.id)[round - 1]"
-                :pokemon="getPlayerPicks(player.id)[round - 1]!"
-                :point-value="pokemonStore.getPointValue(getPlayerPicks(player.id)[round - 1]!.id)"
-                mode="team"
-                class="clickable"
-                @click="openDetailById(getPlayerPicks(player.id)[round - 1]!.id)"
-              />
-              <div v-else class="empty-pick"><span>R{{ round }}</span></div>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
 
-    <Teleport to="body">
-      <div
-        v-if="showCompletionModal"
-        class="completion-backdrop"
-        @click.self="completionModalDismissed = true"
-      >
-        <div class="completion-modal" role="dialog" aria-modal="true">
-          <div class="completion-header">
-            <AppIcon :path="mdiTrophy" :size="40" class="trophy-icon" />
-            <h2>Draft Complete!</h2>
-            <p class="completion-sub">Here's the team you drafted:</p>
-          </div>
-
-          <div v-if="myPicks.length > 0" class="my-picks-grid">
-            <PokemonCard
-              v-for="pick in myPicks"
-              :key="pick.id"
-              :pokemon="pick"
-              :point-value="pokemonStore.getPointValue(pick.id)"
-              mode="team"
-            />
-          </div>
-          <p v-else class="no-picks">No picks recorded for your account.</p>
-
-          <div class="completion-actions">
-            <button class="btn-primary completion-btn" @click="router.push('/team')">
-              <AppIcon :path="mdiAccountGroup" :size="18" />
-              View My Team
-            </button>
-            <button class="btn-ghost completion-btn" @click="completionModalDismissed = true">
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <div class="draft-body">
+      <DraftRoster />
+      <PokemonGrid />
+    </div>
   </main>
-
-  <PokemonDetailModal
-    v-if="detailPokemon"
-    :pokemon="detailPokemon"
-    :point-value="detailPokemon.pointValue"
-    :can-draft="isMyTurn && draftStatus === 'Active'"
-    :is-picked="pickedIds.has(detailPokemon.id)"
-    @close="closeDetail"
-    @draft="(id) => { makePick(id); closeDetail() }"
-  />
 </template>
 
 <style scoped>
-.draft-view {
+.draft-page {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 56px);
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
-.draft-header {
+/* ── Body (roster + grid) ───────────────────────────────────────────────── */
+.draft-body {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.6rem 1.25rem;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Draft bar ──────────────────────────────────────────────────────────── */
+.draft-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 1rem;
+  height: 64px;
+  flex-shrink: 0;
   background: var(--card-bg);
   border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0;
-}
-
-.status-banner {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  font-weight: 600;
-  font-size: 0.95rem;
-  padding: 0.15rem 0;
-}
-.status-banner.setup {
-  color: var(--text-muted);
-}
-.status-banner.complete {
-  color: #10b981;
-  font-size: 1.1rem;
-}
-.status-banner button {
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 0.3rem 0.75rem;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.round-header {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.draft-queue {
-  display: flex;
-  align-items: flex-start;
-  gap: 0;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: thin;
   scrollbar-color: var(--border-color) transparent;
-  padding-bottom: 2px;
-  background-color: var(--bg);
-  border: 1px solid transparent;
-  border-color: var(--border-color);
-  border-radius: 6px;
-  padding: 10px;
-  width: 100%;
 }
 
-.queue-round-group {
+.draft-bar::-webkit-scrollbar { height: 3px; }
+.draft-bar::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 2px; }
+
+/* ── Status ─────────────────────────────────────────────────────────────── */
+.draft-bar__status {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  padding-right: 1rem;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   flex-shrink: 0;
 }
 
-.queue-round-label {
+.status-dot--active {
+  background: #22c55e;
+  box-shadow: 0 0 6px #22c55e88;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+.status-dot--complete { background: var(--primary); }
+.status-dot--setup    { background: var(--text-muted); }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.status-label {
   font-size: 0.6rem;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
-  padding: 0 0.35rem;
+  white-space: nowrap;
 }
 
-.queue-round-picks {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.2rem;
-}
-
-.queue-round-divider {
+/* ── Divider ─────────────────────────────────────────────────────────────── */
+.bar-divider {
   width: 1px;
-  align-self: stretch;
+  height: 36px;
   background: var(--border-color);
-  margin: 0.15rem 0.5rem;
   flex-shrink: 0;
+  margin: 0 0.75rem;
 }
 
-.queue-entry {
+/* ── Current picker summary ──────────────────────────────────────────────── */
+.draft-bar__current {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.05rem;
-  padding: 0.2rem 0.45rem;
-  border-radius: 6px;
+  gap: 2px;
   flex-shrink: 0;
-  min-width: 56px;
-  border: 1px solid transparent;
+  padding-right: 0.75rem;
 }
 
-.queue-badge {
-  font-size: 0.52rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  height: 0.7rem;
-  line-height: 0.7rem;
-}
-
-.queue-name {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.queue-pick-num {
-  font-size: 0.58rem;
-  color: var(--text-muted);
-  opacity: 0.7;
-}
-
-.queue-entry.queue-current {
-  background: rgba(204, 0, 0, 0.1);
-  border-color: rgba(204, 0, 0, 0.3);
-}
-.queue-entry.queue-current .queue-badge {
-  color: var(--primary);
-}
-.queue-entry.queue-current .queue-name {
-  font-size: 0.95rem;
-  font-weight: 800;
-  color: var(--primary);
-}
-.queue-entry.queue-current .queue-pick-num {
-  color: var(--primary);
-  opacity: 0.8;
-}
-.queue-entry.queue-current.queue-me .queue-name {
-  animation: pulse-text 1.5s ease-in-out infinite;
-}
-
-.queue-entry.queue-me:not(.queue-current) .queue-name {
-  color: var(--secondary);
-}
-.queue-entry.queue-me:not(.queue-current) .queue-pick-num {
-  color: var(--secondary);
-  opacity: 0.8;
-}
-
-.header-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  flex-shrink: 0;
-  background-color: var(--bg);
-  border: 1px solid transparent;
-  border-color: var(--border-color);
-  border-radius: 6px;
-  padding: 10px;
-}
-
-.header-stats-row {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-}
-
-.round-info {
-  display: flex;
-  flex-direction: column;
-}
-.round-info .label {
-  font-size: 0.62rem;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  letter-spacing: 0.05em;
-}
-.round-info .value {
-  font-weight: 700;
-  font-size: 1rem;
-}
-
-@keyframes pulse-text {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
-}
-
-.pick-error {
-  background: rgba(220, 38, 38, 0.12);
-  border: 1px solid rgba(220, 38, 38, 0.35);
-  color: #f87171;
-  border-radius: 6px;
-  padding: 0.3rem 0.6rem;
-  font-size: 0.82rem;
-  max-width: 240px;
-}
-
-.connection-badge {
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 0.15rem 0.5rem;
-  border-radius: 20px;
-  margin: auto;
-}
-.connection-badge.live {
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.12);
-}
-.connection-badge.offline {
-  color: var(--text-muted);
-  background: var(--input-bg);
-}
-
-.draft-layout {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
-
-/* Pokemon panel */
-.pokemon-panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-right: 1px solid var(--border-color);
-  padding: 0.85rem;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.6rem;
-}
-
-.panel-header h2 {
-  font-size: 0.82rem;
+.current-label {
+  font-size: 0.6rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
-  margin: 0;
 }
 
-.not-your-turn {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.filters {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.65rem;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.search-input {
-  flex: 1;
-  min-width: 130px;
-}
-
-input[type='text'],
-select {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 0.3rem 0.55rem;
-  font-size: 0.82rem;
-}
-
-.toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  cursor: pointer;
+.current-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--primary);
   white-space: nowrap;
 }
 
-.pokemon-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
-  gap: 0.45rem;
-  overflow-y: auto;
-  flex: 1;
-  padding-top: 4px;
-}
-
-.pick-wrapper {
-  position: relative;
-}
-
-.pick-wrapper.can-pick :deep(.pokemon-card) {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 1px rgba(204, 0, 0, 0.3);
-}
-
-/* ── View toggle ─────────────────────────────────────────────────────────── */
-.view-toggle {
-  display: flex;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.view-toggle button {
+/* ── Scrollable timeline ─────────────────────────────────────────────────── */
+.draft-bar__timeline {
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  padding: 0.28rem 0.45rem;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-}
-
-.view-toggle button:first-child {
-  border-right: 1px solid var(--border-color);
-}
-
-.view-toggle button:hover { background: var(--input-bg); color: var(--text); }
-.view-toggle button.active { background: var(--input-bg); color: var(--text); }
-
-/* ── Tier view ───────────────────────────────────────────────────────────── */
-.tier-view {
-  display: flex;
-  flex-direction: row;
-  gap: 0.65rem;
+  gap: 5px;
+  flex: 1;
   overflow-x: auto;
-  overflow-y: auto;
-  flex: 1;
-  padding-top: 4px;
-  align-items: flex-start;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-color) transparent;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  padding: 4px 0;
 }
 
-.tier-col {
+.draft-bar__timeline::-webkit-scrollbar { display: none; }
+
+/* ── Round separator ─────────────────────────────────────────────────────── */
+.round-separator {
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
-  width: 100px;
-}
-
-.tier-col-header {
-  display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0.45rem 0.6rem;
-  margin-bottom: 0.45rem;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-top: 2px solid var(--primary);
-  border-radius: 6px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+  padding: 0 8px;
+  border-left: 1px solid var(--border-color);
+  margin-left: 4px;
+  align-self: stretch;
+  justify-content: center;
 }
 
-.tier-badge {
-  font-size: 0.82rem;
-  font-weight: 800;
-  color: var(--text);
+.round-separator:first-child {
+  border-left: none;
+  margin-left: 0;
+  padding-left: 0;
+}
+
+.round-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
-.tier-count {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  background: var(--input-bg);
-  border-radius: 10px;
-  padding: 0.1rem 0.4rem;
-}
-
-.tier-col-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.overflow-hint,
-.empty {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  text-align: center;
-  padding: 0.75rem 0;
-  flex-shrink: 0;
-}
-
-/* Teams panel */
-.teams-panel {
-  width: 300px;
-  flex-shrink: 0;
-  overflow-y: auto;
-  padding: 0.85rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
-.my-team-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.my-team-label,
-.other-teams-label {
-  font-size: 0.72rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-muted);
+/* ── Pick chip ───────────────────────────────────────────────────────────── */
+.pick-chip {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-}
-
-.my-team-label {
-  color: var(--secondary);
-}
-
-.my-team-section .team-card {
-  border-color: var(--secondary);
-  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.15);
-}
-
-.team-card {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
+  gap: 6px;
+  padding: 4px 10px 4px 5px;
   border-radius: 8px;
-  overflow: hidden;
-  flex-shrink: 0;
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
-}
-
-.team-card.active-picker {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(204, 0, 0, 0.2);
-}
-
-.team-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border-color);
   background: var(--input-bg);
+  flex-shrink: 0;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  cursor: default;
 }
 
-.team-avatar-sm {
+.pick-chip--current {
+  border-color: var(--primary);
+  background: var(--primary-hover-bg);
+  box-shadow: 0 0 0 2px rgba(15, 172, 245, 0.15);
+}
+
+.pick-chip--mine:not(.pick-chip--current) {
+  border-color: rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 0.07);
+}
+
+.pick-chip__avatar {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  overflow: hidden;
+  background: var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: var(--text-muted);
   flex-shrink: 0;
-  margin-right: 0.4rem;
+  overflow: hidden;
 }
 
-.team-avatar-img {
+.pick-chip__avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.team-avatar-initials {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(59, 76, 202, 0.25);
-  color: #a5b4fc;
-  font-size: 0.6rem;
-  font-weight: 800;
-}
-
-.team-toggle {
-  width: 100%;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-  color: var(--text);
-  gap: 0.5rem;
-}
-
-.team-toggle:hover {
-  background: var(--border-color);
-}
-
-.team-name {
-  font-weight: 700;
-  font-size: 0.85rem;
-  flex: 1;
-}
-
-.team-points {
-  font-size: 0.75rem;
-  color: var(--primary);
-  font-weight: 700;
-}
-
-.team-chevron {
-  color: var(--text-muted);
-  transition: transform 0.2s;
-  flex-shrink: 0;
-}
-
-.team-chevron.expanded {
-  transform: rotate(180deg);
-}
-
-.team-picks {
-  padding: 0.35rem;
+.pick-chip__info {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-}
-.pick-slot {
-  min-height: 52px;
+  gap: 1px;
 }
 
-.pick-slot :deep(.clickable) { cursor: pointer; }
-.pick-slot :deep(.clickable:hover) { opacity: 0.85; }
-.empty-pick {
-  border: 1px dashed var(--border-color);
-  border-radius: 6px;
-  height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-  font-size: 0.68rem;
-}
-
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 2rem;
-}
-
-/* Completion modal */
-.completion-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-  padding: 1rem;
-}
-
-.completion-modal {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 2rem;
-  max-width: 640px;
-  width: 100%;
-  max-height: 80vh;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.completion-header {
-  text-align: center;
-}
-
-.trophy-icon {
-  color: #f59e0b;
-}
-
-.completion-header h2 {
-  font-size: 1.5rem;
-  font-weight: 800;
-  margin: 0.5rem 0 0.25rem;
-  color: var(--text);
-}
-
-.completion-sub {
-  color: var(--text-muted);
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-.my-picks-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 0.75rem;
-}
-
-.no-picks {
-  text-align: center;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.completion-actions {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: center;
-}
-
-.completion-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.65rem 1.5rem;
-  border-radius: 8px;
-  font-size: 0.95rem;
+.pick-chip__name {
+  font-size: 0.72rem;
   font-weight: 600;
-  cursor: pointer;
-  border: none;
-}
-
-.completion-actions .btn-primary {
-  background: var(--primary);
-  color: white;
-}
-
-.btn-ghost {
-  background: transparent;
-  border: 1px solid var(--border-color) !important;
-  color: var(--text-muted);
-}
-
-.btn-ghost:hover {
   color: var(--text);
-  border-color: var(--text-muted) !important;
+  white-space: nowrap;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-@media (max-width: 640px) {
-  .teams-panel {
-    display: none;
-  }
+.pick-chip--current .pick-chip__name { color: var(--primary); }
+
+.pick-chip__num {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
+/* ── Bar message (setup / complete) ─────────────────────────────────────── */
+.bar-message {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
 </style>

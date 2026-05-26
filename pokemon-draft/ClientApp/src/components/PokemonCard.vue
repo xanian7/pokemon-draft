@@ -163,7 +163,7 @@ const emit = defineEmits<{
 .point-value {
   font-size: 0.7rem;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--secondary);
 }
 
 .picked-overlay {

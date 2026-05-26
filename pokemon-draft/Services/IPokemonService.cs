@@ -6,4 +6,5 @@ public interface IPokemonService
 {
     Task<List<PokemonResponse>> GetAllPokemon();
     Task<PokemonResponse?> GetPokemonById(int id);
+    Task<PokemonDetailResponse?> GetPokemonDetail(int id);
 }

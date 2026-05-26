@@ -16,4 +16,11 @@ public class PokemonController(IPokemonService pokemonService) : ControllerBase
         var pokemon = await pokemonService.GetPokemonById(id);
         return pokemon is null ? NotFound() : Ok(pokemon);
     }
+
+    [HttpGet("{id:int}/detail")]
+    public async Task<IActionResult> GetDetail(int id)
+    {
+        var detail = await pokemonService.GetPokemonDetail(id);
+        return detail is null ? NotFound() : Ok(detail);
+    }
 }
