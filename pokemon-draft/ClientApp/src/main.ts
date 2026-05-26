@@ -7,12 +7,15 @@ import vue3GoogleLogin from 'vue3-google-login'
 import App from './App.vue'
 import router from './router'
 
-const app = createApp(App)
+async function bootstrap() {
+  const res = await fetch('/api/config')
+  const cfg = await res.json()
 
-app.use(createPinia())
-app.use(router)
-app.use(vue3GoogleLogin, {
-  clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '',
-})
+  const app = createApp(App)
+  app.use(createPinia())
+  app.use(router)
+  app.use(vue3GoogleLogin, { clientId: cfg.googleClientId })
+  app.mount('#app')
+}
 
-app.mount('#app')
+bootstrap()
