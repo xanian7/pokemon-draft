@@ -99,6 +99,14 @@ else
 }
 
 app.UseCors();
+
+// Required for Google One Tap / popup sign-in to postMessage back to the opener
+app.Use(async (ctx, next) =>
+{
+    ctx.Response.Headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups";
+    await next();
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapHub<DraftHub>("/hubs/draft");
