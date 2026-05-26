@@ -91,8 +91,8 @@ async function save() {
         <div v-if="saveSuccess" class="feedback success">✓ Profile saved!</div>
 
         <div class="form-actions">
-          <button type="button" class="secondary-btn" @click="router.back()">Cancel</button>
-          <button type="submit" class="primary-btn" :disabled="isSaving">
+          <button type="button" class="btn btn-secondary" @click="router.back()">Cancel</button>
+          <button type="submit" class="btn btn-primary" :disabled="isSaving">
             {{ isSaving ? 'Saving…' : 'Save Changes' }}
           </button>
         </div>
@@ -181,12 +181,6 @@ h1 { font-size: 1.75rem; font-weight: 800; color: var(--text); margin-bottom: 0.
   gap: 1.1rem;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
 label {
   font-size: 0.88rem;
   font-weight: 600;
@@ -222,18 +216,4 @@ input:focus { border-color: var(--secondary); }
   justify-content: flex-end;
   margin-top: 0.5rem;
 }
-
-.primary-btn,
-.secondary-btn {
-  border: none;
-  border-radius: 10px;
-  padding: 0.7rem 1.25rem;
-  font-size: 0.92rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.primary-btn { background: var(--primary); color: white; }
-.primary-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.secondary-btn { background: var(--input-bg); color: var(--text); border: 1px solid var(--border-color); }
 </style>

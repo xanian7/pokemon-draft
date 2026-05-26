@@ -142,11 +142,11 @@ const draftProgress = computed(() => {
       <p class="landing-sub">Run a snake draft for your Pokémon league — assign point values, pick your team, and track everyone's roster in real time.</p>
 
       <div class="landing-actions">
-        <button class="landing-btn primary" @click="router.push('/join')">
+        <button class="btn btn-primary btn-lg" @click="router.push('/join')">
           <AppIcon :path="mdiAccountPlus" :size="20" />
           Join a League
         </button>
-        <button class="landing-btn ghost" @click="router.push('/league/create')">
+        <button class="btn btn-ghost btn-lg" @click="router.push('/league/create')">
           <AppIcon :path="mdiPlusCircle" :size="20" />
           Create a League
         </button>
@@ -179,7 +179,7 @@ const draftProgress = computed(() => {
         <h1>{{ league?.name }}</h1>
         <p class="dash-sub">Commissioner dashboard · Welcome back, <strong>{{ authStore.playerName }}</strong></p>
       </div>
-      <button class="dash-btn primary" @click="router.push('/draft')">
+      <button class="btn btn-primary" @click="router.push('/draft')">
         <AppIcon :path="mdiTrophy" :size="18" />
         Draft Board
       </button>
@@ -212,7 +212,7 @@ const draftProgress = computed(() => {
       <div v-if="draftReady" class="ready-banner">
         <AppIcon :path="mdiPlayCircle" :size="20" />
         Everything is set — head to the Draft Board to start!
-        <button class="dash-btn primary small" @click="router.push('/draft')">Start Draft</button>
+        <button class="btn btn-primary btn-sm" @click="router.push('/draft')">Start Draft</button>
       </div>
     </section>
 
@@ -258,13 +258,13 @@ const draftProgress = computed(() => {
     <section class="section">
       <h2 class="section-heading">Quick Actions</h2>
       <div class="action-row">
-        <button class="dash-btn secondary" @click="router.push('/league/setup')">
+        <button class="btn btn-secondary" @click="router.push('/league/setup')">
           <AppIcon :path="mdiCog" :size="16" /> Configure League
         </button>
-        <button class="dash-btn secondary" @click="router.push('/pokemon')">
+        <button class="btn btn-secondary" @click="router.push('/pokemon')">
           <AppIcon :path="mdiClipboardList" :size="16" /> Point Values
         </button>
-        <button class="dash-btn secondary" @click="router.push('/roster')">
+        <button class="btn btn-secondary" @click="router.push('/roster')">
           <AppIcon :path="mdiAccountGroup" :size="16" /> View Rosters
         </button>
       </div>
@@ -316,7 +316,7 @@ const draftProgress = computed(() => {
 
       <div v-if="myPicks.length === 0" class="empty-team">
         <span>No Pokémon drafted yet.</span>
-        <button v-if="draftStatus === 'active'" class="dash-btn primary small" @click="router.push('/draft')">
+        <button v-if="draftStatus === 'active'" class="btn btn-primary btn-sm" @click="router.push('/draft')">
           Go to Draft
         </button>
       </div>
@@ -385,28 +385,6 @@ h1 {
   justify-content: center;
   margin-bottom: 3rem;
 }
-
-.landing-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.8rem 1.6rem;
-  border-radius: 10px;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  border: none;
-  transition: opacity 0.15s, transform 0.1s;
-}
-
-.landing-btn:hover { opacity: 0.88; transform: translateY(-1px); }
-.landing-btn.primary { background: var(--primary); color: white; }
-.landing-btn.ghost {
-  background: transparent;
-  border: 1.5px solid var(--border-color);
-  color: var(--text);
-}
-.landing-btn.ghost:hover { border-color: var(--primary); background: var(--input-bg); }
 
 .feature-grid {
   display: grid;
@@ -483,34 +461,6 @@ h1 {
 }
 
 .section-row .section-heading { margin-bottom: 0; }
-
-.dash-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.55rem 1rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  cursor: pointer;
-  border: none;
-  transition: opacity 0.15s, transform 0.1s;
-}
-
-.dash-btn:hover { opacity: 0.88; transform: translateY(-1px); }
-.dash-btn.primary { background: var(--primary); color: white; }
-.dash-btn.secondary {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-}
-.dash-btn.small { padding: 0.4rem 0.75rem; font-size: 0.82rem; }
-.dash-btn.pulse { animation: pulse-btn 1.4s ease-in-out infinite; }
-
-@keyframes pulse-btn {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(204, 0, 0, 0.5); }
-  50% { box-shadow: 0 0 0 6px rgba(204, 0, 0, 0); }
-}
 
 /* ── Checklist ───────────────────────────────────────────────────────────── */
 .checklist {

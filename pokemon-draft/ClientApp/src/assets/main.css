@@ -7,6 +7,111 @@
   overflow: hidden;
 }
 
+/* ── Button system ──────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+  text-decoration: none;
+  font-family: inherit;
+}
+
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:hover:not(:disabled) { opacity: 0.88; }
+
+.btn-primary   { background: var(--primary); color: #fff; }
+.btn-secondary { background: var(--input-bg); color: var(--text); border: 1px solid var(--border-color); }
+.btn-danger    { background: #dc2626; color: #fff; }
+.btn-ghost     { background: transparent; border: 1.5px solid var(--border-color); color: var(--text); }
+.btn-ghost:hover:not(:disabled) { border-color: var(--primary); background: var(--input-bg); opacity: 1; }
+
+.btn-sm   { padding: 0.35rem 0.75rem; font-size: 0.82rem; border-radius: 6px; }
+.btn-lg   { padding: 0.75rem 1.5rem; font-size: 1rem; }
+.btn-full { width: 100%; }
+
+/* ── Card surface ───────────────────────────────────────────────────────────── */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+}
+
+/* ── Full-height flex-column page ───────────────────────────────────────────── */
+.page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Sticky header strip inside a .page ────────────────────────────────────── */
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+/* ── Eyebrow / section label ────────────────────────────────────────────────── */
+.eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+/* ── Pill badge ─────────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.badge-primary { background: var(--primary); color: #fff; }
+.badge-muted   { background: var(--border-color); color: var(--text-muted); }
+
+/* ── Global input / select base ─────────────────────────────────────────────── */
+input[type='text'],
+input[type='password'],
+input[type='email'],
+input[type='url'],
+input[type='number'],
+input[type='search'],
+input:not([type]),
+select {
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
 /* ── Scrollbars ─────────────────────────────────────────────────────────── */
 /* ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); border-radius: 3px; }
@@ -51,22 +156,6 @@
   letter-spacing: 0.05em;
 }
 
-/* ── Base input ─────────────────────────────────────────────────────────── */
-/* input {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 0.6rem 0.8rem;
-  font-size: 0.95rem;
-  transition: border-color 0.15s;
-} */
-
-input:focus {
-  outline: none;
-  border-color: var(--primary);
-}
-
 /* ── Page center layout (auth pages) ────────────────────────────────────── */
 .page-center {
   min-height: 100vh;
@@ -89,6 +178,7 @@ input:focus {
   position: relative;
 }
 
+/* ── Pokémon grid (global, used by PokemonView + PokemonGrid component) ── */
 .pokemon-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -98,6 +188,7 @@ input:focus {
   padding-top: 4px;
 }
 
+/* ── Search box (used by SearchBox.vue) ─────────────────────────────────── */
 .search-box {
   position: relative;
   display: flex;
@@ -123,7 +214,4 @@ input:focus {
   border: 0;
   color: var(--text);
   outline: none;
-}
-.wrapper {
-  padding: 10px;
 }

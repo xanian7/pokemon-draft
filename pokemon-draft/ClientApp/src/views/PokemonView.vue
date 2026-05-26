@@ -160,9 +160,9 @@ async function saveToServer() {
 </script>
 
 <template>
-  <main class="pokemon-view">
+  <main class="pokemon-view page">
     <!-- Top bar -->
-    <div class="view-header">
+    <div class="view-header page-header">
       <span class="view-title">
         <AppIcon :path="mdiClipboardList" :size="20" />
         {{ authStore.isAdmin ? 'Pokémon Point Values' : 'Free Agents' }}
@@ -171,14 +171,15 @@ async function saveToServer() {
 
       <div v-if="authStore.isAdmin" class="admin-actions">
         <button
-          class="btn-defaults"
+          class="btn btn-sm"
+          style="background: var(--secondary); color: #fff;"
           :disabled="pokemonStore.isLoading || regulationLoading"
           @click="applyDefaults"
         >
           <AppIcon :path="mdiFlash" :size="16" />
           Apply Defaults
         </button>
-        <button class="btn-save" :disabled="saving" @click="saveToServer">
+        <button class="btn btn-primary btn-sm" :disabled="saving" @click="saveToServer">
           <template v-if="saving">Saving…</template>
           <template v-else>
             <AppIcon :path="mdiContentSave" :size="16" />
@@ -303,25 +304,7 @@ async function saveToServer() {
 </template>
 
 <style scoped>
-.pokemon-view {
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 56px);
-  overflow: hidden;
-}
-
 /* ── Top bar ─────────────────────────────────────────────────────────────── */
-.view-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.65rem 1rem;
-  background: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0;
-  flex-wrap: wrap;
-}
-
 .view-title {
   display: flex;
   align-items: center;
@@ -341,24 +324,6 @@ async function saveToServer() {
   gap: 0.5rem;
   margin-left: auto;
 }
-
-.btn-save,
-.btn-defaults {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 0.35rem 0.85rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.btn-save { background: var(--primary); }
-.btn-defaults { background: var(--secondary); }
-.btn-save:disabled,
-.btn-defaults:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .save-ok { color: #4ade80; font-size: 0.82rem; display: flex; align-items: center; gap: 0.3rem; }
 .save-err { color: #f87171; font-size: 0.82rem; }
@@ -380,14 +345,10 @@ async function saveToServer() {
   min-width: 140px;
 }
 
-input[type='text'],
 select {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  border-radius: 6px;
   padding: 0.3rem 0.55rem;
   font-size: 0.82rem;
+  border-radius: 6px;
 }
 
 .toggle {

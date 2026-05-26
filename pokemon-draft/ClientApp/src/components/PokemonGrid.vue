@@ -74,6 +74,7 @@ async function handleDraft(pokemonId: number) {
   flex: 1;
   min-height: 0; /* required for flex children to shrink below content size */
   overflow: hidden;
+  padding: 8px 0px 8px 8px;
 }
 
 .pokemon-grid-header {

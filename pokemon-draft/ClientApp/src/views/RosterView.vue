@@ -310,7 +310,7 @@ onUnmounted(disconnect)
 </script>
 
 <template>
-  <main class="roster-view">
+  <main class="roster-view page">
     <section v-if="isLoading" class="state-card loading-card">
       <PokeballLoader variant="page" label="Loading roster tools…" />
     </section>
@@ -318,7 +318,7 @@ onUnmounted(disconnect)
     <section v-else-if="loadError" class="state-card error-card">
       <h1>Couldn’t load Team Management</h1>
       <p>{{ loadError }}</p>
-      <button class="primary-btn" @click="loadPage">Try Again</button>
+      <button class="btn btn-primary" @click="loadPage">Try Again</button>
     </section>
 
     <template v-else-if="league">
@@ -411,7 +411,7 @@ onUnmounted(disconnect)
                     <p>{{ entry.points }} pts</p>
                   </div>
                 </div>
-                <button class="danger-btn" :disabled="isSubmitting" @click="dropPokemon(entry.pokemonId)">
+                <button class="btn btn-danger" :disabled="isSubmitting" @click="dropPokemon(entry.pokemonId)">
                   Drop
                 </button>
               </article>
@@ -470,7 +470,7 @@ onUnmounted(disconnect)
               <span class="status-pill pending">Trade #{{ submittedTrade.id }}</span>
             </div>
             <p class="subtitle">Your proposal was sent to {{ getPlayerName(submittedTrade.targetPlayerId) }}.</p>
-            <button class="primary-btn" @click="router.push('/team')">Back to My Team</button>
+            <button class="btn btn-primary" @click="router.push('/team')">Back to My Team</button>
           </article>
 
           <template v-else>
@@ -572,7 +572,7 @@ onUnmounted(disconnect)
                 </div>
               </div>
 
-              <button class="primary-btn" :disabled="isSubmitting" @click="submitTrade">Submit Trade</button>
+              <button class="btn btn-primary" :disabled="isSubmitting" @click="submitTrade">Submit Trade</button>
             </article>
           </template>
         </section>
@@ -595,10 +595,6 @@ onUnmounted(disconnect)
 
 <style scoped>
 .roster-view {
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 56px);
-  overflow: hidden;
   padding: 0;
 }
 
@@ -1019,33 +1015,6 @@ h3,
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-}
-
-.primary-btn,
-.danger-btn {
-  border: none;
-  border-radius: 10px;
-  padding: 0.72rem 1rem;
-  font-size: 0.92rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.primary-btn {
-  background: var(--primary);
-  color: white;
-}
-
-.danger-btn {
-  background: rgba(248, 113, 113, 0.15);
-  color: #f87171;
-  border: 1px solid rgba(248, 113, 113, 0.4);
-}
-
-.primary-btn:disabled,
-.danger-btn:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
 }
 
 @media (max-width: 900px) {

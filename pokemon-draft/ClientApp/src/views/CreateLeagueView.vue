@@ -81,7 +81,7 @@ async function enterAsAdmin() {
             <span class="hint">Keep this private — it gives full control over the league.</span>
           </div>
           <div v-if="error" class="error-msg">{{ error }}</div>
-          <button type="submit" class="btn-create" :disabled="isLoading">
+          <button type="submit" class="btn btn-primary btn-full btn-lg" :disabled="isLoading">
             <PokeballLoader v-if="isLoading" variant="inline" :size="16" />
             {{ isLoading ? 'Creating…' : 'Create League' }}
           </button>
@@ -96,7 +96,7 @@ async function enterAsAdmin() {
             Share this code with your players. They'll use it along with their individual PINs to
             join.
           </p>
-          <button class="btn-enter" @click="enterAsAdmin">Enter League Setup →</button>
+          <button class="btn btn-primary" @click="enterAsAdmin">Enter League Setup →</button>
         </div>
       </template>
     </div>
@@ -153,27 +153,6 @@ h1 {
   color: var(--text-muted);
 }
 
-.btn-create {
-  background: var(--secondary);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 0.75rem;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  width: 100%;
-}
-
-.btn-create:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .success-block {
   display: flex;
   flex-direction: column;
@@ -205,18 +184,6 @@ h1 {
   font-size: 0.82rem;
   color: var(--text-muted);
   line-height: 1.5;
-}
-
-.btn-enter {
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 0.65rem 1.5rem;
-  font-size: 0.95rem;
-  font-weight: 700;
-  cursor: pointer;
-  margin-top: 0.5rem;
 }
 
 </style>

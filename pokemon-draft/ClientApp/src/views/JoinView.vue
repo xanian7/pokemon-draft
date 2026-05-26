@@ -148,7 +148,7 @@ async function join() {
 
         <div v-if="error" class="error-msg">{{ error }}</div>
 
-        <button type="submit" class="btn-join" :disabled="isLoading">
+        <button type="submit" class="btn btn-primary btn-full btn-lg" :disabled="isLoading">
           <PokeballLoader v-if="isLoading" variant="inline" :size="16" />
           {{ isLoading ? 'Logging in…' : 'Log In' }}
         </button>
@@ -162,7 +162,7 @@ async function join() {
       </p>
 
       <div class="divider">Commissioner?</div>
-      <button class="btn-create" @click="router.push('/league/create')">
+      <button class="btn btn-ghost btn-full" @click="router.push('/league/create')">
         Create a New League
       </button>
     </div>
@@ -296,28 +296,6 @@ h1 {
   text-align: left;
 }
 
-.btn-join {
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 0.75rem;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  transition: opacity 0.15s;
-  width: 100%;
-}
-
-.btn-join:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .signup-link {
   margin-top: 1rem;
   font-size: 0.85rem;
@@ -349,21 +327,5 @@ h1 {
 .divider::before { left: 0; }
 .divider::after { right: 0; }
 
-.btn-create {
-  width: 100%;
-  background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 0.6rem;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-}
-
-.btn-create:hover {
-  border-color: var(--primary);
-  background: var(--input-bg);
-}
 </style>
 

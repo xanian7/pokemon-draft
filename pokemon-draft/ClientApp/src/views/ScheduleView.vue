@@ -278,8 +278,8 @@ function avatarInitials(name: string, teamName: string) {
                     </div>
                     <p v-if="reportError" class="report-error">{{ reportError }}</p>
                     <div class="report-actions">
-                      <button class="cancel-btn" @click="cancelReport">Cancel</button>
-                      <button class="submit-btn" :disabled="reportLoading" @click="submitReport(matchup)">
+                      <button class="btn btn-secondary btn-sm" @click="cancelReport">Cancel</button>
+                      <button class="btn btn-primary btn-sm" :disabled="reportLoading" @click="submitReport(matchup)">
                         {{ reportLoading ? 'Saving…' : 'Submit' }}
                       </button>
                     </div>
@@ -673,32 +673,6 @@ h1 {
   display: flex;
   gap: 0.5rem;
   justify-content: flex-end;
-}
-
-.cancel-btn,
-.submit-btn {
-  border: none;
-  border-radius: 8px;
-  padding: 0.4rem 0.85rem;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.cancel-btn {
-  background: var(--input-bg);
-  color: var(--text);
-  border: 1px solid var(--border-color);
-}
-
-.submit-btn {
-  background: var(--primary);
-  color: white;
-}
-
-.submit-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .standings-col {

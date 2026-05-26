@@ -111,7 +111,7 @@ async function register() {
 
           <div v-if="error" class="error-msg">{{ error }}</div>
 
-          <button type="submit" class="btn-join" :disabled="isLoading">
+          <button type="submit" class="btn btn-primary btn-full btn-lg" :disabled="isLoading">
           <PokeballLoader v-if="isLoading" variant="inline" :size="16" />
             {{ isLoading ? 'Joining…' : 'Join League' }}
           </button>
@@ -151,31 +151,6 @@ h1 { font-size: 1.5rem; font-weight: 800; margin-bottom: 0.75rem; }
 
 .hint { font-size: 0.74rem; color: var(--text-muted); }
 .optional { color: var(--text-muted); font-size: 0.78rem; font-weight: 400; }
-
-.btn-join {
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 0.75rem;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
-  width: 100%;
-}
-
-.btn-join:disabled { opacity: 0.6; cursor: not-allowed; }
-
-.login-link {
-  margin-top: 1.25rem;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
 
 .login-link a { color: var(--primary); text-decoration: none; }
 </style>

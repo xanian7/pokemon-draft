@@ -238,7 +238,7 @@ onUnmounted(disconnect)
     <section v-else-if="loadError" class="state-card error-card">
       <h1>Couldn't load My Team</h1>
       <p>{{ loadError }}</p>
-      <button class="primary-btn" @click="loadPage">Try Again</button>
+      <button class="btn btn-primary" @click="loadPage">Try Again</button>
     </section>
 
     <template v-else-if="league">
@@ -287,7 +287,7 @@ onUnmounted(disconnect)
           <div class="connection-badge" :class="isConnected ? 'live' : 'offline'">
             {{ isConnected ? '● Live' : '○ Offline' }}
           </div>
-          <button class="primary-btn" @click="router.push('/team/manage')">Manage Roster</button>
+          <button class="btn btn-primary" @click="router.push('/team/manage')">Manage Roster</button>
         </div>
       </section>
 
@@ -414,10 +414,10 @@ onUnmounted(disconnect)
                   </div>
                   <div class="trade-actions">
                     <template v-if="trade.targetPlayerId === currentPlayerId">
-                      <button class="success-btn" :disabled="tradeActionId === trade.id" @click="actOnTrade(trade, 'accept')">Accept</button>
-                      <button class="secondary-btn" :disabled="tradeActionId === trade.id" @click="actOnTrade(trade, 'reject')">Reject</button>
+                      <button class="btn btn-success" :disabled="tradeActionId === trade.id" @click="actOnTrade(trade, 'accept')">Accept</button>
+                      <button class="btn btn-secondary" :disabled="tradeActionId === trade.id" @click="actOnTrade(trade, 'reject')">Reject</button>
                     </template>
-                    <button v-else class="secondary-btn" :disabled="tradeActionId === trade.id" @click="actOnTrade(trade, 'cancel')">Cancel</button>
+                    <button v-else class="btn btn-secondary" :disabled="tradeActionId === trade.id" @click="actOnTrade(trade, 'cancel')">Cancel</button>
                   </div>
                 </article>
               </div>
@@ -828,25 +828,9 @@ h2 { font-size: 1.15rem; }
   font-size: 0.88rem;
 }
 
-/* ── Buttons ─────────────────────────────────────────── */
-.primary-btn,
-.secondary-btn,
-.success-btn {
-  border: none;
-  border-radius: 10px;
-  padding: 0.65rem 1rem;
-  font-size: 0.9rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.primary-btn  { background: var(--primary); color: white; }
-.secondary-btn { background: var(--input-bg); color: var(--text); border: 1px solid var(--border-color); }
-.success-btn  { background: #059669; color: white; }
-
-.primary-btn:disabled,
-.secondary-btn:disabled,
-.success-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+/* btn-success is not in global design system (green action) */
+.btn-success { background: #059669; color: white; }
+.btn-success:disabled { opacity: 0.65; cursor: not-allowed; }
 
 .inline-link { color: var(--secondary); font-weight: 700; }
 

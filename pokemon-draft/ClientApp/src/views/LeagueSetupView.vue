@@ -255,7 +255,7 @@ const snakePreview = computed(() => {
           style="width: 90px"
           @keydown.enter="addPlayer"
         />
-        <button class="btn-primary" @click="addPlayer">Add</button>
+        <button class="btn btn-primary" @click="addPlayer">Add</button>
       </div>
 
       <div v-if="addError" class="error-msg">{{ addError }}</div>
@@ -274,7 +274,7 @@ const snakePreview = computed(() => {
           >
             <AppIcon :path="mdiArrowDown" :size="18" />
           </button>
-          <button class="btn-danger" @click="removePlayer(player.id)">Remove</button>
+          <button class="btn btn-danger" @click="removePlayer(player.id)">Remove</button>
         </li>
       </ul>
     </section>
@@ -293,7 +293,7 @@ const snakePreview = computed(() => {
     <section class="card">
       <h2>Draft Controls</h2>
       <div class="btn-row">
-        <button class="btn-primary" :disabled="players.length < 2" @click="startDraft">
+        <button class="btn btn-primary" :disabled="players.length < 2" @click="startDraft">
           <AppIcon :path="mdiTrophy" :size="18" />
           Start Draft
         </button>
@@ -301,7 +301,7 @@ const snakePreview = computed(() => {
           <AppIcon :path="mdiClipboardList" :size="18" />
           Manage Point Values
         </button>
-        <button class="btn-danger" @click="showResetWarning = true">Reset Draft</button>
+        <button class="btn btn-danger" @click="showResetWarning = true">Reset Draft</button>
       </div>
       <p v-if="players.length < 2" class="hint" style="margin-top: 0.5rem">
         Need at least 2 players to start.
@@ -310,7 +310,7 @@ const snakePreview = computed(() => {
         <p>
           <AppIcon :path="mdiAlert" :size="18" /> This will erase all draft picks. Are you sure?
         </p>
-        <button class="btn-danger" @click="resetDraft">Yes, Reset</button>
+        <button class="btn btn-danger" @click="resetDraft">Yes, Reset</button>
         <button @click="showResetWarning = false">Cancel</button>
       </div>
     </section>
@@ -556,24 +556,7 @@ input[type='number'] {
   flex-wrap: wrap;
 }
 
-.btn-primary {
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 1.2rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
+/* btn-secondary here is red (--secondary brand color), not the gray global .btn-secondary */
 .btn-secondary {
   background: var(--secondary);
   color: white;
@@ -581,20 +564,6 @@ input[type='number'] {
   border-radius: 6px;
   padding: 0.5rem 1.2rem;
   font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.btn-danger {
-  background: #dc2626;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 0.4rem 0.8rem;
-  font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
   display: flex;
@@ -618,13 +587,6 @@ input[type='number'] {
 .btn-icon:disabled {
   opacity: 0.3;
   cursor: not-allowed;
-}
-button:hover:not(:disabled) {
-  opacity: 0.85;
-}
-
-.error-msg {
-  margin-bottom: 0.5rem;
 }
 
 .confirm-reset {
