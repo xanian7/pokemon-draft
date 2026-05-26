@@ -185,6 +185,7 @@ select:focus {
   overflow-y: auto;
   flex: 1;
   padding-top: 4px;
+  max-height: fit-content;
 }
 
 /* ── Search box (used by SearchBox.vue) ─────────────────────────────────── */

@@ -75,6 +75,7 @@ const emit = defineEmits<{
     opacity 0.15s;
   text-align: center;
   min-width: 0;
+  max-height: fit-content;
 }
 
 .pokemon-card:hover:not(.is-picked) {
