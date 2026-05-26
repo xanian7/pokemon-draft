@@ -1,3 +1,6 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using PokemonDraft.DTOs;
@@ -18,6 +21,12 @@ public class DataController(ILeagueService leagueService, IHubContext<DraftHub> 
             await hub.Clients.Group(code.ToUpperInvariant()).SendAsync("LeagueState", response);
     }
 
+    private Guid? GetRequestUserId()
+    {
+        var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        return sub is not null && Guid.TryParse(sub, out var id) ? id : null;
+    }
+
     // Auth
 
     [HttpPost("auth/join")]
@@ -32,7 +41,9 @@ public class DataController(ILeagueService leagueService, IHubContext<DraftHub> 
     [HttpPost("leagues")]
     public IActionResult CreateLeague(CreateLeagueRequest req)
     {
-        var (result, error) = leagueService.CreateLeague(req);
+        var userId = GetRequestUserId();
+        var reqWithUser = req with { UserId = userId };
+        var (result, error) = leagueService.CreateLeague(reqWithUser);
         return result is null ? BadRequest(error) : Ok(result);
     }
 
@@ -57,7 +68,9 @@ public class DataController(ILeagueService leagueService, IHubContext<DraftHub> 
     [HttpPost("leagues/{code}/players/register")]
     public async Task<IActionResult> RegisterPlayer(string code, RegisterPlayerRequest req)
     {
-        var (result, error) = leagueService.RegisterPlayer(code, req);
+        var userId = GetRequestUserId();
+        var reqWithUser = req with { UserId = userId };
+        var (result, error) = leagueService.RegisterPlayer(code, reqWithUser);
         if (result is null) return BadRequest(error);
         await BroadcastLeague(code);
         return Ok(result);

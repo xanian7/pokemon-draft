@@ -6,6 +6,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
 import { mdiPokeball, mdiClose } from '@mdi/js'
 import { API_BASE } from '@/services/signalr'
+import { GoogleLogin } from 'vue3-google-login'
 
 const router = useRouter()
 const route = useRoute()
@@ -22,12 +23,13 @@ const leagueCode = ref(initialCode)
 const pin = ref('')
 const error = ref('')
 const isLoading = ref(false)
+const isGoogleLoading = ref(false)
 const leagueName = ref('')
 const lookupPending = ref(false)
 
-// If already authenticated, go straight to draft
+// If already authenticated in a league, go straight to home
 if (authStore.isAuthenticated) {
-  router.replace('/draft')
+  router.replace('/')
 }
 
 // Live league name lookup – debounced
@@ -76,8 +78,28 @@ async function join() {
   if (err) {
     error.value = err
   } else {
-    router.push('/draft')
+    router.push('/')
   }
+}
+
+async function onGoogleCredential(response: { credential: string }) {
+  isGoogleLoading.value = true
+  error.value = ''
+  try {
+    const err = await authStore.signInWithGoogle(response.credential)
+    if (err) {
+      error.value = err
+    } else {
+      router.push('/my-leagues')
+    }
+  } finally {
+    isGoogleLoading.value = false
+  }
+}
+
+function onGoogleError() {
+  error.value = 'Google sign-in failed. Please try again.'
+  isGoogleLoading.value = false
 }
 </script>
 
@@ -86,7 +108,24 @@ async function join() {
     <div class="auth-card">
       <div class="join-logo"><AppIcon :path="mdiPokeball" :size="52" /></div>
       <h1>Log In</h1>
-      <p class="subtitle">Enter your league code and PIN to continue.</p>
+
+      <!-- Google Sign-In -->
+      <div class="google-btn-wrap">
+        <GoogleLogin :callback="onGoogleCredential" :error="onGoogleError" />
+      </div>
+
+      <div v-if="authStore.isSignedInWithGoogle" class="google-signed-in">
+        <img
+          v-if="authStore.googleUser?.picture"
+          :src="authStore.googleUser.picture"
+          class="google-avatar"
+          alt=""
+        />
+        <span>Signed in as <strong>{{ authStore.googleUser?.name }}</strong></span>
+        <RouterLink to="/my-leagues" class="my-leagues-link">View My Leagues →</RouterLink>
+      </div>
+
+      <div class="divider">or sign in with PIN</div>
 
       <!-- Recent leagues quick-pick -->
       <div v-if="authStore.recentLeagues.length > 0" class="recent-section">
@@ -180,13 +219,42 @@ async function join() {
 h1 {
   font-size: 1.5rem;
   font-weight: 800;
-  margin-bottom: 0.4rem;
+  margin-bottom: 1rem;
 }
 
-.subtitle {
+/* Google button wrapper – centers the native Google Sign-In button */
+.google-btn-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+}
+
+.google-signed-in {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
-  font-size: 0.9rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.google-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.my-leagues-link {
+  color: var(--primary);
+  margin-left: auto;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* Recent leagues */
@@ -308,10 +376,11 @@ h1 {
 }
 
 .divider {
-  margin: 1.5rem 0 1rem;
+  margin: 1.25rem 0 1rem;
   font-size: 0.78rem;
   color: var(--text-muted);
   position: relative;
+  text-align: center;
 }
 
 .divider::before,
@@ -326,6 +395,5 @@ h1 {
 
 .divider::before { left: 0; }
 .divider::after { right: 0; }
-
 </style>
 

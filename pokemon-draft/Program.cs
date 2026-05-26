@@ -1,6 +1,10 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.IdentityModel.Tokens;
 using PokemonDraft.Data;
 using PokemonDraft.Hubs;
 using PokemonDraft.Services;
@@ -16,6 +20,31 @@ builder.Services.AddHttpClient<IPokemonService, PokemonService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
+
+var jwtSecret = builder.Configuration["Jwt:Secret"];
+if (!string.IsNullOrWhiteSpace(jwtSecret))
+{
+    // Disable ASP.NET Core's default claim type remapping so "sub" stays as "sub"
+    JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(opts =>
+        {
+            opts.MapInboundClaims = false; // keep "sub", "email", etc. as original JWT names
+            opts.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = "pokemon-draft",
+                ValidAudience = "pokemon-draft",
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            };
+        });
+    builder.Services.AddAuthorization();
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -70,6 +99,8 @@ else
 }
 
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapHub<DraftHub>("/hubs/draft");
 app.MapControllers();
 

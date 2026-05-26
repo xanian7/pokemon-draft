@@ -2,7 +2,7 @@ namespace PokemonDraft.DTOs;
 
 // --- Requests ---
 
-public record CreateLeagueRequest(string Name, string CommissionerName, string AdminPin);
+public record CreateLeagueRequest(string Name, string CommissionerName, string? AdminPin, Guid? UserId = null);
 
 public record UpdateLeagueConfigRequest(string? Name, int? PointLimit, int? Rounds, string? RegulationSet);
 
@@ -14,7 +14,7 @@ public record SetPointValuesRequest(Dictionary<int, int> Values);
 
 public record MakePickRequest(string PlayerId, string Pin, int PokemonId);
 
-public record RegisterPlayerRequest(string Name, string Pin, string? TeamName, string? TeamImageUrl);
+public record RegisterPlayerRequest(string Name, string? Pin, string? TeamName, string? TeamImageUrl, Guid? UserId = null);
 
 public record JoinRequest(string LeagueCode, string Pin);
 
@@ -28,6 +28,16 @@ public record RosterChangeRequest(string PlayerId, string Pin, int PokemonId);
 
 public record ReportMatchupRequest(string PlayerId, string Pin, int Player1Wins, int Player2Wins);
 public record EditMatchupRequest(string AdminPin, int Player1Wins, int Player2Wins);
+
+// --- Auth ---
+
+public record GoogleAuthRequest(string IdToken);
+public record AuthUserResponse(Guid Id, string Email, string Name, string PictureUrl);
+public record AuthTokenResponse(string Token, AuthUserResponse User);
+
+public record MyLeagueResponse(string Code, string Name, string PlayerId, string PlayerName, string TeamName, string TeamImageUrl, bool IsCommissioner);
+public record LinkPlayerRequest(string LeagueCode, string Pin);
+public record EnterLeagueRequest(string LeagueCode);
 
 // --- Responses ---
 
@@ -44,7 +54,7 @@ public record PokemonDetailStat(string Name, int BaseStat);
 public record PokemonDetailAbility(string Name, bool IsHidden);
 public record PokemonDetailMove(string Name, string Type, int? Power, int? Pp, string Category);
 
-public record JoinResponse(string PlayerId, string PlayerName, bool IsAdmin, string LeagueCode, string TeamName, string TeamImageUrl, string LeagueName);
+public record JoinResponse(string PlayerId, string PlayerName, bool IsAdmin, string LeagueCode, string TeamName, string TeamImageUrl, string LeagueName, string? SessionToken = null);
 
 public record LeagueResponse(
     string Code,

@@ -12,12 +12,17 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public (CreateLeagueResponse? result, string? error) CreateLeague(CreateLeagueRequest req)
     {
-        if (string.IsNullOrWhiteSpace(req.Name) || string.IsNullOrWhiteSpace(req.AdminPin) || string.IsNullOrWhiteSpace(req.CommissionerName))
-            return (null, "Name, commissioner name, and admin PIN are required.");
+        if (string.IsNullOrWhiteSpace(req.Name) || string.IsNullOrWhiteSpace(req.CommissionerName))
+            return (null, "Name and commissioner name are required.");
+
+        bool isGoogleUser = req.UserId.HasValue;
+        if (!isGoogleUser && string.IsNullOrWhiteSpace(req.AdminPin))
+            return (null, "Admin PIN is required.");
 
         var name = req.Name.Trim();
         var commissionerName = req.CommissionerName.Trim();
-        var adminPin = req.AdminPin;
+        var sessionToken = isGoogleUser ? Guid.NewGuid().ToString() : null;
+        var adminPin = req.AdminPin ?? sessionToken!;
 
         var code = GenerateCode();
         var commissioner = new Player
@@ -27,6 +32,8 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             Name = commissionerName,
             Pin = BC.HashPassword(adminPin),
             SortOrder = 0,
+            UserId = req.UserId,
+            SessionToken = sessionToken,
         };
 
         var league = new League
@@ -90,8 +97,11 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public (PlayerCreatedResponse? result, string? error) RegisterPlayer(string leagueCode, RegisterPlayerRequest req)
     {
-        if (string.IsNullOrWhiteSpace(req.Name) || string.IsNullOrWhiteSpace(req.Pin))
+        bool isGoogleUser = req.UserId.HasValue;
+        if (!isGoogleUser && string.IsNullOrWhiteSpace(req.Pin))
             return (null, "Name and PIN are required.");
+        if (string.IsNullOrWhiteSpace(req.Name))
+            return (null, "Name is required.");
 
         var league = LoadLeague(leagueCode);
         if (league is null)
@@ -103,18 +113,24 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (orderedPlayers.Any(p => p.Name.Equals(trimmedName, StringComparison.OrdinalIgnoreCase)))
             return (null, "That name is already taken in this league.");
 
-        if (orderedPlayers.Any(p => BC.Verify(req.Pin, p.Pin)))
+        // Reject duplicate PINs only for PIN-based registrations
+        if (!isGoogleUser && orderedPlayers.Any(p => BC.Verify(req.Pin!, p.Pin)))
             return (null, "That PIN is already in use. Please choose a different one.");
+
+        var sessionToken = isGoogleUser ? Guid.NewGuid().ToString() : null;
+        var pinToHash = isGoogleUser ? sessionToken! : req.Pin!;
 
         var player = new Player
         {
             Id = Guid.NewGuid().ToString(),
             LeagueCode = league.Code,
             Name = trimmedName,
-            Pin = BC.HashPassword(req.Pin),
+            Pin = BC.HashPassword(pinToHash),
             SortOrder = orderedPlayers.Count,
             TeamName = req.TeamName?.Trim() ?? string.Empty,
             TeamImageUrl = req.TeamImageUrl?.Trim() ?? string.Empty,
+            UserId = req.UserId,
+            SessionToken = sessionToken,
         };
 
         league.Players.Add(player);
@@ -196,7 +212,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         var league = LoadLeague(leagueCode);
         if (league is null) return null;
 
-        if (BC.Verify(pin, league.AdminPin))
+        if (VerifyAdminPin(league, pin))
         {
             var commissioner = GetOrderedPlayers(league).FirstOrDefault(p => p.Id == league.CommissionerPlayerId);
             var name = commissioner?.Name ?? "Commissioner";
@@ -205,7 +221,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         }
 
         var player = GetOrderedPlayers(league)
-            .FirstOrDefault(p => p.Id != league.CommissionerPlayerId && BC.Verify(pin, p.Pin));
+            .FirstOrDefault(p => p.Id != league.CommissionerPlayerId && VerifyPin(p, pin));
         if (player is null) return null;
 
         return new JoinResponse(player.Id, player.Name, false, league.Code, player.TeamName, player.TeamImageUrl, league.Name);
@@ -256,7 +272,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
 
         var orderedPlayers = GetOrderedPlayers(league);
         var player = orderedPlayers.FirstOrDefault(p => p.Id == playerId);
-        if (player is null || !BC.Verify(pin, player.Pin))
+        if (player is null || !VerifyPin(player, pin))
             return (false, "Invalid player or PIN.", false);
 
         var expectedPickerId = GetPlayerIdAtPick(league, league.CurrentPickNumber);
@@ -493,7 +509,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             return (false, "This matchup has already been reported.");
 
         var player = GetOrderedPlayers(league).FirstOrDefault(p => p.Id == playerId);
-        if (player is null || !BC.Verify(pin, player.Pin))
+        if (player is null || !VerifyPin(player, pin))
             return (false, "Invalid PIN.");
 
         if (player1Wins < 0 || player2Wins < 0 || player1Wins > 2 || player2Wins > 2)
@@ -519,7 +535,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         var league = LoadLeague(leagueCode);
         if (league is null) return (false, "League not found.");
 
-        if (!BC.Verify(adminPin, league.AdminPin))
+        if (!VerifyAdminPin(league, adminPin))
             return (false, "Invalid admin PIN.");
 
         var matchup = league.Matchups.FirstOrDefault(m => m.Id == matchupId);
@@ -548,7 +564,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (league is null) return (false, "League not found.");
 
         var player = GetOrderedPlayers(league).FirstOrDefault(p => p.Id == playerId);
-        if (player is null || !BC.Verify(pin, player.Pin))
+        if (player is null || !VerifyPin(player, pin))
             return (false, "Invalid player or PIN.");
 
         if (teamName is not null) player.TeamName = teamName.Trim();
@@ -605,7 +621,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (league is null) return (false, "League not found.");
 
         var player = league.Players.FirstOrDefault(p => p.Id == playerId);
-        if (player is null || !BC.Verify(pin, player.Pin))
+        if (player is null || !VerifyPin(player, pin))
             return (false, "Invalid player or PIN.");
 
         var pick = league.Picks.FirstOrDefault(p => p.PlayerId == playerId && p.PokemonId == pokemonId);
@@ -623,7 +639,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (league is null) return (false, "League not found.");
 
         var player = league.Players.FirstOrDefault(p => p.Id == playerId);
-        if (player is null || !BC.Verify(pin, player.Pin))
+        if (player is null || !VerifyPin(player, pin))
             return (false, "Invalid player or PIN.");
 
         if (league.Picks.Any(p => p.PokemonId == pokemonId))
@@ -666,7 +682,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (league is null) return (null, "League not found.");
 
         var initiator = league.Players.FirstOrDefault(p => p.Id == initiatorId);
-        if (initiator is null || !BC.Verify(initiatorPin, initiator.Pin))
+        if (initiator is null || !VerifyPin(initiator, initiatorPin))
             return (null, "Invalid player or PIN.");
 
         if (!league.Players.Any(p => p.Id == targetId))
@@ -715,7 +731,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             return (false, "Trade is no longer pending.");
 
         var player = league.Players.FirstOrDefault(p => p.Id == playerId);
-        if (player is null || !BC.Verify(pin, player.Pin))
+        if (player is null || !VerifyPin(player, pin))
             return (false, "Invalid player or PIN.");
 
         if (response == TradeStatus.Cancelled)
@@ -756,6 +772,19 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         ProposedAt: trade.ProposedAt,
         Items: trade.Items.Select(i => new TradeItemResponse(i.FromPlayerId, i.PokemonId)).ToList()
     );
+
+    /// <summary>Accepts either a BCrypt'd PIN or a plaintext SessionToken (for Google users).</summary>
+    private static bool VerifyPin(Player player, string input) =>
+        (!string.IsNullOrEmpty(player.SessionToken) && player.SessionToken == input)
+        || BC.Verify(input, player.Pin);
+
+    /// <summary>Verifies the admin PIN for a league: either BCrypt match or commissioner's SessionToken.</summary>
+    private static bool VerifyAdminPin(League league, string input)
+    {
+        if (BC.Verify(input, league.AdminPin)) return true;
+        var commissioner = league.Players.FirstOrDefault(p => p.Id == league.CommissionerPlayerId);
+        return commissioner?.SessionToken != null && commissioner.SessionToken == input;
+    }
 
     private string GenerateCode()
     {

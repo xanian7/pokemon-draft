@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppIcon from '@/components/AppIcon.vue'
-import { mdiPokeball, mdiLogout, mdiCog } from '@mdi/js'
+import { mdiPokeball, mdiLogout, mdiCog, mdiTrophy } from '@mdi/js'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -35,7 +35,7 @@ function goToSettings() {
 
 function logout() {
   menuOpen.value = false
-  authStore.clearSession()
+  authStore.signOut()
   router.push('/join')
 }
 
@@ -60,12 +60,34 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
       <span class="league-name">{{ authStore.leagueName }}</span>
 
       <div class="header-right">
+        <!-- Google identity (always visible when signed in with Google) -->
+        <RouterLink
+          v-if="authStore.isSignedInWithGoogle && !authStore.isAuthenticated"
+          to="/my-leagues"
+          class="my-leagues-btn"
+        >
+          <img
+            v-if="authStore.googleUser?.picture"
+            :src="authStore.googleUser.picture"
+            class="google-avatar"
+            alt=""
+          />
+          <span>My Leagues</span>
+        </RouterLink>
+
         <template v-if="authStore.isAuthenticated">
           <!-- Avatar button -->
           <div ref="menuRef" class="user-menu">
             <button class="avatar-btn" :title="authStore.playerName ?? ''" @click="toggleMenu">
+              <!-- Prefer Google avatar when available -->
               <img
-                v-if="authStore.teamImageUrl"
+                v-if="authStore.googleUser?.picture"
+                :src="authStore.googleUser.picture"
+                :alt="authStore.playerName ?? ''"
+                class="avatar-img"
+              />
+              <img
+                v-else-if="authStore.teamImageUrl"
                 :src="authStore.teamImageUrl"
                 :alt="authStore.playerName ?? ''"
                 class="avatar-img"
@@ -79,15 +101,27 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
                 <div class="dropdown-header">
                   <span class="dropdown-name">{{ authStore.playerName }}</span>
                   <span v-if="authStore.teamName" class="dropdown-team">{{ authStore.teamName }}</span>
+                  <span v-if="authStore.isSignedInWithGoogle" class="dropdown-google">
+                    {{ authStore.googleUser?.email }}
+                  </span>
                 </div>
                 <div class="dropdown-divider" />
+                <RouterLink
+                  v-if="authStore.isSignedInWithGoogle"
+                  to="/my-leagues"
+                  class="dropdown-item"
+                  @click="menuOpen = false"
+                >
+                  <AppIcon :path="mdiTrophy" :size="16" />
+                  My Leagues
+                </RouterLink>
                 <button class="dropdown-item" @click="goToSettings">
                   <AppIcon :path="mdiCog" :size="16" />
                   Settings
                 </button>
                 <button class="dropdown-item dropdown-item--danger" @click="logout">
                   <AppIcon :path="mdiLogout" :size="16" />
-                  Logout
+                  {{ authStore.isSignedInWithGoogle ? 'Sign Out' : 'Log Out' }}
                 </button>
                 <div class="dropdown-divider" />
                 <div class="dropdown-version">v{{ appVersion }}</div>
@@ -95,7 +129,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
             </Transition>
           </div>
         </template>
-        <RouterLink v-else to="/join" class="btn-login">Log In</RouterLink>
+        <RouterLink v-else-if="!authStore.isSignedInWithGoogle" to="/join" class="btn-login">Log In</RouterLink>
       </div>
     </div>
 
@@ -348,6 +382,38 @@ nav a.router-link-exact-active {
 .menu-leave-to {
   opacity: 0;
   transform: translateY(-6px);
+}
+
+/* Google identity in header */
+.my-leagues-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.my-leagues-btn:hover {
+  color: var(--text);
+  border-color: var(--primary);
+}
+
+.google-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
+.dropdown-google {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  opacity: 0.7;
 }
 
 /* Login button */

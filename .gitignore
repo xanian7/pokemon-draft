@@ -6,3 +6,7 @@
 *.db
 *.db-shm
 *.db-wal
+
+# Vite env files with real values (.env.example is safe to commit)
+pokemon-draft/ClientApp/.env.local
+pokemon-draft/ClientApp/.env.*.local

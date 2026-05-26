@@ -1,38 +1,51 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
 import { API_BASE } from '@/services/signalr'
 import { useAuthStore } from '@/stores/auth'
-import { mdiTrophy, mdiPartyPopper } from '@mdi/js'
+import { mdiTrophy, mdiPartyPopper, mdiGoogle } from '@mdi/js'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
+const isGoogleUser = computed(() => authStore.isSignedInWithGoogle)
+
 const leagueName = ref('My Draft League')
-const commissionerName = ref('')
+const commissionerName = ref(authStore.googleUser?.name ?? '')
 const adminPin = ref('')
 const error = ref('')
 const isLoading = ref(false)
 const created = ref<{ code: string; name: string } | null>(null)
 
 async function createLeague() {
-  if (!leagueName.value.trim() || !adminPin.value.trim() || !commissionerName.value.trim()) {
+  if (!leagueName.value.trim() || !commissionerName.value.trim()) {
+    error.value = 'Please fill in all fields.'
+    return
+  }
+  if (!isGoogleUser.value && !adminPin.value.trim()) {
     error.value = 'Please fill in all fields.'
     return
   }
   isLoading.value = true
   error.value = ''
   try {
+    const body: Record<string, string> = {
+      name: leagueName.value.trim(),
+      commissionerName: commissionerName.value.trim(),
+    }
+    if (!isGoogleUser.value) {
+      body.adminPin = adminPin.value.trim()
+    }
+
     const res = await fetch(`${API_BASE}/leagues`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: leagueName.value.trim(),
-        commissionerName: commissionerName.value.trim(),
-        adminPin: adminPin.value.trim(),
-      }),
+      headers: {
+        'Content-Type': 'application/json',
+        ...authStore.authHeaders(),
+      },
+      body: JSON.stringify(body),
     })
     if (!res.ok) {
       error.value = 'Failed to create league.'
@@ -48,8 +61,13 @@ async function createLeague() {
 
 async function enterAsAdmin() {
   if (!created.value) return
-  const err = await authStore.join(created.value.code, adminPin.value)
-  if (!err) router.push('/league/setup')
+  if (isGoogleUser.value) {
+    const err = await authStore.enterLeague(created.value.code)
+    if (!err) router.push('/league/setup')
+  } else {
+    const err = await authStore.join(created.value.code, adminPin.value)
+    if (!err) router.push('/league/setup')
+  }
 }
 </script>
 
@@ -62,6 +80,17 @@ async function enterAsAdmin() {
       <p class="subtitle">Set up your league as commissioner. Share the code with your players.</p>
 
       <template v-if="!created">
+        <!-- Google user indicator -->
+        <div v-if="isGoogleUser" class="google-banner">
+          <img
+            v-if="authStore.googleUser?.picture"
+            :src="authStore.googleUser.picture"
+            class="google-avatar"
+            alt=""
+          />
+          <span>Creating as <strong>{{ authStore.googleUser?.name }}</strong> via Google</span>
+        </div>
+
         <form @submit.prevent="createLeague" class="create-form">
           <div class="field">
             <label for="commissionerName">Your Name</label>
@@ -75,11 +104,20 @@ async function enterAsAdmin() {
             <label for="name">League Name</label>
             <input id="name" v-model="leagueName" type="text" placeholder="My Draft League" />
           </div>
-          <div class="field">
-            <label for="pin">Your Admin PIN</label>
-            <input id="pin" v-model="adminPin" type="password" placeholder="Choose a PIN" />
-            <span class="hint">Keep this private — it gives full control over the league.</span>
+
+          <!-- Admin PIN – hidden for Google users -->
+          <template v-if="!isGoogleUser">
+            <div class="field">
+              <label for="pin">Your Admin PIN</label>
+              <input id="pin" v-model="adminPin" type="password" placeholder="Choose a PIN" />
+              <span class="hint">Keep this private — it gives full control over the league.</span>
+            </div>
+          </template>
+          <div v-else class="info-note">
+            <AppIcon :path="mdiGoogle" :size="14" />
+            No Admin PIN needed — your Google account secures this league.
           </div>
+
           <div v-if="error" class="error-msg">{{ error }}</div>
           <button type="submit" class="btn btn-primary btn-full btn-lg" :disabled="isLoading">
             <PokeballLoader v-if="isLoading" variant="inline" :size="16" />
@@ -151,6 +189,38 @@ h1 {
 .hint {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.google-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.google-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.info-note {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
 }
 
 .success-block {

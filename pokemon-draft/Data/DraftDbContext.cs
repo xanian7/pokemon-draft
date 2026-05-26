@@ -7,6 +7,7 @@ public class DraftDbContext : DbContext
 {
     public DraftDbContext(DbContextOptions<DraftDbContext> options) : base(options) { }
 
+    public DbSet<AppUser> AppUsers { get; set; }
     public DbSet<League> Leagues { get; set; }
     public DbSet<Player> Players { get; set; }
     public DbSet<DraftPick> Picks { get; set; }
@@ -17,6 +18,12 @@ public class DraftDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder model)
     {
+        model.Entity<AppUser>().HasKey(u => u.Id);
+        model.Entity<AppUser>().HasIndex(u => u.GoogleId).IsUnique();
+        model.Entity<AppUser>()
+            .HasMany(u => u.Players).WithOne(p => p.User)
+            .HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.SetNull);
+
         model.Entity<League>().HasKey(l => l.Code);
         model.Entity<League>()
             .HasMany(l => l.Players).WithOne(p => p.League)

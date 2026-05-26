@@ -1,5 +1,16 @@
 namespace PokemonDraft.Models;
 
+public class AppUser
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string GoogleId { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string PictureUrl { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public List<Player> Players { get; set; } = [];
+}
+
 public class League
 {
     public string Code { get; set; } = string.Empty;
@@ -29,6 +40,10 @@ public class Player
     public string TeamName { get; set; } = string.Empty;
     public string TeamImageUrl { get; set; } = string.Empty;
     public string Pin { get; set; } = string.Empty;
+    public Guid? UserId { get; set; }
+    public AppUser? User { get; set; }
+    /// <summary>Plaintext token for Google-authenticated players; replaces PIN for all actions.</summary>
+    public string? SessionToken { get; set; }
 }
 
 public class DraftPick
