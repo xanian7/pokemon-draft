@@ -29,6 +29,7 @@ else if (!authStore.isAdmin) router.replace('/draft')
 const leagueName = ref('')
 const pointLimit = ref(100)
 const rounds = ref(6)
+const playoffSpots = ref(4)
 const regulationSet = ref('national')
 const players = ref<{ id: string; name: string }[]>([])
 const leagueCode = computed(() => authStore.leagueCode ?? '')
@@ -44,6 +45,7 @@ function applyState(state: any) {
   leagueName.value = state.name
   pointLimit.value = state.pointLimit
   rounds.value = state.rounds
+  playoffSpots.value = state.playoffSpots ?? 4
   regulationSet.value = state.regulationSet ?? 'national'
   players.value = state.players
 }
@@ -83,6 +85,7 @@ async function saveConfig() {
       name: leagueName.value,
       pointLimit: pointLimit.value,
       rounds: rounds.value,
+      playoffSpots: playoffSpots.value,
       regulationSet: regulationSet.value,
     }),
   })
@@ -224,6 +227,11 @@ const snakePreview = computed(() => {
         <label>Draft Rounds</label>
         <input v-model.number="rounds" type="number" min="1" max="20" @change="saveConfig" />
         <span class="hint">Pokémon drafted per player.</span>
+      </div>
+      <div class="form-row">
+        <label>Playoff Spots</label>
+        <input v-model.number="playoffSpots" type="number" min="2" max="16" @change="saveConfig" />
+        <span class="hint">Teams that advance to playoffs.</span>
       </div>
       <div class="form-row">
         <label>Regulation Set</label>

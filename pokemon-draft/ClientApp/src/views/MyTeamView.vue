@@ -316,7 +316,6 @@ onUnmounted(disconnect)
                   :pokemon="entry.pokemon!"
                   :point-value="entry.points"
                   mode="team"
-                  class="roster-card-item"
                   @click="openDetail(entry.pokemon)"
                 />
               </div>
@@ -361,7 +360,6 @@ onUnmounted(disconnect)
                         :pokemon="entry.pokemon!"
                         :point-value="entry.points"
                         mode="team"
-                        class="roster-card-item"
                         @click="openDetail(entry.pokemon)"
                       />
                     </div>

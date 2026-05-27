@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
 import AppIcon from '@/components/AppIcon.vue'
+import PokeballLoader from '@/components/PokeballLoader.vue'
 import { API_BASE } from '@/services/signalr'
 import {
   mdiTrophy,
@@ -18,6 +19,10 @@ import {
   mdiAccountPlus,
   mdiPlusCircle,
   mdiPokeball,
+  mdiCalendarCheck,
+  mdiAccountMultiple,
+  mdiChartLine,
+  mdiArrowRight,
 } from '@mdi/js'
 
 const router = useRouter()
@@ -41,6 +46,9 @@ onMounted(async () => {
   if (authStore.isAuthenticated) {
     await pokemonStore.fetchAllPokemon()
     await fetchLeague()
+    if (draftStatus.value === 'complete') {
+      fetchPostDraftData()
+    }
   }
 })
 
@@ -131,6 +139,76 @@ const draftProgress = computed(() => {
   if (totalPicks.value === 0) return 0
   return Math.round((currentPickNumber.value / totalPicks.value) * 100)
 })
+
+// ── Post-draft hub data ──────────────────────────────────────────────────────
+const schedule = ref<any>(null)
+const playoffOutlook = ref<any[]>([])
+
+async function fetchPostDraftData() {
+  if (!authStore.leagueCode) return
+  try {
+    const [schedRes, outlookRes] = await Promise.all([
+      fetch(`${API_BASE}/leagues/${authStore.leagueCode}/schedule`),
+      fetch(`${API_BASE}/leagues/${authStore.leagueCode}/playoff-outlook`),
+    ])
+    if (schedRes.ok) schedule.value = await schedRes.json()
+    if (outlookRes.ok) playoffOutlook.value = await outlookRes.json()
+  } catch { /* silent */ }
+}
+
+const myStanding = computed(() =>
+  schedule.value?.standings?.find((s: any) => s.playerId === authStore.playerId) ?? null
+)
+
+const myRank = computed(() => {
+  if (!schedule.value?.standings) return 0
+  return (schedule.value.standings as any[]).findIndex((s: any) => s.playerId === authStore.playerId) + 1
+})
+
+const myNextMatchup = computed(() => {
+  if (!schedule.value?.weeks) return null
+  for (const week of schedule.value.weeks as any[]) {
+    for (const m of week.matchups as any[]) {
+      if (
+        (m.player1Id === authStore.playerId || m.player2Id === authStore.playerId) &&
+        m.player1Wins === null
+      ) {
+        return {
+          week: week.week,
+          opponentName: m.player1Id === authStore.playerId
+            ? (m.player2TeamName || m.player2Name)
+            : (m.player1TeamName || m.player1Name),
+          opponentImg: m.player1Id === authStore.playerId ? m.player2TeamImageUrl : m.player1TeamImageUrl,
+        }
+      }
+    }
+  }
+  return null
+})
+
+const topStandings = computed(() => {
+  const all: any[] = schedule.value?.standings ?? []
+  const top = all.slice(0, 5)
+  const myIn = top.some((s: any) => s.playerId === authStore.playerId)
+  if (myIn || all.length <= 5) return top
+  const myRow = all.find((s: any) => s.playerId === authStore.playerId)
+  return myRow ? [...top, myRow] : top
+})
+
+const playoffSpots = computed(() => league.value?.playoffSpots ?? 4)
+const outlookPreview = computed(() => playoffOutlook.value.slice(0, Math.min(6, playoffOutlook.value.length)))
+
+const outlookStatusColor = (status: string) => {
+  if (status === 'Clinched') return '#10b981'
+  if (status === 'Eliminated') return '#ef4444'
+  return '#f59e0b'
+}
+
+const outlookStatusLabel = (status: string) => {
+  if (status === 'Clinched') return 'C'
+  if (status === 'Eliminated') return 'E'
+  return '—'
+}
 </script>
 
 <template>
@@ -280,7 +358,7 @@ const draftProgress = computed(() => {
       </div>
       <button
         v-if="draftStatus === 'active'"
-        :class="isMyTurn ? 'primary pulse' : 'secondary'"
+        :class="['btn', isMyTurn ? 'btn-primary pulse' : 'btn-secondary']"
         @click="router.push('/draft')"
       >
         <AppIcon :path="mdiTrophy" :size="18" />
@@ -288,60 +366,213 @@ const draftProgress = computed(() => {
       </button>
     </div>
 
-    <!-- Draft status banner -->
-    <section class="section">
-      <div class="draft-status-card" :class="{ 'my-turn': isMyTurn }">
-        <div class="draft-status-row">
-          <span class="status-dot" :style="{ background: draftStatusColor }" />
-          <span class="status-label" :style="{ color: draftStatusColor }">{{ draftStatusLabel }}</span>
-        </div>
-        <template v-if="draftStatus !== 'setup'">
-          <div class="progress-bar-wrap">
-            <div class="progress-bar-fill" :style="{ width: draftProgress + '%' }" />
+    <!-- ── Post-draft hub ──────────────────────────────────────────────── -->
+    <template v-if="draftStatus === 'complete'">
+
+      <!-- Row 1: My Record + Next Matchup -->
+      <div class="hub-row">
+        <!-- My Record -->
+        <div class="hub-card hub-record">
+          <div class="hub-card-label">My Record</div>
+          <div v-if="myStanding" class="record-body">
+            <span class="record-rank">#{{ myRank }}</span>
+            <span class="record-wl">{{ myStanding.wins }}–{{ myStanding.losses }}</span>
+            <span class="record-mp">{{ myStanding.matchPoints }} pts</span>
           </div>
-          <span class="progress-label">Pick {{ currentPickNumber }} of {{ totalPicks }}</span>
-        </template>
-        <p v-else class="draft-not-started">The draft hasn't started yet. Sit tight!</p>
-      </div>
-    </section>
+          <div v-else class="hub-empty">
+            <PokeballLoader variant="inline" label="" />
+          </div>
+        </div>
 
-    <!-- My team -->
-    <section class="section">
-      <div class="section-row">
-        <h2 class="section-heading">My Team</h2>
-        <span class="points-badge" :class="{ over: myPoints > pointLimit }">
-          {{ myPoints }} / {{ pointLimit }} pts
-        </span>
-      </div>
-
-      <div v-if="myPicks.length === 0" class="empty-team">
-        <span>No Pokémon drafted yet.</span>
-        <button v-if="draftStatus === 'active'" class="btn btn-primary btn-sm" @click="router.push('/draft')">
-          Go to Draft
-        </button>
-      </div>
-
-      <div v-else class="team-grid">
-        <div
-          v-for="pokemon in myPicks"
-          :key="pokemon.id"
-          class="team-pokemon"
-          :title="pokemon.name"
-        >
-          <img :src="pokemon.spriteUrl" :alt="pokemon.name" loading="lazy" />
-          <span class="team-pokemon-name">{{ pokemon.name.replace(/-/g, ' ') }}</span>
-          <span class="team-pokemon-pts">{{ pokemonStore.getPointValue(pokemon.id) }}pt</span>
+        <!-- Next Matchup -->
+        <div class="hub-card hub-matchup">
+          <div class="hub-card-label">
+            {{ myNextMatchup ? `Week ${myNextMatchup.week} Matchup` : 'Season Complete' }}
+          </div>
+          <div v-if="myNextMatchup" class="matchup-body">
+            <div class="matchup-vs">
+              <img v-if="myNextMatchup.opponentImg" :src="myNextMatchup.opponentImg" class="opp-img" :alt="myNextMatchup.opponentName" />
+              <div v-else class="opp-initials">{{ myNextMatchup.opponentName.slice(0, 2).toUpperCase() }}</div>
+              <span class="matchup-opp">vs. {{ myNextMatchup.opponentName }}</span>
+            </div>
+            <button class="btn btn-ghost btn-sm" @click="router.push('/schedule')">
+              View Schedule <AppIcon :path="mdiArrowRight" :size="14" />
+            </button>
+          </div>
+          <div v-else class="hub-empty muted">All games played.</div>
         </div>
       </div>
 
-      <div v-if="myPicks.length > 0" class="team-summary">
-        <span>{{ myPicks.length }} Pokémon</span>
-        <span class="separator">·</span>
-        <span :class="pointsRemaining < 0 ? 'over-limit' : ''">
-          {{ pointsRemaining >= 0 ? pointsRemaining + ' pts remaining' : Math.abs(pointsRemaining) + ' pts over limit' }}
-        </span>
+      <!-- Row 2: Standings -->
+      <div class="hub-card hub-standings" v-if="topStandings.length">
+        <div class="hub-card-header">
+          <div class="hub-card-label">Standings</div>
+          <button class="btn btn-ghost btn-xs" @click="router.push('/schedule')">Full table →</button>
+        </div>
+        <table class="mini-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Team</th>
+              <th>W</th>
+              <th>L</th>
+              <th>MP</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(s, i) in topStandings"
+              :key="s.playerId"
+              :class="{ 'my-row': s.playerId === authStore.playerId }"
+            >
+              <td>{{ i + 1 }}</td>
+              <td>{{ s.teamName || s.playerName }}</td>
+              <td class="num">{{ s.wins }}</td>
+              <td class="num">{{ s.losses }}</td>
+              <td class="num">{{ s.matchPoints }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-    </section>
+      <div v-else-if="!schedule" class="hub-card hub-standings hub-loading">
+        <PokeballLoader variant="inline" label="Loading standings…" />
+      </div>
+
+      <!-- Row 3: Playoff Outlook -->
+      <div class="hub-card hub-outlook" v-if="outlookPreview.length">
+        <div class="hub-card-header">
+          <div class="hub-card-label">Playoff Outlook</div>
+          <button class="btn btn-ghost btn-xs" @click="router.push('/playoffs')">Full view →</button>
+        </div>
+        <div class="outlook-strip">
+          <template v-for="(e, i) in outlookPreview" :key="e.playerId">
+            <div v-if="i === playoffSpots && outlookPreview.length > playoffSpots" class="cutline-dot" title="Playoff Cutline" />
+            <div
+              class="outlook-chip"
+              :class="{ 'my-chip': e.playerId === authStore.playerId }"
+              :title="`${e.teamName || e.playerName} · ${e.wins}W ${e.losses}L`"
+            >
+              <span class="chip-rank">{{ i + 1 }}</span>
+              <span class="chip-name">{{ (e.teamName || e.playerName).slice(0, 12) }}</span>
+              <span
+                class="chip-status"
+                :style="{ color: outlookStatusColor(e.status) }"
+                :title="e.status"
+              >{{ outlookStatusLabel(e.status) }}</span>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Row 4: Quick Nav -->
+      <div class="hub-card hub-quicknav">
+        <div class="hub-card-label">Quick Nav</div>
+        <div class="quicknav-grid">
+          <button class="qnav-btn" @click="router.push('/team')">
+            <AppIcon :path="mdiTrophy" :size="22" />
+            My Team
+          </button>
+          <button class="qnav-btn" @click="router.push('/teams')">
+            <AppIcon :path="mdiAccountMultiple" :size="22" />
+            All Teams
+          </button>
+          <button class="qnav-btn" @click="router.push('/schedule')">
+            <AppIcon :path="mdiCalendarCheck" :size="22" />
+            Schedule
+          </button>
+          <button class="qnav-btn" @click="router.push('/playoffs')">
+            <AppIcon :path="mdiChartLine" :size="22" />
+            Playoffs
+          </button>
+          <button class="qnav-btn" @click="router.push('/pokemon')">
+            <AppIcon :path="mdiPokeball" :size="22" />
+            Pokémon
+          </button>
+        </div>
+      </div>
+
+      <!-- My team snapshot (compact) -->
+      <section class="section" v-if="myPicks.length">
+        <div class="section-row">
+          <h2 class="section-heading">My Team</h2>
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            <span class="points-badge" :class="{ over: myPoints > pointLimit }">
+              {{ myPoints }} / {{ pointLimit }} pts
+            </span>
+            <button class="btn btn-ghost btn-xs" @click="router.push('/team')">Full roster →</button>
+          </div>
+        </div>
+        <div class="team-grid compact">
+          <div
+            v-for="pokemon in myPicks.slice(0, 12)"
+            :key="pokemon.id"
+            class="team-pokemon"
+            :title="pokemon.name"
+          >
+            <img :src="pokemon.spriteUrl" :alt="pokemon.name" loading="lazy" />
+            <span class="team-pokemon-name">{{ pokemon.name.replace(/-/g, ' ') }}</span>
+          </div>
+        </div>
+      </section>
+    </template>
+
+    <!-- ── Setup / Active state ────────────────────────────────────────── -->
+    <template v-else>
+      <!-- Draft status banner -->
+      <section class="section">
+        <div class="draft-status-card" :class="{ 'my-turn': isMyTurn }">
+          <div class="draft-status-row">
+            <span class="status-dot" :style="{ background: draftStatusColor }" />
+            <span class="status-label" :style="{ color: draftStatusColor }">{{ draftStatusLabel }}</span>
+          </div>
+          <template v-if="draftStatus !== 'setup'">
+            <div class="progress-bar-wrap">
+              <div class="progress-bar-fill" :style="{ width: draftProgress + '%' }" />
+            </div>
+            <span class="progress-label">Pick {{ currentPickNumber }} of {{ totalPicks }}</span>
+          </template>
+          <p v-else class="draft-not-started">The draft hasn't started yet. Sit tight!</p>
+        </div>
+      </section>
+
+      <!-- My team -->
+      <section class="section">
+        <div class="section-row">
+          <h2 class="section-heading">My Team</h2>
+          <span class="points-badge" :class="{ over: myPoints > pointLimit }">
+            {{ myPoints }} / {{ pointLimit }} pts
+          </span>
+        </div>
+
+        <div v-if="myPicks.length === 0" class="empty-team">
+          <span>No Pokémon drafted yet.</span>
+          <button v-if="draftStatus === 'active'" class="btn btn-primary btn-sm" @click="router.push('/draft')">
+            Go to Draft
+          </button>
+        </div>
+
+        <div v-else class="team-grid">
+          <div
+            v-for="pokemon in myPicks"
+            :key="pokemon.id"
+            class="team-pokemon"
+            :title="pokemon.name"
+          >
+            <img :src="pokemon.spriteUrl" :alt="pokemon.name" loading="lazy" />
+            <span class="team-pokemon-name">{{ pokemon.name.replace(/-/g, ' ') }}</span>
+            <span class="team-pokemon-pts">{{ pokemonStore.getPointValue(pokemon.id) }}pt</span>
+          </div>
+        </div>
+
+        <div v-if="myPicks.length > 0" class="team-summary">
+          <span>{{ myPicks.length }} Pokémon</span>
+          <span class="separator">·</span>
+          <span :class="pointsRemaining < 0 ? 'over-limit' : ''">
+            {{ pointsRemaining >= 0 ? pointsRemaining + ' pts remaining' : Math.abs(pointsRemaining) + ' pts over limit' }}
+          </span>
+        </div>
+      </section>
+    </template>
   </main>
 </template>
 
@@ -701,5 +932,205 @@ h1 {
 
 .separator { color: var(--border-color); }
 .over-limit { color: #f87171; font-weight: 700; }
+
+/* ── Post-draft hub ───────────────────────────────────────────────────────── */
+.hub-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+@media (max-width: 540px) { .hub-row { grid-template-columns: 1fr; } }
+
+.hub-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1rem 1.15rem;
+  margin-bottom: 0.85rem;
+}
+
+.hub-card-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+}
+
+.hub-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.hub-card-header .hub-card-label { margin-bottom: 0; }
+
+.hub-loading { display: flex; align-items: center; justify-content: center; min-height: 60px; }
+.hub-empty { color: var(--text-muted); font-size: 0.85rem; }
+.hub-empty.muted { opacity: 0.6; }
+
+/* Record card */
+.record-body {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.record-rank {
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--primary);
+  line-height: 1;
+}
+
+.record-wl {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.record-mp {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Matchup card */
+.matchup-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.matchup-vs {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.opp-img {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border-color);
+}
+
+.opp-initials {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--input-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.matchup-opp { font-weight: 600; font-size: 0.95rem; }
+
+/* Mini standings table */
+.mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.mini-table th {
+  padding: 0.3rem 0.4rem;
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.mini-table td {
+  padding: 0.45rem 0.4rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
+}
+
+.mini-table td.num { text-align: center; }
+.mini-table tr.my-row td { background: color-mix(in srgb, var(--primary) 8%, transparent); font-weight: 700; }
+.mini-table tr:last-child td { border-bottom: none; }
+
+/* Playoff outlook strip */
+.outlook-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.outlook-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+  cursor: default;
+}
+
+.outlook-chip.my-chip {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.chip-rank { font-weight: 700; color: var(--text-muted); font-size: 0.68rem; }
+.chip-name { font-weight: 600; }
+.chip-status { font-size: 0.72rem; font-weight: 700; }
+
+.cutline-dot {
+  width: 6px;
+  height: 24px;
+  border-left: 2px dashed var(--border-color);
+  margin: 0 0.15rem;
+}
+
+/* Quick nav */
+.quicknav-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.qnav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 0.85rem 1.1rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  min-width: 78px;
+}
+
+.qnav-btn:hover { border-color: var(--primary); background: var(--card-bg); }
+.qnav-btn :deep(svg) { color: var(--primary); }
+
+.team-grid.compact .team-pokemon img { width: 52px; height: 52px; }
+
+.btn-xs {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
 </style>
 

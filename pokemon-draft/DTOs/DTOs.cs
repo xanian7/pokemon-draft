@@ -4,7 +4,7 @@ namespace PokemonDraft.DTOs;
 
 public record CreateLeagueRequest(string Name, string CommissionerName, string? AdminPin, Guid? UserId = null);
 
-public record UpdateLeagueConfigRequest(string? Name, int? PointLimit, int? Rounds, string? RegulationSet);
+public record UpdateLeagueConfigRequest(string? Name, int? PointLimit, int? Rounds, string? RegulationSet, int? PlayoffSpots = null);
 
 public record AddPlayerRequest(string Name, string Pin);
 
@@ -61,6 +61,7 @@ public record LeagueResponse(
     string Name,
     int PointLimit,
     int Rounds,
+    int PlayoffSpots,
     string RegulationSet,
     List<PlayerResponse> Players,
     Dictionary<int, int> PointValues,
@@ -105,3 +106,11 @@ public record StandingRow(
 public record WeekGroup(int Week, List<MatchupResponse> Matchups);
 
 public record ScheduleResponse(List<WeekGroup> Weeks, List<StandingRow> Standings);
+
+public record PlayoffOutlookEntry(
+    string PlayerId, string PlayerName, string TeamName, string TeamImageUrl,
+    int Wins, int Losses, int MatchPoints, int GamesWon, int GamesLost,
+    int RemainingMatchups, int MaxPossibleWins,
+    int? MagicNumber,
+    string Status
+);

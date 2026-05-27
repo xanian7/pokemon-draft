@@ -60,6 +60,16 @@ const router = createRouter({
       component: () => import('../views/SettingsView.vue'),
     },
     {
+      path: '/teams',
+      name: 'teams',
+      component: () => import('../views/TeamsView.vue'),
+    },
+    {
+      path: '/playoffs',
+      name: 'playoffs',
+      component: () => import('../views/PlayoffsView.vue'),
+    },
+    {
       path: '/my-leagues',
       name: 'my-leagues',
       component: () => import('../views/MyLeaguesView.vue'),

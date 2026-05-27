@@ -67,6 +67,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (req.PointLimit is not null) league.PointLimit = req.PointLimit.Value;
         if (req.Rounds is not null) league.Rounds = req.Rounds.Value;
         if (req.RegulationSet is not null) league.RegulationSet = req.RegulationSet;
+        if (req.PlayoffSpots is not null) league.PlayoffSpots = req.PlayoffSpots.Value;
         db.SaveChanges();
         return (true, null);
     }
@@ -326,6 +327,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             Name: league.Name,
             PointLimit: league.PointLimit,
             Rounds: league.Rounds,
+            PlayoffSpots: league.PlayoffSpots,
             RegulationSet: league.RegulationSet,
             Players: players.Select(p => new PlayerResponse(p.Id, p.Name, p.TeamName, p.TeamImageUrl)).ToList(),
             PointValues: league.PointValues.ToDictionary(pv => pv.PokemonId, pv => pv.Value),
@@ -491,6 +493,118 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             .ToList();
 
         return new ScheduleResponse(weeks, standings);
+    }
+
+    /// <inheritdoc/>
+    public List<PlayoffOutlookEntry>? GetPlayoffOutlook(string leagueCode)
+    {
+        var league = LoadLeague(leagueCode);
+        if (league is null) return null;
+
+        var players = GetOrderedPlayers(league).ToDictionary(p => p.Id);
+        var allMatchups = league.Matchups.ToList();
+
+        static (int mp1, int mp2) CalcMatchPoints(int? p1w, int? p2w)
+        {
+            if (p1w is null || p2w is null) return (0, 0);
+            if (p1w == 2 && p2w == 0) return (3, 0);
+            if (p1w == 0 && p2w == 2) return (0, 3);
+            if (p1w == 2) return (2, 1);
+            if (p2w == 2) return (1, 2);
+            return (0, 0);
+        }
+
+        var stats = players.Values.Select(player =>
+        {
+            var myMatchups = allMatchups.Where(m => m.Player1Id == player.Id || m.Player2Id == player.Id).ToList();
+            var completed = myMatchups.Where(m => m.Player1Wins.HasValue).ToList();
+            var remaining = myMatchups.Count - completed.Count;
+
+            int wins = 0, losses = 0, matchPoints = 0, gamesWon = 0, gamesLost = 0;
+            foreach (var m in completed)
+            {
+                var (mp1, mp2) = CalcMatchPoints(m.Player1Wins, m.Player2Wins);
+                if (m.Player1Id == player.Id)
+                {
+                    matchPoints += mp1;
+                    gamesWon += m.Player1Wins!.Value;
+                    gamesLost += m.Player2Wins!.Value;
+                    if (m.Player1Wins > m.Player2Wins) wins++; else losses++;
+                }
+                else
+                {
+                    matchPoints += mp2;
+                    gamesWon += m.Player2Wins!.Value;
+                    gamesLost += m.Player1Wins!.Value;
+                    if (m.Player2Wins > m.Player1Wins) wins++; else losses++;
+                }
+            }
+
+            return new { player, wins, losses, matchPoints, gamesWon, gamesLost, remaining, maxWins = wins + remaining };
+        })
+        .OrderByDescending(s => s.wins)
+        .ThenByDescending(s => s.matchPoints)
+        .ThenByDescending(s => s.gamesWon - s.gamesLost)
+        .ToList();
+
+        var total = stats.Count;
+        var spots = Math.Min(league.PlayoffSpots, total);
+
+        // Pre-compute boundary values for efficient lookup
+        int bestOutsiderMaxWins = spots < total ? stats.Skip(spots).Max(x => x.maxWins) : -1;
+        int cutlineWins = spots > 0 ? stats[spots - 1].wins : 0;
+        int cutlineMaxWins = spots > 0 ? stats[spots - 1].maxWins : 0;
+
+        return stats.Select((s, rank) =>
+        {
+            string status;
+            int? magicNumber;
+
+            if (total <= spots)
+            {
+                // Fewer teams than playoff spots — everyone is in
+                status = "Clinched";
+                magicNumber = null;
+            }
+            else if (rank < spots)
+            {
+                // Currently in a playoff spot
+                bool clinched = bestOutsiderMaxWins < s.wins;
+                if (clinched)
+                {
+                    status = "Clinched";
+                    magicNumber = null;
+                }
+                else
+                {
+                    status = "InContention";
+                    var needed = Math.Max(0, bestOutsiderMaxWins - s.wins + 1);
+                    magicNumber = needed <= s.remaining ? needed : null;
+                }
+            }
+            else
+            {
+                // Currently outside playoff spots
+                bool eliminated = s.maxWins < cutlineWins;
+                if (eliminated)
+                {
+                    status = "Eliminated";
+                    magicNumber = null;
+                }
+                else
+                {
+                    status = "InContention";
+                    var needed = Math.Max(0, cutlineMaxWins - s.wins + 1);
+                    magicNumber = needed <= s.remaining ? needed : null;
+                }
+            }
+
+            return new PlayoffOutlookEntry(
+                s.player.Id, s.player.Name, s.player.TeamName, s.player.TeamImageUrl,
+                s.wins, s.losses, s.matchPoints, s.gamesWon, s.gamesLost,
+                s.remaining, s.maxWins, magicNumber, status
+            );
+        }).ToList();
     }
 
     /// <inheritdoc/>

@@ -223,6 +223,13 @@ public class DataController(ILeagueService leagueService, IHubContext<DraftHub> 
         return schedule is null ? NotFound() : Ok(schedule);
     }
 
+    [HttpGet("leagues/{code}/playoff-outlook")]
+    public IActionResult GetPlayoffOutlook(string code)
+    {
+        var outlook = leagueService.GetPlayoffOutlook(code);
+        return outlook is null ? NotFound() : Ok(outlook);
+    }
+
     [HttpPost("leagues/{code}/schedule/{matchupId}/report")]
     public async Task<IActionResult> ReportMatchup(string code, int matchupId, ReportMatchupRequest req)
     {

@@ -19,6 +19,7 @@ public class League
     public string CommissionerPlayerId { get; set; } = string.Empty;
     public int PointLimit { get; set; } = 100;
     public int Rounds { get; set; } = 6;
+    public int PlayoffSpots { get; set; } = 4;
     public string RegulationSet { get; set; } = "national";
     public int CurrentPickNumber { get; set; }
     public DraftStatus DraftStatus { get; set; } = DraftStatus.Setup;

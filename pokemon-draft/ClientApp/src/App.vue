@@ -134,8 +134,11 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
     </div>
 
     <nav v-if="authStore.isAuthenticated">
+      <RouterLink to="/">Home</RouterLink>
       <RouterLink to="/team">My Team</RouterLink>
+      <RouterLink to="/teams">All Teams</RouterLink>
       <RouterLink to="/schedule">Schedule</RouterLink>
+      <RouterLink to="/playoffs">Playoffs</RouterLink>
       <RouterLink to="/draft">Draft Board</RouterLink>
       <template v-if="authStore.isAdmin">
         <span class="nav-divider" />

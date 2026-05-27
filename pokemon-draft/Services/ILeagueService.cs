@@ -68,6 +68,9 @@ public interface ILeagueService
     /// <summary>Returns full schedule and current standings.</summary>
     ScheduleResponse? GetSchedule(string leagueCode);
 
+    /// <summary>Returns per-team playoff outlook (clinched/in-contention/eliminated, magic numbers).</summary>
+    List<PlayoffOutlookEntry>? GetPlayoffOutlook(string leagueCode);
+
     /// <summary>Reports match result. Only a player in the matchup can report.</summary>
     (bool success, string? error) ReportMatchup(string leagueCode, int matchupId, string playerId, string pin, int player1Wins, int player2Wins);
 
