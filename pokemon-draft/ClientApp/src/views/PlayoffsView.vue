@@ -86,7 +86,7 @@ const rowClass = (entry: OutlookEntry) => ({
   'row-my-team': entry.playerId === authStore.playerId,
 })
 
-const seasonOver = computed(() => outlook.value.every(e => e.remainingMatchups === 0))
+const seasonOver = computed(() => outlook.value.every((e) => e.remainingMatchups === 0))
 </script>
 
 <template>
@@ -106,9 +106,7 @@ const seasonOver = computed(() => outlook.value.every(e => e.remainingMatchups =
     <div v-else-if="!draftComplete" class="empty-msg">
       The playoff outlook will be available once the draft is complete.
     </div>
-    <div v-else-if="outlook.length === 0" class="empty-msg">
-      No schedule data yet.
-    </div>
+    <div v-else-if="outlook.length === 0" class="empty-msg">No schedule data yet.</div>
 
     <template v-else>
       <div v-if="seasonOver" class="season-over-banner">
@@ -147,7 +145,10 @@ const seasonOver = computed(() => outlook.value.every(e => e.remainingMatchups =
           <tbody>
             <template v-for="(entry, index) in outlook" :key="entry.playerId">
               <!-- Playoff cutline divider -->
-              <tr v-if="index === playoffSpots && outlook.length > playoffSpots" class="cutline-row">
+              <tr
+                v-if="index === playoffSpots && outlook.length > playoffSpots"
+                class="cutline-row"
+              >
                 <td colspan="9">
                   <div class="cutline-label">— Playoff Cutline —</div>
                 </td>
@@ -157,8 +158,15 @@ const seasonOver = computed(() => outlook.value.every(e => e.remainingMatchups =
                 <td class="col-team">
                   <div class="team-cell">
                     <div class="team-avatar">
-                      <img v-if="entry.teamImageUrl" :src="entry.teamImageUrl" :alt="teamLabel(entry)" class="avatar-img" />
-                      <div v-else class="avatar-initials">{{ teamLabel(entry).slice(0, 2).toUpperCase() }}</div>
+                      <img
+                        v-if="entry.teamImageUrl"
+                        :src="entry.teamImageUrl"
+                        :alt="teamLabel(entry)"
+                        class="avatar-img"
+                      />
+                      <div v-else class="avatar-initials">
+                        {{ teamLabel(entry).slice(0, 2).toUpperCase() }}
+                      </div>
                     </div>
                     <div class="team-names">
                       <span class="team-name">{{ teamLabel(entry) }}</span>
@@ -173,7 +181,9 @@ const seasonOver = computed(() => outlook.value.every(e => e.remainingMatchups =
                 <td class="col-num muted">{{ entry.remainingMatchups }}</td>
                 <td class="col-num">{{ entry.maxPossibleWins }}</td>
                 <td class="col-magic">
-                  <span v-if="entry.magicNumber !== null" class="magic-pill">{{ entry.magicNumber }}</span>
+                  <span v-if="entry.magicNumber !== null" class="magic-pill">{{
+                    entry.magicNumber
+                  }}</span>
                   <span v-else class="muted">—</span>
                 </td>
                 <td class="col-status">
@@ -189,8 +199,8 @@ const seasonOver = computed(() => outlook.value.every(e => e.remainingMatchups =
       </div>
 
       <div class="explainer">
-        <strong>Magic #</strong> = wins needed to clinch a playoff spot.
-        <strong>Max W</strong> = wins if they win every remaining game.
+        <strong>Magic #</strong> = wins needed to clinch a playoff spot. <strong>Max W</strong> =
+        wins if they win every remaining game.
       </div>
     </template>
   </main>
@@ -210,13 +220,33 @@ const seasonOver = computed(() => outlook.value.every(e => e.remainingMatchups =
   margin-bottom: 1.5rem;
 }
 
-.header-icon { color: var(--primary); flex-shrink: 0; }
-h1 { font-size: 1.5rem; font-weight: 800; }
-.subtitle { font-size: 0.875rem; color: var(--text-muted); }
+.header-icon {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+.subtitle {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
 
-.loading { display: flex; justify-content: center; padding: 3rem 0; }
-.error-msg { color: var(--secondary); padding: 1rem 0; }
-.empty-msg { text-align: center; color: var(--text-muted); padding: 3rem 0; }
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 0;
+}
+.error-msg {
+  color: var(--secondary);
+  padding: 1rem 0;
+}
+.empty-msg {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 3rem 0;
+}
 
 .season-over-banner {
   background: color-mix(in srgb, #10b981 12%, transparent);
@@ -243,11 +273,20 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   font-weight: 600;
 }
 
-.legend-item.clinched { color: #10b981; }
-.legend-item.contention { color: #f59e0b; }
-.legend-item.eliminated { color: #ef4444; }
+.legend-item.clinched {
+  color: #10b981;
+}
+.legend-item.contention {
+  color: #f59e0b;
+}
+.legend-item.eliminated {
+  color: #ef4444;
+}
 
-.table-wrap { overflow-x: auto; margin-bottom: 1rem; }
+.table-wrap {
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
 
 .outlook-table {
   width: 100%;
@@ -268,7 +307,9 @@ h1 { font-size: 1.5rem; font-weight: 800; }
 }
 
 .outlook-table th.col-num,
-.outlook-table td.col-num { text-align: center; }
+.outlook-table td.col-num {
+  text-align: center;
+}
 
 .data-row td {
   padding: 0.65rem 0.75rem;
@@ -276,13 +317,26 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   vertical-align: middle;
 }
 
-.data-row.row-clinched { background: color-mix(in srgb, #10b981 6%, transparent); }
-.data-row.row-eliminated { background: color-mix(in srgb, #ef4444 5%, transparent); opacity: 0.75; }
-.data-row.row-my-team { outline: 2px solid var(--primary); outline-offset: -2px; }
+.data-row.row-clinched {
+  background: color-mix(in srgb, #10b981 6%, transparent);
+}
+.data-row.row-eliminated {
+  background: color-mix(in srgb, #ef4444 5%, transparent);
+  opacity: 0.75;
+}
+.data-row.row-my-team {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
 
-.data-row:hover { background: var(--input-bg); }
+.data-row:hover {
+  background: var(--input-bg);
+}
 
-.cutline-row td { padding: 0; border: none; }
+.cutline-row td {
+  padding: 0;
+  border: none;
+}
 .cutline-label {
   text-align: center;
   font-size: 0.72rem;
@@ -294,7 +348,11 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   letter-spacing: 0.08em;
 }
 
-.col-rank { width: 36px; font-weight: 700; color: var(--text-muted); }
+.col-rank {
+  width: 36px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
 
 .team-cell {
   display: flex;
@@ -314,8 +372,16 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   flex-shrink: 0;
 }
 
-.avatar-img { width: 100%; height: 100%; object-fit: cover; }
-.avatar-initials { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); }
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.avatar-initials {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
 
 .team-names {
   display: flex;
@@ -323,8 +389,14 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   gap: 0.05rem;
 }
 
-.team-name { font-weight: 600; white-space: nowrap; }
-.player-name { font-size: 0.72rem; color: var(--text-muted); }
+.team-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.player-name {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
 .you-tag {
   display: inline-block;
   background: var(--primary);
@@ -335,8 +407,12 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   font-weight: 700;
 }
 
-.bold { font-weight: 700; }
-.muted { color: var(--text-muted); }
+.bold {
+  font-weight: 700;
+}
+.muted {
+  color: var(--text-muted);
+}
 
 .magic-pill {
   display: inline-block;

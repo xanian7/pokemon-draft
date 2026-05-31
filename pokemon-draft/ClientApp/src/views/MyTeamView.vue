@@ -57,7 +57,12 @@ const displayTeamName = computed(() =>
 )
 const heroInitials = computed(() => {
   const n = displayTeamName.value
-  return n.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+  return n
+    .split(' ')
+    .map((w: string) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
 })
 
 function normalizeStatus(status?: string | null) {
@@ -65,7 +70,9 @@ function normalizeStatus(status?: string | null) {
 }
 
 function getPointValue(pokemonId: number) {
-  return Number(league.value?.pointValues?.[pokemonId] ?? pokemonStore.getPointValue(pokemonId) ?? 0)
+  return Number(
+    league.value?.pointValues?.[pokemonId] ?? pokemonStore.getPointValue(pokemonId) ?? 0,
+  )
 }
 
 function applyState(state: LeagueState) {
@@ -133,7 +140,9 @@ function getTeamEntries(playerId: string) {
 
 const draftComplete = computed(() => normalizeStatus(league.value?.draft?.status) === 'complete')
 const myTeam = computed(() => getTeamEntries(currentPlayerId.value))
-const myPointTotal = computed(() => myTeam.value.reduce((total, pokemon) => total + pokemon.points, 0))
+const myPointTotal = computed(() =>
+  myTeam.value.reduce((total, pokemon) => total + pokemon.points, 0),
+)
 const otherPlayers = computed(() =>
   (league.value?.players ?? []).filter((player) => player.id !== currentPlayerId.value),
 )
@@ -142,7 +151,8 @@ const myTrades = computed(() =>
   trades.value
     .filter(
       (trade) =>
-        trade.initiatorPlayerId === currentPlayerId.value || trade.targetPlayerId === currentPlayerId.value,
+        trade.initiatorPlayerId === currentPlayerId.value ||
+        trade.targetPlayerId === currentPlayerId.value,
     )
     .sort((a, b) => new Date(b.proposedAt).getTime() - new Date(a.proposedAt).getTime()),
 )
@@ -189,14 +199,17 @@ async function actOnTrade(trade: Trade, action: 'accept' | 'reject' | 'cancel') 
   tradeActionId.value = trade.id
 
   try {
-    const res = await fetch(`${API_BASE}/leagues/${leagueCode.value}/trades/${trade.id}/${action}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        playerId: currentPlayerId.value,
-        pin: authStore.pin,
-      }),
-    })
+    const res = await fetch(
+      `${API_BASE}/leagues/${leagueCode.value}/trades/${trade.id}/${action}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: currentPlayerId.value,
+          pin: authStore.pin,
+        }),
+      },
+    )
 
     if (!res.ok) {
       const text = await res.text()
@@ -287,7 +300,9 @@ onUnmounted(disconnect)
           <div class="connection-badge" :class="isConnected ? 'live' : 'offline'">
             {{ isConnected ? '● Live' : '○ Offline' }}
           </div>
-          <button class="btn btn-primary" @click="router.push('/team/manage')">Manage Roster</button>
+          <button class="btn btn-primary" @click="router.push('/team/manage')">
+            Manage Roster
+          </button>
         </div>
       </section>
 
@@ -341,15 +356,26 @@ onUnmounted(disconnect)
                         class="other-team-avatar-img"
                       />
                       <div v-else class="other-team-avatar-initials">
-                        {{ (player.teamName || player.name).split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) }}
+                        {{
+                          (player.teamName || player.name)
+                            .split(' ')
+                            .map((w: string) => w[0])
+                            .join('')
+                            .toUpperCase()
+                            .slice(0, 2)
+                        }}
                       </div>
                     </div>
                     <span class="other-team-name">{{ player.teamName || player.name }}</span>
                     <span class="other-team-meta">
-                      {{ getTeamEntries(player.id).length }} Pokémon
-                      &middot; {{ getTeamEntries(player.id).reduce((s, e) => s + e.points, 0) }} pts
+                      {{ getTeamEntries(player.id).length }} Pokémon &middot;
+                      {{ getTeamEntries(player.id).reduce((s, e) => s + e.points, 0) }} pts
                     </span>
-                    <span class="other-team-chevron" :class="{ open: expandedOtherTeams.has(player.id) }">&#9660;</span>
+                    <span
+                      class="other-team-chevron"
+                      :class="{ open: expandedOtherTeams.has(player.id) }"
+                      >&#9660;</span
+                    >
                   </button>
                   <div v-if="expandedOtherTeams.has(player.id)" class="other-team-roster">
                     <p v-if="!getTeamEntries(player.id).length" class="empty-text">No picks yet.</p>
@@ -382,11 +408,19 @@ onUnmounted(disconnect)
               </div>
               <p v-if="tradeError" class="error-message">{{ tradeError }}</p>
               <div v-if="pendingTrades.length" class="trade-list">
-                <article v-for="trade in pendingTrades" :key="trade.id" class="trade-card pending-card">
+                <article
+                  v-for="trade in pendingTrades"
+                  :key="trade.id"
+                  class="trade-card pending-card"
+                >
                   <div class="trade-topline">
                     <div>
                       <span class="trade-title">
-                        {{ isIncomingTrade(trade) ? `From ${getPlayerName(trade.initiatorPlayerId)}` : `To ${getPlayerName(trade.targetPlayerId)}` }}
+                        {{
+                          isIncomingTrade(trade)
+                            ? `From ${getPlayerName(trade.initiatorPlayerId)}`
+                            : `To ${getPlayerName(trade.targetPlayerId)}`
+                        }}
                       </span>
                       <span class="trade-date">{{ formatDate(trade.proposedAt) }}</span>
                     </div>
@@ -394,17 +428,27 @@ onUnmounted(disconnect)
                   </div>
                   <div class="trade-columns">
                     <div>
-                      <p class="trade-label">{{ isIncomingTrade(trade) ? 'They send' : 'You send' }}</p>
+                      <p class="trade-label">
+                        {{ isIncomingTrade(trade) ? 'They send' : 'You send' }}
+                      </p>
                       <ul>
-                        <li v-for="item in getTradeItems(trade, trade.initiatorPlayerId)" :key="`${trade.id}-offer-${item.pokemonId}`">
+                        <li
+                          v-for="item in getTradeItems(trade, trade.initiatorPlayerId)"
+                          :key="`${trade.id}-offer-${item.pokemonId}`"
+                        >
                           {{ getPokemonName(item.pokemonId) }}
                         </li>
                       </ul>
                     </div>
                     <div>
-                      <p class="trade-label">{{ isIncomingTrade(trade) ? 'You send' : 'They send' }}</p>
+                      <p class="trade-label">
+                        {{ isIncomingTrade(trade) ? 'You send' : 'They send' }}
+                      </p>
                       <ul>
-                        <li v-for="item in getTradeItems(trade, trade.targetPlayerId)" :key="`${trade.id}-request-${item.pokemonId}`">
+                        <li
+                          v-for="item in getTradeItems(trade, trade.targetPlayerId)"
+                          :key="`${trade.id}-request-${item.pokemonId}`"
+                        >
                           {{ getPokemonName(item.pokemonId) }}
                         </li>
                       </ul>
@@ -412,10 +456,29 @@ onUnmounted(disconnect)
                   </div>
                   <div class="trade-actions">
                     <template v-if="trade.targetPlayerId === currentPlayerId">
-                      <button class="btn btn-success" :disabled="tradeActionId === trade.id" @click="actOnTrade(trade, 'accept')">Accept</button>
-                      <button class="btn btn-secondary" :disabled="tradeActionId === trade.id" @click="actOnTrade(trade, 'reject')">Reject</button>
+                      <button
+                        class="btn btn-success"
+                        :disabled="tradeActionId === trade.id"
+                        @click="actOnTrade(trade, 'accept')"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        class="btn btn-secondary"
+                        :disabled="tradeActionId === trade.id"
+                        @click="actOnTrade(trade, 'reject')"
+                      >
+                        Reject
+                      </button>
                     </template>
-                    <button v-else class="btn btn-secondary" :disabled="tradeActionId === trade.id" @click="actOnTrade(trade, 'cancel')">Cancel</button>
+                    <button
+                      v-else
+                      class="btn btn-secondary"
+                      :disabled="tradeActionId === trade.id"
+                      @click="actOnTrade(trade, 'cancel')"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 </article>
               </div>
@@ -431,20 +494,35 @@ onUnmounted(disconnect)
                 </div>
               </div>
               <div v-if="tradeHistory.length" class="trade-list history-list">
-                <article v-for="trade in tradeHistory" :key="trade.id" class="trade-card history-card">
+                <article
+                  v-for="trade in tradeHistory"
+                  :key="trade.id"
+                  class="trade-card history-card"
+                >
                   <div class="trade-topline">
                     <div>
                       <span class="trade-title">
-                        {{ getPlayerName(trade.initiatorPlayerId) }} &harr; {{ getPlayerName(trade.targetPlayerId) }}
+                        {{ getPlayerName(trade.initiatorPlayerId) }} &harr;
+                        {{ getPlayerName(trade.targetPlayerId) }}
                       </span>
                       <span class="trade-date">{{ formatDate(trade.proposedAt) }}</span>
                     </div>
-                    <span class="status-pill" :class="trade.status.toLowerCase()">{{ trade.status }}</span>
+                    <span class="status-pill" :class="trade.status.toLowerCase()">{{
+                      trade.status
+                    }}</span>
                   </div>
                   <p class="history-summary">
-                    {{ getTradeItems(trade, trade.initiatorPlayerId).map((item) => getPokemonName(item.pokemonId)).join(', ') || 'Nothing' }}
+                    {{
+                      getTradeItems(trade, trade.initiatorPlayerId)
+                        .map((item) => getPokemonName(item.pokemonId))
+                        .join(', ') || 'Nothing'
+                    }}
                     for
-                    {{ getTradeItems(trade, trade.targetPlayerId).map((item) => getPokemonName(item.pokemonId)).join(', ') || 'Nothing' }}
+                    {{
+                      getTradeItems(trade, trade.targetPlayerId)
+                        .map((item) => getPokemonName(item.pokemonId))
+                        .join(', ') || 'Nothing'
+                    }}
                   </p>
                 </article>
               </div>
@@ -489,9 +567,17 @@ onUnmounted(disconnect)
   padding: 1.25rem;
 }
 
-.warning-card { border-color: rgba(245, 158, 11, 0.45); }
-.error-card   { border-color: rgba(248, 113, 113, 0.5); }
-.loading-card { display: flex; justify-content: center; padding: 3rem 1.25rem; }
+.warning-card {
+  border-color: rgba(245, 158, 11, 0.45);
+}
+.error-card {
+  border-color: rgba(248, 113, 113, 0.5);
+}
+.loading-card {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 1.25rem;
+}
 
 /* ── Hero ────────────────────────────────────────────── */
 .hero {
@@ -546,7 +632,7 @@ onUnmounted(disconnect)
   width: 64px;
   height: 64px;
   image-rendering: pixelated;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
   transition: transform 0.15s;
 }
 
@@ -623,9 +709,17 @@ onUnmounted(disconnect)
   margin-bottom: 0.35rem;
 }
 
-h1, h2 { color: var(--text); }
-h1 { font-size: 2rem; margin-bottom: 0.25rem; }
-h2 { font-size: 1.15rem; }
+h1,
+h2 {
+  color: var(--text);
+}
+h1 {
+  font-size: 2rem;
+  margin-bottom: 0.25rem;
+}
+h2 {
+  font-size: 1.15rem;
+}
 
 .edit-team-link {
   font-size: 0.8rem;
@@ -635,7 +729,9 @@ h2 { font-size: 1.15rem; }
   display: inline-block;
 }
 
-.edit-team-link:hover { color: var(--text); }
+.edit-team-link:hover {
+  color: var(--text);
+}
 
 .subtitle,
 .state-card p,
@@ -648,7 +744,9 @@ h2 { font-size: 1.15rem; }
   font-size: 0.88rem;
 }
 
-.empty-text { margin-top: 0.75rem; }
+.empty-text {
+  margin-top: 0.75rem;
+}
 
 /* ── Section header ──────────────────────────────────── */
 .section-header,
@@ -673,14 +771,32 @@ h2 { font-size: 1.15rem; }
   white-space: nowrap;
 }
 
-.connection-badge.live    { color: #34d399; background: rgba(52, 211, 153, 0.12); }
-.connection-badge.offline { color: var(--text-muted); background: var(--input-bg); }
-.summary-points           { background: rgba(59, 76, 202, 0.14); color: #a5b4fc; }
+.connection-badge.live {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.12);
+}
+.connection-badge.offline {
+  color: var(--text-muted);
+  background: var(--input-bg);
+}
+.summary-points {
+  background: rgba(59, 76, 202, 0.14);
+  color: #a5b4fc;
+}
 .trade-count,
-.status-pill.pending      { background: rgba(245, 158, 11, 0.14); color: #fbbf24; }
-.status-pill.accepted     { background: rgba(52, 211, 153, 0.14); color: #34d399; }
+.status-pill.pending {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+}
+.status-pill.accepted {
+  background: rgba(52, 211, 153, 0.14);
+  color: #34d399;
+}
 .status-pill.rejected,
-.status-pill.cancelled    { background: rgba(248, 113, 113, 0.14); color: #f87171; }
+.status-pill.cancelled {
+  background: rgba(248, 113, 113, 0.14);
+  color: #f87171;
+}
 
 /* ── Roster grid ─────────────────────────────────────── */
 .roster-grid {
@@ -694,7 +810,9 @@ h2 { font-size: 1.15rem; }
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
 }
 
-.roster-card-item { cursor: pointer; }
+.roster-card-item {
+  cursor: pointer;
+}
 
 /* ── Other teams ─────────────────────────────────────── */
 .other-teams-list {
@@ -767,9 +885,13 @@ h2 { font-size: 1.15rem; }
   transition: transform 0.2s ease;
 }
 
-.other-team-chevron.open { transform: rotate(180deg); }
+.other-team-chevron.open {
+  transform: rotate(180deg);
+}
 
-.other-team-roster { padding: 0 1rem 1rem; }
+.other-team-roster {
+  padding: 0 1rem 1rem;
+}
 
 /* ── Trades ──────────────────────────────────────────── */
 .trade-list {
@@ -786,7 +908,9 @@ h2 { font-size: 1.15rem; }
   padding: 0.9rem;
 }
 
-.pending-card { border-color: rgba(245, 158, 11, 0.3); }
+.pending-card {
+  border-color: rgba(245, 158, 11, 0.3);
+}
 
 .trade-title {
   display: block;
@@ -827,10 +951,19 @@ h2 { font-size: 1.15rem; }
 }
 
 /* btn-success is not in global design system (green action) */
-.btn-success { background: #059669; color: white; }
-.btn-success:disabled { opacity: 0.65; cursor: not-allowed; }
+.btn-success {
+  background: #059669;
+  color: white;
+}
+.btn-success:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
 
-.inline-link { color: var(--secondary); font-weight: 700; }
+.inline-link {
+  color: var(--secondary);
+  font-weight: 700;
+}
 
 /* ── Responsive ──────────────────────────────────────── */
 @media (max-width: 1100px) {

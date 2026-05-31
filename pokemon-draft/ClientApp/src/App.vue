@@ -50,16 +50,19 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
 </script>
 
 <template>
-  <header class="app-header">
-    <div class="header-top">
+  <v-app>
+    <v-layout>
+  <v-app-bar>
+      <v-app-bar-title>
       <RouterLink to="/" class="logo">
         <AppIcon :path="mdiPokeball" :size="22" class="logo-icon" />
         PokéDraft
       </RouterLink>
-      <span class="nav-divider" />
+      </v-app-bar-title>
+      <v-divider vertical />
       <span class="league-name">{{ authStore.leagueName }}</span>
 
-      <div class="header-right">
+      <template v-slot:append>
         <!-- Google identity (always visible when signed in with Google) -->
         <RouterLink
           v-if="authStore.isSignedInWithGoogle && !authStore.isAuthenticated"
@@ -130,8 +133,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
           </div>
         </template>
         <RouterLink v-else-if="!authStore.isSignedInWithGoogle" to="/join" class="btn-login">Log In</RouterLink>
-      </div>
-    </div>
+      </template>
 
     <nav v-if="authStore.isAuthenticated">
       <RouterLink to="/">Home</RouterLink>
@@ -146,9 +148,12 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
         <RouterLink to="/pokemon">Point Values</RouterLink>
       </template>
     </nav>
-  </header>
-
-  <RouterView />
+  </v-app-bar>
+  <v-main class="d-flex align-center justify-center">
+    <RouterView />
+  </v-main>
+  </v-layout>
+  </v-app>
 </template>
 
 <style>

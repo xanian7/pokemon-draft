@@ -63,7 +63,7 @@ async function enterLeague(code: string) {
     </div>
 
     <template v-else>
-      <div v-if="error" class="error-msg" style="margin-bottom:1rem">{{ error }}</div>
+      <div v-if="error" class="error-msg" style="margin-bottom: 1rem">{{ error }}</div>
 
       <div v-if="leagues.length === 0" class="empty-state">
         <AppIcon :path="mdiPokeball" :size="48" class="empty-icon" />
@@ -79,7 +79,9 @@ async function enterLeague(code: string) {
               <span class="code-badge">{{ league.code }}</span>
               <span v-if="league.isCommissioner" class="commissioner-badge">Commissioner</span>
             </div>
-            <div class="player-name">Playing as <strong>{{ league.playerName }}</strong></div>
+            <div class="player-name">
+              Playing as <strong>{{ league.playerName }}</strong>
+            </div>
             <div v-if="league.teamName" class="team-name">{{ league.teamName }}</div>
           </div>
           <button

@@ -107,7 +107,12 @@ function cancelReport() {
 }
 
 async function submitReport(matchup: MatchupResponse) {
-  if (reportP1Wins.value < 0 || reportP2Wins.value < 0 || reportP1Wins.value > 2 || reportP2Wins.value > 2) {
+  if (
+    reportP1Wins.value < 0 ||
+    reportP2Wins.value < 0 ||
+    reportP1Wins.value > 2 ||
+    reportP2Wins.value > 2
+  ) {
     reportError.value = 'Wins must be between 0 and 2.'
     return
   }
@@ -133,8 +138,17 @@ async function submitReport(matchup: MatchupResponse) {
       : `${API_BASE}/api/leagues/${authStore.leagueCode}/schedule/${matchup.id}/report`
 
     const body = isEditing.value
-      ? { adminPin: authStore.pin, player1Wins: reportP1Wins.value, player2Wins: reportP2Wins.value }
-      : { playerId: authStore.playerId, pin: authStore.pin, player1Wins: reportP1Wins.value, player2Wins: reportP2Wins.value }
+      ? {
+          adminPin: authStore.pin,
+          player1Wins: reportP1Wins.value,
+          player2Wins: reportP2Wins.value,
+        }
+      : {
+          playerId: authStore.playerId,
+          pin: authStore.pin,
+          player1Wins: reportP1Wins.value,
+          player2Wins: reportP2Wins.value,
+        }
 
     const res = await fetch(url, {
       method: isEditing.value ? 'PATCH' : 'POST',
@@ -180,10 +194,16 @@ function avatarInitials(name: string, teamName: string) {
         <h1>Schedule &amp; Standings</h1>
       </div>
       <div class="filter-toggle">
-        <button :class="['filter-btn', { active: !showMyMatchesOnly }]" @click="showMyMatchesOnly = false">
+        <button
+          :class="['filter-btn', { active: !showMyMatchesOnly }]"
+          @click="showMyMatchesOnly = false"
+        >
           All Matches
         </button>
-        <button :class="['filter-btn', { active: showMyMatchesOnly }]" @click="showMyMatchesOnly = true">
+        <button
+          :class="['filter-btn', { active: showMyMatchesOnly }]"
+          @click="showMyMatchesOnly = true"
+        >
           My Matches
         </button>
       </div>
@@ -203,9 +223,14 @@ function avatarInitials(name: string, teamName: string) {
           <button class="week-header" @click="toggleWeek(week.week)">
             <span class="week-label">Week {{ week.week }}</span>
             <span class="week-meta">
-              {{ week.matchups.filter((matchup) => matchup.player1Wins !== null).length }}/{{ week.matchups.length }} played
+              {{ week.matchups.filter((matchup) => matchup.player1Wins !== null).length }}/{{
+                week.matchups.length
+              }}
+              played
             </span>
-            <span class="week-chevron" :class="{ open: !collapsedWeeks.has(week.week) }">&#9660;</span>
+            <span class="week-chevron" :class="{ open: !collapsedWeeks.has(week.week) }"
+              >&#9660;</span
+            >
           </button>
 
           <div v-if="!collapsedWeeks.has(week.week)" class="week-matchups">
@@ -217,7 +242,10 @@ function avatarInitials(name: string, teamName: string) {
             >
               <div
                 class="team-side"
-                :class="{ winner: matchup.player1Wins !== null && matchup.player1Wins > matchup.player2Wins! }"
+                :class="{
+                  winner:
+                    matchup.player1Wins !== null && matchup.player1Wins > matchup.player2Wins!,
+                }"
               >
                 <div class="team-avatar">
                   <img
@@ -230,24 +258,37 @@ function avatarInitials(name: string, teamName: string) {
                     {{ avatarInitials(matchup.player1Name, matchup.player1TeamName) }}
                   </div>
                 </div>
-                <span class="team-label-text">{{ teamLabel(matchup.player1Name, matchup.player1TeamName) }}</span>
-                <span v-if="matchup.player1Wins !== null" class="score">{{ matchup.player1Wins }}</span>
+                <span class="team-label-text">{{
+                  teamLabel(matchup.player1Name, matchup.player1TeamName)
+                }}</span>
+                <span v-if="matchup.player1Wins !== null" class="score">{{
+                  matchup.player1Wins
+                }}</span>
               </div>
 
               <div class="vs-col">
                 <span v-if="matchup.player1Wins === null" class="vs-text">vs</span>
                 <template v-else>
                   <span class="match-pts-label">Match Pts</span>
-                  <span class="match-pts">{{ matchup.player1MatchPoints }} – {{ matchup.player2MatchPoints }}</span>
+                  <span class="match-pts"
+                    >{{ matchup.player1MatchPoints }} – {{ matchup.player2MatchPoints }}</span
+                  >
                 </template>
               </div>
 
               <div
                 class="team-side right"
-                :class="{ winner: matchup.player2Wins !== null && matchup.player2Wins > matchup.player1Wins! }"
+                :class="{
+                  winner:
+                    matchup.player2Wins !== null && matchup.player2Wins > matchup.player1Wins!,
+                }"
               >
-                <span v-if="matchup.player2Wins !== null" class="score">{{ matchup.player2Wins }}</span>
-                <span class="team-label-text">{{ teamLabel(matchup.player2Name, matchup.player2TeamName) }}</span>
+                <span v-if="matchup.player2Wins !== null" class="score">{{
+                  matchup.player2Wins
+                }}</span>
+                <span class="team-label-text">{{
+                  teamLabel(matchup.player2Name, matchup.player2TeamName)
+                }}</span>
                 <div class="team-avatar">
                   <img
                     v-if="matchup.player2TeamImageUrl"
@@ -261,36 +302,73 @@ function avatarInitials(name: string, teamName: string) {
                 </div>
               </div>
 
-              <div v-if="(isMyMatchup(matchup) && matchup.player1Wins === null) || authStore.isAdmin" class="report-area">
+              <div
+                v-if="(isMyMatchup(matchup) && matchup.player1Wins === null) || authStore.isAdmin"
+                class="report-area"
+              >
                 <template v-if="reportingMatchupId === matchup.id">
                   <div class="report-form">
-                    <p class="report-form-title">{{ isEditing ? '✏️ Edit Score' : 'Report Score' }}</p>
+                    <p class="report-form-title">
+                      {{ isEditing ? '✏️ Edit Score' : 'Report Score' }}
+                    </p>
                     <div class="report-inputs">
                       <div class="report-player">
-                        <span class="report-player-name">{{ teamLabel(matchup.player1Name, matchup.player1TeamName) }}</span>
-                        <input v-model.number="reportP1Wins" type="number" min="0" max="2" class="wins-input" />
+                        <span class="report-player-name">{{
+                          teamLabel(matchup.player1Name, matchup.player1TeamName)
+                        }}</span>
+                        <input
+                          v-model.number="reportP1Wins"
+                          type="number"
+                          min="0"
+                          max="2"
+                          class="wins-input"
+                        />
                       </div>
                       <span class="report-dash">–</span>
                       <div class="report-player">
-                        <input v-model.number="reportP2Wins" type="number" min="0" max="2" class="wins-input" />
-                        <span class="report-player-name">{{ teamLabel(matchup.player2Name, matchup.player2TeamName) }}</span>
+                        <input
+                          v-model.number="reportP2Wins"
+                          type="number"
+                          min="0"
+                          max="2"
+                          class="wins-input"
+                        />
+                        <span class="report-player-name">{{
+                          teamLabel(matchup.player2Name, matchup.player2TeamName)
+                        }}</span>
                       </div>
                     </div>
                     <p v-if="reportError" class="report-error">{{ reportError }}</p>
                     <div class="report-actions">
                       <button class="btn btn-secondary btn-sm" @click="cancelReport">Cancel</button>
-                      <button class="btn btn-primary btn-sm" :disabled="reportLoading" @click="submitReport(matchup)">
+                      <button
+                        class="btn btn-primary btn-sm"
+                        :disabled="reportLoading"
+                        @click="submitReport(matchup)"
+                      >
                         {{ reportLoading ? 'Saving…' : 'Submit' }}
                       </button>
                     </div>
                   </div>
                 </template>
-                <button v-else-if="matchup.player1Wins === null" class="report-btn" @click="startReport(matchup)">
-                    Report Score
-                  </button>
-                  <button v-if="authStore.isAdmin && matchup.player1Wins !== null && reportingMatchupId !== matchup.id" class="edit-score-btn" @click="startEdit(matchup)">
-                    ✏️ Edit Score
-                  </button>
+                <button
+                  v-else-if="matchup.player1Wins === null"
+                  class="report-btn"
+                  @click="startReport(matchup)"
+                >
+                  Report Score
+                </button>
+                <button
+                  v-if="
+                    authStore.isAdmin &&
+                    matchup.player1Wins !== null &&
+                    reportingMatchupId !== matchup.id
+                  "
+                  class="edit-score-btn"
+                  @click="startEdit(matchup)"
+                >
+                  ✏️ Edit Score
+                </button>
               </div>
             </div>
           </div>
@@ -319,8 +397,15 @@ function avatarInitials(name: string, teamName: string) {
                 <td class="rank">{{ index + 1 }}</td>
                 <td class="team-cell">
                   <div class="standing-avatar">
-                    <img v-if="row.teamImageUrl" :src="row.teamImageUrl" :alt="row.teamName" class="avatar-img" />
-                    <div v-else class="avatar-initials sm">{{ avatarInitials(row.playerName, row.teamName) }}</div>
+                    <img
+                      v-if="row.teamImageUrl"
+                      :src="row.teamImageUrl"
+                      :alt="row.teamName"
+                      class="avatar-img"
+                    />
+                    <div v-else class="avatar-initials sm">
+                      {{ avatarInitials(row.playerName, row.teamName) }}
+                    </div>
                   </div>
                   <span class="standing-name">{{ row.teamName || row.playerName }}</span>
                 </td>
@@ -383,7 +468,9 @@ h1 {
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .filter-btn.active {
@@ -610,7 +697,10 @@ h1 {
   margin-left: 0.5rem;
 }
 
-.edit-score-btn:hover { background: var(--input-bg); color: var(--text); }
+.edit-score-btn:hover {
+  background: var(--input-bg);
+  color: var(--text);
+}
 
 .report-form-title {
   font-size: 0.8rem;

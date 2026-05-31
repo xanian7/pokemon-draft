@@ -23,8 +23,8 @@ const expandedTeams = ref<Set<string>>(new Set())
 const selectedPokemonId = ref<number | null>(null)
 const selectedPokemon = computed(() =>
   selectedPokemonId.value !== null
-    ? pokemonStore.getPokemonById(selectedPokemonId.value) ?? null
-    : null
+    ? (pokemonStore.getPokemonById(selectedPokemonId.value) ?? null)
+    : null,
 )
 
 onMounted(async () => {
@@ -34,7 +34,10 @@ onMounted(async () => {
       fetch(`${API_BASE}/leagues/${authStore.leagueCode}`),
       fetch(`${API_BASE}/leagues/${authStore.leagueCode}/schedule`),
     ])
-    if (!leagueRes.ok) { error.value = 'Could not load teams.'; return }
+    if (!leagueRes.ok) {
+      error.value = 'Could not load teams.'
+      return
+    }
     league.value = await leagueRes.json()
     if (schedRes.ok) {
       const sched = await schedRes.json()
@@ -59,42 +62,57 @@ const teams = computed(() => {
   const picks: any[] = league.value.draft?.picks ?? []
   const pointValues: Record<number, number> = league.value.pointValues ?? {}
 
-  return league.value.players.map((player: any) => {
-    const myPicks = picks
-      .filter((p: any) => p.playerId === player.id)
-      .sort((a: any, b: any) => a.pickNumber - b.pickNumber)
-      .map((p: any) => {
-        const poke = pokemonStore.getPokemonById(p.pokemonId)
-        const pts = pointValues[p.pokemonId] ?? 0
-        return poke ? { ...poke, points: pts } : null
-      })
-      .filter(Boolean)
+  return league.value.players
+    .map((player: any) => {
+      const myPicks = picks
+        .filter((p: any) => p.playerId === player.id)
+        .sort((a: any, b: any) => a.pickNumber - b.pickNumber)
+        .map((p: any) => {
+          const poke = pokemonStore.getPokemonById(p.pokemonId)
+          const pts = pointValues[p.pokemonId] ?? 0
+          return poke ? { ...poke, points: pts } : null
+        })
+        .filter(Boolean)
 
-    const totalPoints = myPicks.reduce((sum: number, p: any) => sum + p.points, 0)
-    const standing = standings.value.find((s: any) => s.playerId === player.id)
+      const totalPoints = myPicks.reduce((sum: number, p: any) => sum + p.points, 0)
+      const standing = standings.value.find((s: any) => s.playerId === player.id)
 
-    return {
-      ...player,
-      picks: myPicks,
-      totalPoints,
-      wins: standing?.wins ?? 0,
-      losses: standing?.losses ?? 0,
-      matchPoints: standing?.matchPoints ?? 0,
-      rank: standings.value.findIndex((s: any) => s.playerId === player.id) + 1,
-    }
-  }).sort((a: any, b: any) => {
-    if (standings.value.length === 0) return 0
-    return a.rank - b.rank
-  })
+      return {
+        ...player,
+        picks: myPicks,
+        totalPoints,
+        wins: standing?.wins ?? 0,
+        losses: standing?.losses ?? 0,
+        matchPoints: standing?.matchPoints ?? 0,
+        rank: standings.value.findIndex((s: any) => s.playerId === player.id) + 1,
+      }
+    })
+    .sort((a: any, b: any) => {
+      if (standings.value.length === 0) return 0
+      return a.rank - b.rank
+    })
 })
 
 function typeColor(type: string): string {
   const colors: Record<string, string> = {
-    normal: '#a8a878', fire: '#f08030', water: '#6890f0', electric: '#f8d030',
-    grass: '#78c850', ice: '#98d8d8', fighting: '#c03028', poison: '#a040a0',
-    ground: '#e0c068', flying: '#a890f0', psychic: '#f85888', bug: '#a8b820',
-    rock: '#b8a038', ghost: '#705898', dragon: '#7038f8', dark: '#705848',
-    steel: '#b8b8d0', fairy: '#ee99ac',
+    normal: '#a8a878',
+    fire: '#f08030',
+    water: '#6890f0',
+    electric: '#f8d030',
+    grass: '#78c850',
+    ice: '#98d8d8',
+    fighting: '#c03028',
+    poison: '#a040a0',
+    ground: '#e0c068',
+    flying: '#a890f0',
+    psychic: '#f85888',
+    bug: '#a8b820',
+    rock: '#b8a038',
+    ghost: '#705898',
+    dragon: '#7038f8',
+    dark: '#705848',
+    steel: '#b8b8d0',
+    fairy: '#ee99ac',
   }
   return colors[type.toLowerCase()] ?? '#888'
 }
@@ -131,7 +149,12 @@ function typeColor(type: string): string {
             <span class="rank-num">#{{ team.rank || '—' }}</span>
           </div>
           <div class="team-avatar">
-            <img v-if="team.teamImageUrl" :src="team.teamImageUrl" :alt="team.teamName" class="avatar-img" />
+            <img
+              v-if="team.teamImageUrl"
+              :src="team.teamImageUrl"
+              :alt="team.teamName"
+              class="avatar-img"
+            />
             <div v-else class="avatar-initials">
               {{ (team.teamName || team.name).slice(0, 2).toUpperCase() }}
             </div>
@@ -174,7 +197,8 @@ function typeColor(type: string): string {
                   :key="t"
                   class="type-badge"
                   :style="{ background: typeColor(t) }"
-                >{{ t }}</span>
+                  >{{ t }}</span
+                >
               </div>
               <div class="pick-pts">{{ poke.points }} pts</div>
             </button>
@@ -210,16 +234,40 @@ function typeColor(type: string): string {
   margin-bottom: 1.75rem;
 }
 
-.header-icon { color: var(--primary); flex-shrink: 0; }
+.header-icon {
+  color: var(--primary);
+  flex-shrink: 0;
+}
 
-h1 { font-size: 1.5rem; font-weight: 800; }
-.subtitle { font-size: 0.875rem; color: var(--text-muted); }
+h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+.subtitle {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
 
-.loading { display: flex; justify-content: center; padding: 3rem 0; }
-.error-msg { color: var(--secondary); padding: 1rem 0; }
-.empty-msg { text-align: center; color: var(--text-muted); padding: 3rem 0; }
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 0;
+}
+.error-msg {
+  color: var(--secondary);
+  padding: 1rem 0;
+}
+.empty-msg {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 3rem 0;
+}
 
-.team-list { display: flex; flex-direction: column; gap: 0.75rem; }
+.team-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
 
 .team-card {
   background: var(--card-bg);
@@ -229,8 +277,12 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   transition: border-color 0.15s;
 }
 
-.team-card.my-team { border-color: var(--primary); }
-.team-card:hover { border-color: color-mix(in srgb, var(--primary) 60%, transparent); }
+.team-card.my-team {
+  border-color: var(--primary);
+}
+.team-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 60%, transparent);
+}
 
 .team-header {
   display: flex;
@@ -246,7 +298,9 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   transition: background 0.12s;
 }
 
-.team-header:hover { background: var(--input-bg); }
+.team-header:hover {
+  background: var(--input-bg);
+}
 
 .rank-badge {
   width: 36px;
@@ -254,7 +308,11 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   text-align: center;
 }
 
-.rank-num { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); }
+.rank-num {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
 
 .team-avatar {
   width: 40px;
@@ -268,8 +326,16 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   flex-shrink: 0;
 }
 
-.avatar-img { width: 100%; height: 100%; object-fit: cover; }
-.avatar-initials { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); }
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.avatar-initials {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
 
 .team-info {
   flex: 1;
@@ -279,8 +345,17 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   gap: 0.1rem;
 }
 
-.team-name { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.player-name { font-size: 0.78rem; color: var(--text-muted); }
+.team-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.player-name {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
 
 .team-record {
   display: flex;
@@ -291,8 +366,14 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   min-width: 54px;
 }
 
-.record { font-weight: 700; font-size: 0.9rem; }
-.mp { font-size: 0.72rem; color: var(--text-muted); }
+.record {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.mp {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
 
 .team-pts {
   display: flex;
@@ -303,8 +384,16 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   min-width: 54px;
 }
 
-.pts-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-.pts-val { font-weight: 700; font-size: 0.9rem; }
+.pts-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.pts-val {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
 
 .you-badge {
   background: var(--primary);
@@ -316,7 +405,10 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   flex-shrink: 0;
 }
 
-.chevron { color: var(--text-muted); flex-shrink: 0; }
+.chevron {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
 
 /* Expanded roster */
 .team-roster {
@@ -324,7 +416,10 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   border-top: 1px solid var(--border-color);
 }
 
-.no-picks { color: var(--text-muted); font-size: 0.875rem; }
+.no-picks {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
 
 .picks-grid {
   display: grid;
@@ -342,14 +437,34 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   align-items: center;
   gap: 0.25rem;
   cursor: pointer;
-  transition: border-color 0.12s, background 0.12s;
+  transition:
+    border-color 0.12s,
+    background 0.12s;
 }
 
-.pick-tile:hover { border-color: var(--primary); background: var(--primary-hover-bg); }
+.pick-tile:hover {
+  border-color: var(--primary);
+  background: var(--primary-hover-bg);
+}
 
-.pick-sprite { width: 60px; height: 60px; object-fit: contain; image-rendering: pixelated; }
-.pick-name { font-size: 0.7rem; font-weight: 600; text-align: center; text-transform: capitalize; }
-.pick-types { display: flex; gap: 0.2rem; flex-wrap: wrap; justify-content: center; }
+.pick-sprite {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.pick-name {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-align: center;
+  text-transform: capitalize;
+}
+.pick-types {
+  display: flex;
+  gap: 0.2rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
 .type-badge {
   font-size: 0.6rem;
   font-weight: 700;
@@ -358,5 +473,8 @@ h1 { font-size: 1.5rem; font-weight: 800; }
   border-radius: 3px;
   text-transform: capitalize;
 }
-.pick-pts { font-size: 0.68rem; color: var(--text-muted); }
+.pick-pts {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
 </style>

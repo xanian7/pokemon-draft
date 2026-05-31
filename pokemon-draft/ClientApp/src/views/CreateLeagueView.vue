@@ -88,17 +88,15 @@ async function enterAsAdmin() {
             class="google-avatar"
             alt=""
           />
-          <span>Creating as <strong>{{ authStore.googleUser?.name }}</strong> via Google</span>
+          <span
+            >Creating as <strong>{{ authStore.googleUser?.name }}</strong> via Google</span
+          >
         </div>
 
         <form @submit.prevent="createLeague" class="create-form">
           <div class="field">
             <label for="commissionerName">Your Name</label>
-            <input
-              id="commissionerName"
-              v-model="commissionerName"
-              type="text"
-            />
+            <input id="commissionerName" v-model="commissionerName" type="text" />
           </div>
           <div class="field">
             <label for="name">League Name</label>
@@ -255,5 +253,4 @@ h1 {
   color: var(--text-muted);
   line-height: 1.5;
 }
-
 </style>

@@ -107,7 +107,13 @@ export const REGULATIONS: RegulationDef[] = [
   createRangeRegulation('gen6', 'Gen 6 – Kalos', 'Show Kalos Pokémon only.', 650, 721),
   createRangeRegulation('gen7', 'Gen 7 – Alola', 'Show Alola Pokémon only.', 722, 809),
   createRangeRegulation('gen8', 'Gen 8 – Galar', 'Show Galar Pokémon only.', 810, 905),
-  createRangeRegulation('gen9', 'Gen 9 – Paldea only', 'Show Paldea Pokédex Pokémon only.', 906, 1025),
+  createRangeRegulation(
+    'gen9',
+    'Gen 9 – Paldea only',
+    'Show Paldea Pokédex Pokémon only.',
+    906,
+    1025,
+  ),
   createVgcRegulation('vgc-regd', 'VGC Reg D', 'Paldea Pokédex legal Pokémon.', ['paldea']),
   createVgcRegulation(
     'vgc-regg',

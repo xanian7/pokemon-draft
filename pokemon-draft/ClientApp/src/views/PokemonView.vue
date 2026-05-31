@@ -9,7 +9,14 @@ import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
 import { API_BASE } from '@/services/signalr'
 import { formatPokemonName } from '@/utils/format'
-import { mdiClipboardList, mdiFlash, mdiContentSave, mdiCheck, mdiViewGrid, mdiViewColumn } from '@mdi/js'
+import {
+  mdiClipboardList,
+  mdiFlash,
+  mdiContentSave,
+  mdiCheck,
+  mdiViewGrid,
+  mdiViewColumn,
+} from '@mdi/js'
 
 const pokemonStore = usePokemonStore()
 const authStore = useAuthStore()
@@ -172,7 +179,7 @@ async function saveToServer() {
       <div v-if="authStore.isAdmin" class="admin-actions">
         <button
           class="btn btn-sm"
-          style="background: var(--secondary); color: #fff;"
+          style="background: var(--secondary); color: #fff"
           :disabled="pokemonStore.isLoading || regulationLoading"
           @click="applyDefaults"
         >
@@ -195,12 +202,7 @@ async function saveToServer() {
 
     <!-- Filter bar -->
     <div class="filter-bar">
-      <input
-        v-model="searchQuery"
-        type="text"
-        placeholder="Search by name…"
-        class="search-input"
-      />
+      <input v-model="searchQuery" type="text" placeholder="Search by name…" class="search-input" />
       <select v-model="selectedRegulation" @change="onRegulationChange">
         <option v-for="reg in REGULATIONS" :key="reg.id" :value="reg.id">{{ reg.label }}</option>
       </select>
@@ -215,12 +217,22 @@ async function saveToServer() {
         Valued only
       </label>
       <span v-if="regulationLoading" class="filter-status">Loading regulation…</span>
-      <span v-else-if="regulationError" class="filter-status filter-error">{{ regulationError }}</span>
+      <span v-else-if="regulationError" class="filter-status filter-error">{{
+        regulationError
+      }}</span>
       <div class="view-toggle">
-        <button :class="{ active: viewMode === 'grid' }" title="Grid view" @click="viewMode = 'grid'">
+        <button
+          :class="{ active: viewMode === 'grid' }"
+          title="Grid view"
+          @click="viewMode = 'grid'"
+        >
           <AppIcon :path="mdiViewGrid" :size="16" />
         </button>
-        <button :class="{ active: viewMode === 'tier' }" title="Tier view" @click="viewMode = 'tier'">
+        <button
+          :class="{ active: viewMode === 'tier' }"
+          title="Tier view"
+          @click="viewMode = 'tier'"
+        >
           <AppIcon :path="mdiViewColumn" :size="16" />
         </button>
       </div>
@@ -267,11 +279,7 @@ async function saveToServer() {
 
     <!-- Grid view -->
     <div v-else class="pokemon-grid">
-      <div
-        v-for="pokemon in filtered"
-        :key="pokemon.id"
-        class="pokemon-entry"
-      >
+      <div v-for="pokemon in filtered" :key="pokemon.id" class="pokemon-entry">
         <PokemonCard
           :pokemon="pokemon"
           :point-value="pokemon.pointValue"
@@ -325,8 +333,17 @@ async function saveToServer() {
   margin-left: auto;
 }
 
-.save-ok { color: #4ade80; font-size: 0.82rem; display: flex; align-items: center; gap: 0.3rem; }
-.save-err { color: #f87171; font-size: 0.82rem; }
+.save-ok {
+  color: #4ade80;
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.save-err {
+  color: #f87171;
+  font-size: 0.82rem;
+}
 
 /* ── Filter bar ──────────────────────────────────────────────────────────── */
 .filter-bar {
@@ -365,7 +382,9 @@ select {
   font-size: 0.78rem;
   color: var(--text-muted);
 }
-.filter-error { color: #f87171; }
+.filter-error {
+  color: #f87171;
+}
 
 /* ── Grid ────────────────────────────────────────────────────────────────── */
 .loading {
@@ -427,15 +446,23 @@ select {
   color: var(--text-muted);
   padding: 0.3rem 0.5rem;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 
 .view-toggle button:first-child {
   border-right: 1px solid var(--border-color);
 }
 
-.view-toggle button:hover { background: var(--input-bg); color: var(--text); }
-.view-toggle button.active { background: var(--input-bg); color: var(--text); }
+.view-toggle button:hover {
+  background: var(--input-bg);
+  color: var(--text);
+}
+.view-toggle button.active {
+  background: var(--input-bg);
+  color: var(--text);
+}
 
 /* ── Tier view ───────────────────────────────────────────────────────────── */
 .tier-view {

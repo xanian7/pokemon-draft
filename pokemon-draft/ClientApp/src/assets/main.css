@@ -24,18 +24,50 @@
   font-family: inherit;
 }
 
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn:hover:not(:disabled) { opacity: 0.88; }
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn:hover:not(:disabled) {
+  opacity: 0.88;
+}
 
-.btn-primary   { background: var(--primary); color: #fff; }
-.btn-secondary { background: var(--input-bg); color: var(--text); border: 1px solid var(--border-color); }
-.btn-danger    { background: #dc2626; color: #fff; }
-.btn-ghost     { background: transparent; border: 1.5px solid var(--border-color); color: var(--text); }
-.btn-ghost:hover:not(:disabled) { border-color: var(--primary); background: var(--input-bg); opacity: 1; }
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+}
+.btn-secondary {
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border-color);
+}
+.btn-danger {
+  background: #dc2626;
+  color: #fff;
+}
+.btn-ghost {
+  background: transparent;
+  border: 1.5px solid var(--border-color);
+  color: var(--text);
+}
+.btn-ghost:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--input-bg);
+  opacity: 1;
+}
 
-.btn-sm   { padding: 0.35rem 0.75rem; font-size: 0.82rem; border-radius: 6px; }
-.btn-lg   { padding: 0.75rem 1.5rem; font-size: 1rem; }
-.btn-full { width: 100%; }
+.btn-sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+  border-radius: 6px;
+}
+.btn-lg {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+}
+.btn-full {
+  width: 100%;
+}
 
 /* ── Card surface ───────────────────────────────────────────────────────────── */
 .card {
@@ -83,8 +115,14 @@
   font-weight: 700;
 }
 
-.badge-primary { background: var(--primary); color: #fff; }
-.badge-muted   { background: var(--border-color); color: var(--text-muted); }
+.badge-primary {
+  background: var(--primary);
+  color: #fff;
+}
+.badge-muted {
+  background: var(--border-color);
+  color: var(--text-muted);
+}
 
 /* ── Global input / select base ─────────────────────────────────────────────── */
 input[type='text'],
@@ -128,7 +166,11 @@ select:focus {
   flex-shrink: 0;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* ── Error message ──────────────────────────────────────────────────────── */
 .error-msg {

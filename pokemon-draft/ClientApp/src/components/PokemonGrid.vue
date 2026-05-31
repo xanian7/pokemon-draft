@@ -24,14 +24,18 @@ const viewMode = ref<'grid' | 'tier'>('grid')
 
 // ── Regulation filter (respects league's regulation set automatically) ────────
 const { isLegalPokemon, regulationLoading } = useRegulationFilter(
-  computed(() => draftStore.regulationSet)
+  computed(() => draftStore.regulationSet),
 )
 
 // ── Filtered list ─────────────────────────────────────────────────────────────
 const filteredPokemon = computed(() => {
   const q = searchQuery.value.toLowerCase()
   return pokemonStore.pokemonWithPoints.filter((p) => {
-    if (q && !p.name.toLowerCase().includes(q) && !formatPokemonName(p.name).toLowerCase().includes(q))
+    if (
+      q &&
+      !p.name.toLowerCase().includes(q) &&
+      !formatPokemonName(p.name).toLowerCase().includes(q)
+    )
       return false
     if (!isLegalPokemon(p)) return false
     if (selectedType.value && !p.types.includes(selectedType.value)) return false
@@ -53,8 +57,8 @@ const tierGroups = computed(() => {
 })
 
 // ── Draft action ──────────────────────────────────────────────────────────────
-const canDraft = computed(() =>
-  !draftStore.isDraftComplete && draftStore.playerCanDraft(authStore.playerId ?? '')
+const canDraft = computed(
+  () => !draftStore.isDraftComplete && draftStore.playerCanDraft(authStore.playerId ?? ''),
 )
 
 const selectedPokemon = ref<Pokemon | null>(null)
@@ -90,10 +94,18 @@ async function handleDraft(pokemonId: number) {
         <span v-if="regulationLoading" class="filter-status">Loading...</span>
 
         <div class="view-toggle">
-          <button :class="{ active: viewMode === 'grid' }" title="Grid view" @click="viewMode = 'grid'">
+          <button
+            :class="{ active: viewMode === 'grid' }"
+            title="Grid view"
+            @click="viewMode = 'grid'"
+          >
             <AppIcon :path="mdiViewGrid" :size="16" />
           </button>
-          <button :class="{ active: viewMode === 'tier' }" title="Tier view" @click="viewMode = 'tier'">
+          <button
+            :class="{ active: viewMode === 'tier' }"
+            title="Tier view"
+            @click="viewMode = 'tier'"
+          >
             <AppIcon :path="mdiViewColumn" :size="16" />
           </button>
         </div>
@@ -153,6 +165,7 @@ async function handleDraft(pokemonId: number) {
   min-height: 0;
   overflow: hidden;
   padding: 8px 0px 8px 8px;
+  max-height: calc(100dvh - var(--v-layout-top));
 }
 
 .pokemon-grid-header {
@@ -210,12 +223,22 @@ select {
   color: var(--text-muted);
   padding: 0.3rem 0.5rem;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 
-.view-toggle button:first-child { border-right: 1px solid var(--border-color); }
-.view-toggle button:hover { background: var(--input-bg); color: var(--text); }
-.view-toggle button.active { background: var(--input-bg); color: var(--text); }
+.view-toggle button:first-child {
+  border-right: 1px solid var(--border-color);
+}
+.view-toggle button:hover {
+  background: var(--input-bg);
+  color: var(--text);
+}
+.view-toggle button.active {
+  background: var(--input-bg);
+  color: var(--text);
+}
 
 /* Grid view */
 .pokemon-grid {

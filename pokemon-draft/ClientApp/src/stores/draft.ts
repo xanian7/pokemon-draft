@@ -26,7 +26,9 @@ export const useDraftStore = defineStore('draft', () => {
 
   // The DB player ID of whoever's turn it is — comes directly from the server.
   const currentPickerId = computed<string | null>(() => draftData.value?.currentPickerId ?? null)
-  const currentPickerName = computed<string | null>(() => draftData.value?.currentPickerName ?? null)
+  const currentPickerName = computed<string | null>(
+    () => draftData.value?.currentPickerName ?? null,
+  )
 
   const isDraftComplete = computed(() => status.value === 'complete')
 
@@ -41,8 +43,8 @@ export const useDraftStore = defineStore('draft', () => {
   const regulationSet = computed<string>(() => serverState.value?.regulationSet ?? 'national')
   const rounds = computed<number>(() => serverState.value?.rounds ?? 0)
 
-  const currentPicker = computed(() =>
-    players.value.find((p: any) => p.id === currentPickerId.value) ?? null,
+  const currentPicker = computed(
+    () => players.value.find((p: any) => p.id === currentPickerId.value) ?? null,
   )
 
   function playerCanDraft(playerId: string): boolean {

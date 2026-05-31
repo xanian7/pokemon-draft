@@ -87,11 +87,17 @@ const svgSize = computed(() => props.size ?? (variant.value === 'page' ? 48 : 18
 
 /* ── Keyframes ────────────────────────────────────────────────────────────── */
 @keyframes pokeball-spin-anim {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes pokeball-bounce-anim {
-  from { transform: translateY(0); }
-  to   { transform: translateY(-14px); }
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-14px);
+  }
 }
 </style>

@@ -69,7 +69,9 @@ function normalizeStatus(status?: string | null) {
 }
 
 function getPointValue(pokemonId: number) {
-  return Number(league.value?.pointValues?.[pokemonId] ?? pokemonStore.getPointValue(pokemonId) ?? 0)
+  return Number(
+    league.value?.pointValues?.[pokemonId] ?? pokemonStore.getPointValue(pokemonId) ?? 0,
+  )
 }
 
 function applyState(state: LeagueState) {
@@ -121,12 +123,16 @@ function getTeamEntries(playerId: string) {
 
 const draftComplete = computed(() => normalizeStatus(league.value?.draft?.status) === 'complete')
 const myTeam = computed(() => getTeamEntries(currentPlayerId.value))
-const myPointTotal = computed(() => myTeam.value.reduce((total, pokemon) => total + pokemon.points, 0))
+const myPointTotal = computed(() =>
+  myTeam.value.reduce((total, pokemon) => total + pokemon.points, 0),
+)
 const otherPlayers = computed(() =>
   (league.value?.players ?? []).filter((player) => player.id !== currentPlayerId.value),
 )
 const targetTeam = computed(() => getTeamEntries(targetPlayerId.value))
-const rosteredPokemonIds = computed(() => new Set((league.value?.draft.picks ?? []).map((pick) => pick.pokemonId)))
+const rosteredPokemonIds = computed(
+  () => new Set((league.value?.draft.picks ?? []).map((pick) => pick.pokemonId)),
+)
 
 const leagueRegulationId = computed(() => league.value?.regulationSet ?? 'national')
 const { isLegalPokemon } = useRegulationFilter(leagueRegulationId)
@@ -172,7 +178,9 @@ async function refreshRoster() {
 
 async function dropPokemon(pokemonId: number) {
   if (!leagueCode.value || !currentPlayerId.value) return
-  const pokemonName = formatPokemonName(pokemonStore.getPokemonById(pokemonId)?.name ?? `#${pokemonId}`)
+  const pokemonName = formatPokemonName(
+    pokemonStore.getPokemonById(pokemonId)?.name ?? `#${pokemonId}`,
+  )
   if (!window.confirm(`Drop ${pokemonName} from your roster?`)) return
 
   resetMessages()
@@ -367,215 +375,276 @@ onUnmounted(disconnect)
           <p v-if="actionSuccess" class="message success-message">{{ actionSuccess }}</p>
 
           <section v-if="activeTab === 'add-drop'" class="add-drop-layout">
-          <!-- Left: team sidebar -->
-          <aside class="team-sidebar panel-card">
-            <div class="section-header">
-              <div class="sidebar-heading">
-                <AppIcon :path="mdiAccountGroup" :size="16" />
-                <h2>Your Roster</h2>
+            <!-- Left: team sidebar -->
+            <aside class="team-sidebar panel-card">
+              <div class="section-header">
+                <div class="sidebar-heading">
+                  <AppIcon :path="mdiAccountGroup" :size="16" />
+                  <h2>Your Roster</h2>
+                </div>
+                <span class="section-meta">{{ myTeam.length }} Pokémon</span>
               </div>
-              <span class="section-meta">{{ myTeam.length }} Pokémon</span>
-            </div>
-            <div class="points-bar">
-              <span class="points-used">{{ myPointTotal }}</span>
-              <span class="points-sep">/</span>
-              <span class="points-limit">{{ league.pointLimit }} pts</span>
-              <div class="points-track">
-                <div
-                  class="points-fill"
-                  :style="{
-                    width: `${Math.min(100, (myPointTotal / league.pointLimit) * 100)}%`,
-                    background:
-                      myPointTotal > league.pointLimit
-                        ? '#f87171'
-                        : myPointTotal > league.pointLimit * 0.85
-                          ? '#f97316'
-                          : 'var(--primary)',
-                  }"
+              <div class="points-bar">
+                <span class="points-used">{{ myPointTotal }}</span>
+                <span class="points-sep">/</span>
+                <span class="points-limit">{{ league.pointLimit }} pts</span>
+                <div class="points-track">
+                  <div
+                    class="points-fill"
+                    :style="{
+                      width: `${Math.min(100, (myPointTotal / league.pointLimit) * 100)}%`,
+                      background:
+                        myPointTotal > league.pointLimit
+                          ? '#f87171'
+                          : myPointTotal > league.pointLimit * 0.85
+                            ? '#f97316'
+                            : 'var(--primary)',
+                    }"
+                  />
+                </div>
+              </div>
+
+              <div v-if="myTeam.length" class="team-list">
+                <article v-for="entry in myTeam" :key="entry.pokemonId" class="team-row">
+                  <div class="pokemon-info">
+                    <img
+                      v-if="entry.pokemon?.spriteUrl"
+                      :src="entry.pokemon.spriteUrl"
+                      :alt="
+                        entry.pokemon
+                          ? formatPokemonName(entry.pokemon.name)
+                          : `#${entry.pokemonId}`
+                      "
+                      class="pokemon-sprite"
+                    />
+                    <div v-else class="sprite-fallback">#{{ entry.pokemonId }}</div>
+                    <div>
+                      <h3>
+                        {{
+                          entry.pokemon
+                            ? formatPokemonName(entry.pokemon.name)
+                            : `#${entry.pokemonId}`
+                        }}
+                      </h3>
+                      <p>{{ entry.points }} pts</p>
+                    </div>
+                  </div>
+                  <button
+                    class="btn btn-danger"
+                    :disabled="isSubmitting"
+                    @click="dropPokemon(entry.pokemonId)"
+                  >
+                    Drop
+                  </button>
+                </article>
+              </div>
+              <p v-else class="empty-text">Your roster is currently empty.</p>
+            </aside>
+
+            <!-- Right: available Pokémon grid -->
+            <div class="available-panel panel-card">
+              <div class="available-header">
+                <div class="sidebar-heading">
+                  <AppIcon :path="mdiMagnify" :size="16" />
+                  <h2>Free Agents</h2>
+                </div>
+                <span class="section-meta">{{ availablePokemon.length }} available</span>
+              </div>
+
+              <div class="available-filters">
+                <input
+                  v-model="addSearch"
+                  type="text"
+                  class="filter-input"
+                  placeholder="Search by name…"
+                />
+                <select v-model="selectedType" class="filter-select">
+                  <option value="">All Types</option>
+                  <option v-for="type in pokemonStore.allTypes" :key="type" :value="type">
+                    {{ type.charAt(0).toUpperCase() + type.slice(1) }}
+                  </option>
+                </select>
+              </div>
+
+              <div v-if="availablePokemon.length === 0" class="empty-text" style="padding: 1rem 0">
+                No available Pokémon match your filters.
+              </div>
+              <div v-else class="available-grid">
+                <PokemonCard
+                  v-for="pokemon in availablePokemon"
+                  :key="pokemon.id"
+                  :pokemon="pokemon"
+                  :point-value="getPointValue(pokemon.id)"
+                  mode="draft"
+                  @click="openDetail(pokemon)"
                 />
               </div>
             </div>
+          </section>
 
-            <div v-if="myTeam.length" class="team-list">
-              <article v-for="entry in myTeam" :key="entry.pokemonId" class="team-row">
-                <div class="pokemon-info">
-                  <img
-                    v-if="entry.pokemon?.spriteUrl"
-                    :src="entry.pokemon.spriteUrl"
-                    :alt="entry.pokemon ? formatPokemonName(entry.pokemon.name) : `#${entry.pokemonId}`"
-                    class="pokemon-sprite"
-                  />
-                  <div v-else class="sprite-fallback">#{{ entry.pokemonId }}</div>
+          <section v-else class="trade-layout">
+            <article v-if="submittedTrade" class="panel-card success-card">
+              <div class="section-header">
+                <div>
+                  <p class="eyebrow">Trade sent</p>
+                  <h2>Proposal delivered</h2>
+                </div>
+                <span class="status-pill pending">Trade #{{ submittedTrade.id }}</span>
+              </div>
+              <p class="subtitle">
+                Your proposal was sent to {{ getPlayerName(submittedTrade.targetPlayerId) }}.
+              </p>
+              <button class="btn btn-primary" @click="router.push('/team')">Back to My Team</button>
+            </article>
+
+            <template v-else>
+              <article class="panel-card">
+                <div class="section-header">
                   <div>
-                    <h3>{{ entry.pokemon ? formatPokemonName(entry.pokemon.name) : `#${entry.pokemonId}` }}</h3>
-                    <p>{{ entry.points }} pts</p>
+                    <p class="eyebrow">Step 1</p>
+                    <h2>Select target player</h2>
                   </div>
                 </div>
-                <button class="btn btn-danger" :disabled="isSubmitting" @click="dropPokemon(entry.pokemonId)">
-                  Drop
+
+                <select v-model="targetPlayerId" class="select-input">
+                  <option value="">Choose a manager…</option>
+                  <option v-for="player in otherPlayers" :key="player.id" :value="player.id">
+                    {{ player.name }}
+                  </option>
+                </select>
+              </article>
+
+              <article v-if="targetPlayerId" class="panel-card">
+                <div class="section-header">
+                  <div>
+                    <p class="eyebrow">Steps 2 & 3</p>
+                    <h2>Build the trade</h2>
+                  </div>
+                </div>
+
+                <div class="trade-team-grid">
+                  <section>
+                    <div class="trade-team-header">
+                      <h3>Your team</h3>
+                      <span>Select what you’re offering</span>
+                    </div>
+                    <label
+                      v-for="entry in myTeam"
+                      :key="`offer-${entry.pokemonId}`"
+                      class="checkbox-row"
+                    >
+                      <input
+                        v-model="offeringPokemonIds"
+                        type="checkbox"
+                        :value="entry.pokemonId"
+                      />
+                      <img
+                        v-if="entry.pokemon?.spriteUrl"
+                        :src="entry.pokemon.spriteUrl"
+                        :alt="
+                          entry.pokemon
+                            ? formatPokemonName(entry.pokemon.name)
+                            : `#${entry.pokemonId}`
+                        "
+                        class="mini-sprite"
+                      />
+                      <div class="checkbox-copy">
+                        <strong>{{
+                          entry.pokemon
+                            ? formatPokemonName(entry.pokemon.name)
+                            : `#${entry.pokemonId}`
+                        }}</strong>
+                        <span>{{ entry.points }} pts</span>
+                      </div>
+                    </label>
+                  </section>
+
+                  <section>
+                    <div class="trade-team-header">
+                      <h3>{{ getPlayerName(targetPlayerId) }}’s team</h3>
+                      <span>Select what you’re requesting</span>
+                    </div>
+                    <label
+                      v-for="entry in targetTeam"
+                      :key="`request-${entry.pokemonId}`"
+                      class="checkbox-row"
+                    >
+                      <input
+                        v-model="requestingPokemonIds"
+                        type="checkbox"
+                        :value="entry.pokemonId"
+                      />
+                      <img
+                        v-if="entry.pokemon?.spriteUrl"
+                        :src="entry.pokemon.spriteUrl"
+                        :alt="
+                          entry.pokemon
+                            ? formatPokemonName(entry.pokemon.name)
+                            : `#${entry.pokemonId}`
+                        "
+                        class="mini-sprite"
+                      />
+                      <div class="checkbox-copy">
+                        <strong>{{
+                          entry.pokemon
+                            ? formatPokemonName(entry.pokemon.name)
+                            : `#${entry.pokemonId}`
+                        }}</strong>
+                        <span>{{ entry.points }} pts</span>
+                      </div>
+                    </label>
+                  </section>
+                </div>
+              </article>
+
+              <article v-if="targetPlayerId" class="panel-card">
+                <div class="section-header">
+                  <div>
+                    <p class="eyebrow">Step 4</p>
+                    <h2>Preview and submit</h2>
+                  </div>
+                </div>
+
+                <div class="preview-grid">
+                  <div class="preview-card">
+                    <h3>You offer</h3>
+                    <ul>
+                      <li v-for="entry in selectedOffer" :key="`preview-offer-${entry.pokemonId}`">
+                        {{
+                          entry.pokemon
+                            ? formatPokemonName(entry.pokemon.name)
+                            : `#${entry.pokemonId}`
+                        }}
+                        <span>{{ entry.points }} pts</span>
+                      </li>
+                    </ul>
+                    <p v-if="!selectedOffer.length" class="empty-text">Nothing selected yet.</p>
+                  </div>
+                  <div class="preview-card">
+                    <h3>You request</h3>
+                    <ul>
+                      <li
+                        v-for="entry in selectedRequest"
+                        :key="`preview-request-${entry.pokemonId}`"
+                      >
+                        {{
+                          entry.pokemon
+                            ? formatPokemonName(entry.pokemon.name)
+                            : `#${entry.pokemonId}`
+                        }}
+                        <span>{{ entry.points }} pts</span>
+                      </li>
+                    </ul>
+                    <p v-if="!selectedRequest.length" class="empty-text">Nothing selected yet.</p>
+                  </div>
+                </div>
+
+                <button class="btn btn-primary" :disabled="isSubmitting" @click="submitTrade">
+                  Submit Trade
                 </button>
               </article>
-            </div>
-            <p v-else class="empty-text">Your roster is currently empty.</p>
-          </aside>
-
-          <!-- Right: available Pokémon grid -->
-          <div class="available-panel panel-card">
-            <div class="available-header">
-              <div class="sidebar-heading">
-                <AppIcon :path="mdiMagnify" :size="16" />
-                <h2>Free Agents</h2>
-              </div>
-              <span class="section-meta">{{ availablePokemon.length }} available</span>
-            </div>
-
-            <div class="available-filters">
-              <input
-                v-model="addSearch"
-                type="text"
-                class="filter-input"
-                placeholder="Search by name…"
-              />
-              <select v-model="selectedType" class="filter-select">
-                <option value="">All Types</option>
-                <option v-for="type in pokemonStore.allTypes" :key="type" :value="type">
-                  {{ type.charAt(0).toUpperCase() + type.slice(1) }}
-                </option>
-              </select>
-            </div>
-
-            <div v-if="availablePokemon.length === 0" class="empty-text" style="padding: 1rem 0">
-              No available Pokémon match your filters.
-            </div>
-            <div v-else class="available-grid">
-              <PokemonCard
-                v-for="pokemon in availablePokemon"
-                :key="pokemon.id"
-                :pokemon="pokemon"
-                :point-value="getPointValue(pokemon.id)"
-                mode="draft"
-                @click="openDetail(pokemon)"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section v-else class="trade-layout">
-          <article v-if="submittedTrade" class="panel-card success-card">
-            <div class="section-header">
-              <div>
-                <p class="eyebrow">Trade sent</p>
-                <h2>Proposal delivered</h2>
-              </div>
-              <span class="status-pill pending">Trade #{{ submittedTrade.id }}</span>
-            </div>
-            <p class="subtitle">Your proposal was sent to {{ getPlayerName(submittedTrade.targetPlayerId) }}.</p>
-            <button class="btn btn-primary" @click="router.push('/team')">Back to My Team</button>
-          </article>
-
-          <template v-else>
-            <article class="panel-card">
-              <div class="section-header">
-                <div>
-                  <p class="eyebrow">Step 1</p>
-                  <h2>Select target player</h2>
-                </div>
-              </div>
-
-              <select v-model="targetPlayerId" class="select-input">
-                <option value="">Choose a manager…</option>
-                <option v-for="player in otherPlayers" :key="player.id" :value="player.id">
-                  {{ player.name }}
-                </option>
-              </select>
-            </article>
-
-            <article v-if="targetPlayerId" class="panel-card">
-              <div class="section-header">
-                <div>
-                  <p class="eyebrow">Steps 2 & 3</p>
-                  <h2>Build the trade</h2>
-                </div>
-              </div>
-
-              <div class="trade-team-grid">
-                <section>
-                  <div class="trade-team-header">
-                    <h3>Your team</h3>
-                    <span>Select what you’re offering</span>
-                  </div>
-                  <label v-for="entry in myTeam" :key="`offer-${entry.pokemonId}`" class="checkbox-row">
-                    <input v-model="offeringPokemonIds" type="checkbox" :value="entry.pokemonId" />
-                    <img
-                      v-if="entry.pokemon?.spriteUrl"
-                      :src="entry.pokemon.spriteUrl"
-                      :alt="entry.pokemon ? formatPokemonName(entry.pokemon.name) : `#${entry.pokemonId}`"
-                      class="mini-sprite"
-                    />
-                    <div class="checkbox-copy">
-                      <strong>{{ entry.pokemon ? formatPokemonName(entry.pokemon.name) : `#${entry.pokemonId}` }}</strong>
-                      <span>{{ entry.points }} pts</span>
-                    </div>
-                  </label>
-                </section>
-
-                <section>
-                  <div class="trade-team-header">
-                    <h3>{{ getPlayerName(targetPlayerId) }}’s team</h3>
-                    <span>Select what you’re requesting</span>
-                  </div>
-                  <label v-for="entry in targetTeam" :key="`request-${entry.pokemonId}`" class="checkbox-row">
-                    <input v-model="requestingPokemonIds" type="checkbox" :value="entry.pokemonId" />
-                    <img
-                      v-if="entry.pokemon?.spriteUrl"
-                      :src="entry.pokemon.spriteUrl"
-                      :alt="entry.pokemon ? formatPokemonName(entry.pokemon.name) : `#${entry.pokemonId}`"
-                      class="mini-sprite"
-                    />
-                    <div class="checkbox-copy">
-                      <strong>{{ entry.pokemon ? formatPokemonName(entry.pokemon.name) : `#${entry.pokemonId}` }}</strong>
-                      <span>{{ entry.points }} pts</span>
-                    </div>
-                  </label>
-                </section>
-              </div>
-            </article>
-
-            <article v-if="targetPlayerId" class="panel-card">
-              <div class="section-header">
-                <div>
-                  <p class="eyebrow">Step 4</p>
-                  <h2>Preview and submit</h2>
-                </div>
-              </div>
-
-              <div class="preview-grid">
-                <div class="preview-card">
-                  <h3>You offer</h3>
-                  <ul>
-                    <li v-for="entry in selectedOffer" :key="`preview-offer-${entry.pokemonId}`">
-                      {{ entry.pokemon ? formatPokemonName(entry.pokemon.name) : `#${entry.pokemonId}` }}
-                      <span>{{ entry.points }} pts</span>
-                    </li>
-                  </ul>
-                  <p v-if="!selectedOffer.length" class="empty-text">Nothing selected yet.</p>
-                </div>
-                <div class="preview-card">
-                  <h3>You request</h3>
-                  <ul>
-                    <li v-for="entry in selectedRequest" :key="`preview-request-${entry.pokemonId}`">
-                      {{ entry.pokemon ? formatPokemonName(entry.pokemon.name) : `#${entry.pokemonId}` }}
-                      <span>{{ entry.points }} pts</span>
-                    </li>
-                  </ul>
-                  <p v-if="!selectedRequest.length" class="empty-text">Nothing selected yet.</p>
-                </div>
-              </div>
-
-              <button class="btn btn-primary" :disabled="isSubmitting" @click="submitTrade">Submit Trade</button>
-            </article>
-          </template>
-        </section>
+            </template>
+          </section>
         </div>
       </template>
     </template>
@@ -585,7 +654,9 @@ onUnmounted(disconnect)
     v-if="detailPokemon && league"
     :pokemon="detailPokemon"
     :point-value="getPointValue(detailPokemon.id)"
-    :can-draft="myPointTotal + getPointValue(detailPokemon.id) <= league.pointLimit && !isSubmitting"
+    :can-draft="
+      myPointTotal + getPointValue(detailPokemon.id) <= league.pointLimit && !isSubmitting
+    "
     :is-picked="false"
     action-label="Add to Roster"
     @close="closeDetail"
@@ -669,9 +740,19 @@ onUnmounted(disconnect)
   margin: 1rem;
 }
 
-.state-card h1 { font-size: 1.4rem; margin-bottom: 0.4rem; }
-.state-card h2 { font-size: 1.1rem; margin-bottom: 0.4rem; }
-.loading-card  { display: flex; justify-content: center; padding: 3rem 1.5rem; }
+.state-card h1 {
+  font-size: 1.4rem;
+  margin-bottom: 0.4rem;
+}
+.state-card h2 {
+  font-size: 1.1rem;
+  margin-bottom: 0.4rem;
+}
+.loading-card {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+}
 
 .section-header,
 .hero-actions,
@@ -837,9 +918,14 @@ h3,
   font-size: 0.82rem;
 }
 
-.points-used { font-weight: 700; color: var(--text); }
+.points-used {
+  font-weight: 700;
+  color: var(--text);
+}
 .points-sep,
-.points-limit { color: var(--text-muted); }
+.points-limit {
+  color: var(--text-muted);
+}
 
 .points-track {
   flex: 1;

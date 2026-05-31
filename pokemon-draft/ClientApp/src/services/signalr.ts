@@ -28,7 +28,7 @@ export function useSignalR() {
           if (ctx.elapsedMilliseconds < 30_000) return 5_000
           if (ctx.elapsedMilliseconds < 60_000) return 10_000
           return 30_000
-        }
+        },
       })
       .withKeepAliveInterval(15_000)
       .withServerTimeout(60_000)

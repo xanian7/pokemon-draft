@@ -59,7 +59,12 @@ const upcomingPicks = computed(() => {
       playerId: player?.id,
       playerName: displayName,
       teamImageUrl: player?.teamImageUrl || null,
-      initials: displayName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase(),
+      initials: displayName
+        .split(' ')
+        .map((w: string) => w[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase(),
       isMe: player?.id === authStore.playerId,
       isCurrent: i === 0,
       pickNumber: pickNumber + 1,
@@ -93,28 +98,31 @@ function isExpanded(playerId: string) {
 }
 
 function getPlayerPicks(playerId: string) {
-  return draftStore.getPlayerPicks(playerId)
+  return draftStore
+    .getPlayerPicks(playerId)
     .map((p: any) => pokemonStore.getPokemonById(p.pokemonId))
     .filter(Boolean)
 }
 
 function getPlayerPoints(playerId: string): number {
-  return draftStore.getPlayerPicks(playerId)
+  return draftStore
+    .getPlayerPicks(playerId)
     .reduce((sum: number, p: any) => sum + pokemonStore.getPointValue(p.pokemonId), 0)
 }
 
-const myPicks = computed(() =>
-  authStore.playerId ? getPlayerPicks(authStore.playerId) : [],
-)
+const myPicks = computed(() => (authStore.playerId ? getPlayerPicks(authStore.playerId) : []))
 
 // ── Completion modal ──────────────────────────────────────────────────────────
 const completionModalDismissed = ref(false)
 const showCompletionModal = computed(
   () => draftStore.isDraftComplete && !completionModalDismissed.value,
 )
-watch(() => draftStore.isDraftComplete, (complete) => {
-  if (!complete) completionModalDismissed.value = false
-})
+watch(
+  () => draftStore.isDraftComplete,
+  (complete) => {
+    if (!complete) completionModalDismissed.value = false
+  },
+)
 
 const statusLabel = computed(() => {
   if (draftStore.status === 'active') return 'Live'
@@ -127,11 +135,9 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
 </script>
 
 <template>
-  <main class="draft-page">
-
+  <v-form class="draft-page">
     <!-- ── Draft bar ── -->
     <div class="draft-bar">
-
       <!-- Status -->
       <div class="draft-bar__status">
         <span class="status-dot" :class="`status-dot--${draftStore.status}`" />
@@ -176,14 +182,13 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
       <span v-else class="bar-message">
         {{ draftStore.status === 'complete' ? 'Draft is complete.' : 'Draft has not started yet.' }}
       </span>
-
     </div>
 
     <div class="draft-body">
       <DraftRoster />
       <PokemonGrid />
     </div>
-  </main>
+  </v-form>
 </template>
 
 <style scoped>
@@ -219,8 +224,13 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
   scrollbar-color: var(--border-color) transparent;
 }
 
-.draft-bar::-webkit-scrollbar { height: 3px; }
-.draft-bar::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 2px; }
+.draft-bar::-webkit-scrollbar {
+  height: 3px;
+}
+.draft-bar::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 2px;
+}
 
 /* ── Status ─────────────────────────────────────────────────────────────── */
 .draft-bar__status {
@@ -244,12 +254,21 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
   box-shadow: 0 0 6px #22c55e88;
   animation: pulse-dot 2s ease-in-out infinite;
 }
-.status-dot--complete { background: var(--primary); }
-.status-dot--setup    { background: var(--text-muted); }
+.status-dot--complete {
+  background: var(--primary);
+}
+.status-dot--setup {
+  background: var(--text-muted);
+}
 
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.4; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 .status-label {
@@ -306,7 +325,9 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
   padding: 4px 0;
 }
 
-.draft-bar__timeline::-webkit-scrollbar { display: none; }
+.draft-bar__timeline::-webkit-scrollbar {
+  display: none;
+}
 
 /* ── Round separator ─────────────────────────────────────────────────────── */
 .round-separator {
@@ -346,7 +367,10 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
   border: 1px solid var(--border-color);
   background: var(--input-bg);
   flex-shrink: 0;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    box-shadow 0.15s;
   cursor: default;
 }
 
@@ -398,7 +422,9 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
   text-overflow: ellipsis;
 }
 
-.pick-chip--current .pick-chip__name { color: var(--primary); }
+.pick-chip--current .pick-chip__name {
+  color: var(--primary);
+}
 
 .pick-chip__num {
   font-size: 0.62rem;

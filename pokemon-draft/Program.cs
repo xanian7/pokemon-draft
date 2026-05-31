@@ -11,7 +11,7 @@ using PokemonDraft.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnectionDocker")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
 builder.Services.AddDbContext<DraftDbContext>(opts => opts.UseSqlServer(connectionString));
@@ -64,28 +64,61 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Apply any pending EF Core migrations on startup.
-using (var scope = app.Services.CreateScope())
+// Apply any pending EF Core migrations on startup (non-blocking background task).
+_ = Task.Run(async () =>
 {
+    await Task.Delay(500); // brief pause to let the app start first
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<DraftDbContext>();
-    db.Database.Migrate();
-}
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        await db.Database.MigrateAsync();
+        logger.LogInformation("Database migrations applied successfully.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Failed to apply database migrations.");
+    }
+});
 
 if (app.Environment.IsDevelopment())
 {
     var clientAppDir = Path.Combine(app.Environment.ContentRootPath, "ClientApp");
+    var isWindows = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows);
     var vite = new System.Diagnostics.Process
     {
         StartInfo = new System.Diagnostics.ProcessStartInfo
         {
-            FileName = "cmd.exe",
-            Arguments = "/c npm run dev",
+            FileName = isWindows ? "cmd.exe" : "npm",
+            Arguments = isWindows ? "/c npm run dev" : "run dev",
             WorkingDirectory = clientAppDir,
-            UseShellExecute = true,
+            UseShellExecute = false,
         }
     };
     vite.Start();
-    app.Lifetime.ApplicationStopping.Register(() => { try { vite.Kill(true); } catch { } });
+    app.Lifetime.ApplicationStopping.Register(() =>
+    {
+        try
+        {
+            if (isWindows)
+            {
+                vite.Kill(true);
+            }
+            else
+            {
+                // Kill the entire process group on macOS/Linux so child node processes are also killed
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "kill",
+                    Arguments = $"-TERM -{vite.Id}",
+                    UseShellExecute = false,
+                })?.WaitForExit(3000);
+                if (!vite.HasExited) vite.Kill(true);
+            }
+        }
+        catch { }
+    });
 }
 else
 {

@@ -58,8 +58,12 @@ if (initialCode.length >= 4) {
   lookupPending.value = true
   fetch(`${API_BASE}/leagues/${initialCode}`)
     .then((r) => (r.ok ? r.json() : null))
-    .then((d) => { if (d) leagueName.value = d.name ?? '' })
-    .finally(() => { lookupPending.value = false })
+    .then((d) => {
+      if (d) leagueName.value = d.name ?? ''
+    })
+    .finally(() => {
+      lookupPending.value = false
+    })
 }
 
 function selectRecent(code: string) {
@@ -121,7 +125,9 @@ function onGoogleError() {
           class="google-avatar"
           alt=""
         />
-        <span>Signed in as <strong>{{ authStore.googleUser?.name }}</strong></span>
+        <span
+          >Signed in as <strong>{{ authStore.googleUser?.name }}</strong></span
+        >
         <RouterLink to="/my-leagues" class="my-leagues-link">View My Leagues →</RouterLink>
       </div>
 
@@ -171,7 +177,9 @@ function onGoogleError() {
           </div>
           <!-- Live league name badge -->
           <div v-if="leagueName" class="league-badge">{{ leagueName }}</div>
-          <div v-else-if="lookupPending" class="league-badge league-badge--loading">Looking up…</div>
+          <div v-else-if="lookupPending" class="league-badge league-badge--loading">
+            Looking up…
+          </div>
         </div>
 
         <div class="field">
@@ -284,7 +292,9 @@ h1 {
   border-radius: 8px;
   padding: 0.35rem 0.65rem;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
   min-width: 80px;
 }
 
@@ -393,7 +403,10 @@ h1 {
   background: var(--border-color);
 }
 
-.divider::before { left: 0; }
-.divider::after { right: 0; }
+.divider::before {
+  left: 0;
+}
+.divider::after {
+  right: 0;
+}
 </style>
-

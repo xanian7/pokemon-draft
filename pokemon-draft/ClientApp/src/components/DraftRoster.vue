@@ -24,30 +24,33 @@ function closeDetail() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getPlayerPokemon(playerId: string): Pokemon[] {
-  return draftStore.getPlayerPicks(playerId)
+  return draftStore
+    .getPlayerPicks(playerId)
     .map((p: any) => pokemonStore.getPokemonById(p.pokemonId))
     .filter((p): p is Pokemon => Boolean(p))
 }
 
 function getPlayerPoints(playerId: string): number {
-  return draftStore.getPlayerPicks(playerId)
+  return draftStore
+    .getPlayerPicks(playerId)
     .reduce((sum: number, p: any) => sum + pokemonStore.getPointValue(p.pokemonId), 0)
 }
 
 function getInitials(name: string): string {
-  return name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
+  return name
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
 }
 
 // ── My team ───────────────────────────────────────────────────────────────────
-const myPlayer = computed(() =>
-  draftStore.players.find((p: any) => p.id === authStore.playerId) ?? null,
+const myPlayer = computed(
+  () => draftStore.players.find((p: any) => p.id === authStore.playerId) ?? null,
 )
-const myPokemon = computed(() =>
-  authStore.playerId ? getPlayerPokemon(authStore.playerId) : [],
-)
-const myPoints = computed(() =>
-  authStore.playerId ? getPlayerPoints(authStore.playerId) : 0,
-)
+const myPokemon = computed(() => (authStore.playerId ? getPlayerPokemon(authStore.playerId) : []))
+const myPoints = computed(() => (authStore.playerId ? getPlayerPoints(authStore.playerId) : 0))
 
 // ── Other teams ───────────────────────────────────────────────────────────────
 const otherPlayers = computed(() =>
@@ -66,7 +69,6 @@ function toggleTeam(playerId: string) {
 
 <template>
   <aside class="draft-roster">
-
     <!-- ── My Team ── -->
     <div class="roster-section roster-section--me">
       <div class="roster-header">
@@ -75,16 +77,15 @@ function toggleTeam(playerId: string) {
           <span v-else>{{ myPlayer ? getInitials(myPlayer.teamName || myPlayer.name) : '?' }}</span>
         </div>
         <div class="roster-header__info">
-          <span class="roster-name">My Team ({{ myPlayer?.teamName || myPlayer?.name || '' }})</span>
+          <span class="roster-name"
+            >My Team ({{ myPlayer?.teamName || myPlayer?.name || '' }})</span
+          >
           <span class="roster-points">{{ myPoints }} pts</span>
         </div>
       </div>
 
       <div class="roster-picks">
-        <div
-          v-if="myPokemon.length === 0"
-          class="roster-empty"
-        >No picks yet</div>
+        <div v-if="myPokemon.length === 0" class="roster-empty">No picks yet</div>
         <button
           v-for="pokemon in myPokemon"
           :key="pokemon.id"
@@ -102,11 +103,7 @@ function toggleTeam(playerId: string) {
 
     <!-- ── Other Teams ── -->
     <div class="roster-others">
-      <div
-        v-for="player in otherPlayers"
-        :key="player.id"
-        class="roster-team"
-      >
+      <div v-for="player in otherPlayers" :key="player.id" class="roster-team">
         <!-- Dropdown toggle -->
         <button class="roster-team-toggle" @click="toggleTeam(player.id)">
           <div class="roster-avatar roster-avatar--sm">
@@ -117,15 +114,16 @@ function toggleTeam(playerId: string) {
             <span class="roster-name">{{ player.teamName || player.name }}</span>
             <span class="roster-points">{{ getPlayerPoints(player.id) }} pts</span>
           </div>
-          <span class="toggle-chevron" :class="{ 'toggle-chevron--open': openTeams.has(player.id) }">▾</span>
+          <span class="toggle-chevron" :class="{ 'toggle-chevron--open': openTeams.has(player.id) }"
+            >▾</span
+          >
         </button>
 
         <!-- Picks list -->
         <div v-if="openTeams.has(player.id)" class="roster-picks">
-          <div
-            v-if="getPlayerPokemon(player.id).length === 0"
-            class="roster-empty"
-          >No picks yet</div>
+          <div v-if="getPlayerPokemon(player.id).length === 0" class="roster-empty">
+            No picks yet
+          </div>
           <button
             v-for="pokemon in getPlayerPokemon(player.id)"
             :key="pokemon.id"
@@ -139,7 +137,6 @@ function toggleTeam(playerId: string) {
         </div>
       </div>
     </div>
-
   </aside>
 
   <!-- Detail modal (view-only, no draft action) -->
@@ -169,8 +166,13 @@ function toggleTeam(playerId: string) {
   scrollbar-color: var(--border-color) transparent;
 }
 
-.draft-roster::-webkit-scrollbar { width: 4px; }
-.draft-roster::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 2px; }
+.draft-roster::-webkit-scrollbar {
+  width: 4px;
+}
+.draft-roster::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 2px;
+}
 
 /* ── Section ──────────────────────────────────────────────────────────────── */
 .roster-section--me {
@@ -263,7 +265,9 @@ function toggleTeam(playerId: string) {
   transition: background 0.12s;
 }
 
-.roster-team-toggle:hover { background: var(--input-bg); }
+.roster-team-toggle:hover {
+  background: var(--input-bg);
+}
 
 .toggle-chevron {
   margin-left: auto;
@@ -273,7 +277,9 @@ function toggleTeam(playerId: string) {
   flex-shrink: 0;
 }
 
-.toggle-chevron--open { transform: rotate(180deg); }
+.toggle-chevron--open {
+  transform: rotate(180deg);
+}
 
 /* ── Picks list ───────────────────────────────────────────────────────────── */
 .roster-picks {
@@ -292,10 +298,12 @@ function toggleTeam(playerId: string) {
   cursor: pointer;
   text-align: left;
   transition: background 0.1s;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
 
-.roster-row:hover { background: var(--input-bg); }
+.roster-row:hover {
+  background: var(--input-bg);
+}
 
 .roster-sprite {
   width: 40px;

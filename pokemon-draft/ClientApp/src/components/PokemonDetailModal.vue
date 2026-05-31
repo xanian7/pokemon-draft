@@ -6,18 +6,21 @@ import { formatPokemonName, TYPE_COLORS } from '@/utils/format'
 import type { Pokemon } from '@/types'
 import { mdiClose } from '@mdi/js'
 
-const props = withDefaults(defineProps<{
-  pokemon: Pokemon
-  pointValue?: number
-  canDraft: boolean
-  isPicked: boolean
-  /** Label for the primary action button. Defaults to 'Draft'. */
-  actionLabel?: string
-  /** Show the draft/picked action footer. Set false on non-draft screens. */
-  showDraftAction?: boolean
-}>(), {
-  showDraftAction: true,
-})
+const props = withDefaults(
+  defineProps<{
+    pokemon: Pokemon
+    pointValue?: number
+    canDraft: boolean
+    isPicked: boolean
+    /** Label for the primary action button. Defaults to 'Draft'. */
+    actionLabel?: string
+    /** Show the draft/picked action footer. Set false on non-draft screens. */
+    showDraftAction?: boolean
+  }>(),
+  {
+    showDraftAction: true,
+  },
+)
 
 const emit = defineEmits<{
   close: []
@@ -26,10 +29,26 @@ const emit = defineEmits<{
 
 // ── Backend DTO shapes ────────────────────────────────────────────────────────
 
-interface ApiStat { name: string; baseStat: number }
-interface ApiAbility { name: string; isHidden: boolean }
-interface ApiMove { name: string; type: string; power: number | null; pp: number | null; category: string }
-interface ApiPokemonDetail { stats: ApiStat[]; abilities: ApiAbility[]; moves: ApiMove[] }
+interface ApiStat {
+  name: string
+  baseStat: number
+}
+interface ApiAbility {
+  name: string
+  isHidden: boolean
+}
+interface ApiMove {
+  name: string
+  type: string
+  power: number | null
+  pp: number | null
+  category: string
+}
+interface ApiPokemonDetail {
+  stats: ApiStat[]
+  abilities: ApiAbility[]
+  moves: ApiMove[]
+}
 
 // ── Parsed detail ─────────────────────────────────────────────────────────────
 
@@ -100,8 +119,9 @@ async function fetchAbilityDescription(abilityName: string) {
     const res = await fetch(`https://pokeapi.co/api/v2/ability/${slug}`)
     if (!res.ok) return
     const json = await res.json()
-    const entry = (json.flavor_text_entries as { flavor_text: string; language: { name: string } }[])
-      .find((e) => e.language.name === 'en')
+    const entry = (
+      json.flavor_text_entries as { flavor_text: string; language: { name: string } }[]
+    ).find((e) => e.language.name === 'en')
     if (entry) {
       abilityDescriptions.value = new Map(abilityDescriptions.value).set(
         abilityName,
@@ -220,14 +240,17 @@ const activeTab = ref<'base' | string>('base')
 
 const activeMegaForm = computed(() =>
   activeTab.value !== 'base'
-    ? megaForms.value.find((f) => f.name === activeTab.value) ?? null
+    ? (megaForms.value.find((f) => f.name === activeTab.value) ?? null)
     : null,
 )
 
 function parseMegaLabel(name: string): string {
   const idx = name.indexOf('-mega')
   if (idx === -1) return name
-  return name.slice(idx + 1).replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  return name
+    .slice(idx + 1)
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 async function fetchMegaForms() {
@@ -443,7 +466,9 @@ function switchTab(tab: 'base' | string) {
             <div v-if="activeMegaForm.isLoading" class="loading-state">
               <PokeballLoader variant="page" label="Loading mega data…" />
             </div>
-            <div v-else-if="activeMegaForm.error" class="error-state">{{ activeMegaForm.error }}</div>
+            <div v-else-if="activeMegaForm.error" class="error-state">
+              {{ activeMegaForm.error }}
+            </div>
             <template v-else>
               <div class="mega-header">
                 <img
@@ -967,5 +992,4 @@ function switchTab(tab: 'base' | string) {
   image-rendering: pixelated;
   flex-shrink: 0;
 }
-
 </style>

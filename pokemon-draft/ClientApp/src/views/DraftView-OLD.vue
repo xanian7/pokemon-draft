@@ -11,7 +11,14 @@ import { useSignalR, API_BASE } from '@/services/signalr'
 import { useRegulationFilter } from '@/composables/useRegulationFilter'
 import type { Pokemon } from '@/types'
 import { formatPokemonName, TYPE_COLORS } from '@/utils/format'
-import { mdiTrophy, mdiCrosshairs, mdiAccountGroup, mdiChevronDown, mdiViewGrid, mdiViewColumn } from '@mdi/js'
+import {
+  mdiTrophy,
+  mdiCrosshairs,
+  mdiAccountGroup,
+  mdiChevronDown,
+  mdiViewGrid,
+  mdiViewColumn,
+} from '@mdi/js'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -60,7 +67,12 @@ const currentRound = computed(() => {
 // All remaining picks (snake draft order), grouped by round
 const upcomingPicks = computed(() => {
   if (!league.value || draftStatus.value !== 'Active') return []
-  const players = league.value.players as Array<{ id: string; name: string; teamName: string; teamImageUrl: string }>
+  const players = league.value.players as Array<{
+    id: string
+    name: string
+    teamName: string
+    teamImageUrl: string
+  }>
   const n = players.length
   if (n === 0) return []
   const totalPicks = n * league.value.rounds
@@ -167,7 +179,8 @@ const tierGroups = computed(() => {
     .map(([pts, pokemon]) => ({ pts, pokemon }))
 })
 
-async function makePick(pokemonId: number) {  if (!isMyTurn.value || draftStatus.value !== 'Active') return
+async function makePick(pokemonId: number) {
+  if (!isMyTurn.value || draftStatus.value !== 'Active') return
   pickError.value = ''
   const res = await fetch(`${API_BASE}/leagues/${authStore.leagueCode}/draft/pick`, {
     method: 'POST',
@@ -215,7 +228,7 @@ function closeDetail() {
         <AppIcon :path="mdiTrophy" :size="20" />
         Draft Complete!
       </div>
-      <template v-else >
+      <template v-else>
         <div class="round-header">
           <div class="header-stats">
             <div class="header-stats-row">
@@ -235,7 +248,6 @@ function closeDetail() {
             <div class="connection-badge" :class="isConnected ? 'live' : 'offline'">
               {{ isConnected ? '● Live' : '○ Disconnected' }}
             </div>
-
           </div>
           <div class="draft-queue">
             <template v-for="(group, gi) in picksByRound" :key="group.round">
@@ -250,7 +262,13 @@ function closeDetail() {
                     :class="{ 'queue-current': entry.isCurrent, 'queue-me': entry.isMe }"
                   >
                     <span class="queue-badge">
-                      {{ entry.isCurrent ? 'NOW' : entry.pickNumber === (league?.draft?.currentPickNumber ?? 0) + 2 ? 'NEXT' : '' }}
+                      {{
+                        entry.isCurrent
+                          ? 'NOW'
+                          : entry.pickNumber === (league?.draft?.currentPickNumber ?? 0) + 2
+                            ? 'NEXT'
+                            : ''
+                      }}
                     </span>
                     <span class="queue-name">
                       <template v-if="entry.isCurrent && entry.isMe">
@@ -297,10 +315,18 @@ function closeDetail() {
               Available only
             </label>
             <div class="view-toggle">
-              <button :class="{ active: viewMode === 'grid' }" title="Grid view" @click="viewMode = 'grid'">
+              <button
+                :class="{ active: viewMode === 'grid' }"
+                title="Grid view"
+                @click="viewMode = 'grid'"
+              >
                 <AppIcon :path="mdiViewGrid" :size="15" />
               </button>
-              <button :class="{ active: viewMode === 'tier' }" title="Tier view" @click="viewMode = 'tier'">
+              <button
+                :class="{ active: viewMode === 'tier' }"
+                title="Tier view"
+                @click="viewMode = 'tier'"
+              >
                 <AppIcon :path="mdiViewColumn" :size="15" />
               </button>
             </div>
@@ -318,7 +344,9 @@ function closeDetail() {
                   v-for="p in group.pokemon"
                   :key="p.id"
                   class="pick-wrapper"
-                  :class="{ 'can-pick': isMyTurn && draftStatus === 'Active' && !pickedIds.has(p.id) }"
+                  :class="{
+                    'can-pick': isMyTurn && draftStatus === 'Active' && !pickedIds.has(p.id),
+                  }"
                 >
                   <PokemonCard
                     :pokemon="p"
@@ -366,7 +394,10 @@ function closeDetail() {
           >
             <div class="team-header">
               <span class="team-name">
-                {{ (league.players.find((p: any) => p.id === authStore.playerId) as any)?.teamName || league.players.find((p: any) => p.id === authStore.playerId)?.name }}
+                {{
+                  (league.players.find((p: any) => p.id === authStore.playerId) as any)?.teamName ||
+                  league.players.find((p: any) => p.id === authStore.playerId)?.name
+                }}
               </span>
               <span class="team-points">
                 {{ getPlayerPoints(authStore.playerId) }}
@@ -379,12 +410,16 @@ function closeDetail() {
                 <PokemonCard
                   v-if="getPlayerPicks(authStore.playerId)[round - 1]"
                   :pokemon="getPlayerPicks(authStore.playerId)[round - 1]!"
-                  :point-value="pokemonStore.getPointValue(getPlayerPicks(authStore.playerId)[round - 1]!.id)"
+                  :point-value="
+                    pokemonStore.getPointValue(getPlayerPicks(authStore.playerId)[round - 1]!.id)
+                  "
                   mode="team"
                   class="clickable"
                   @click="openDetailById(getPlayerPicks(authStore.playerId)[round - 1]!.id)"
                 />
-                <div v-else class="empty-pick"><span>R{{ round }}</span></div>
+                <div v-else class="empty-pick">
+                  <span>R{{ round }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -398,10 +433,7 @@ function closeDetail() {
           class="team-card"
           :class="{ 'active-picker': player.id === league.draft.currentPickerId }"
         >
-          <button
-            class="team-header team-toggle"
-            @click="toggleExpanded(player.id)"
-          >
+          <button class="team-header team-toggle" @click="toggleExpanded(player.id)">
             <div class="team-avatar-sm">
               <img
                 v-if="(player as any).teamImageUrl"
@@ -410,7 +442,14 @@ function closeDetail() {
                 class="team-avatar-img"
               />
               <div v-else class="team-avatar-initials">
-                {{ ((player as any).teamName || player.name).split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) }}
+                {{
+                  ((player as any).teamName || player.name)
+                    .split(' ')
+                    .map((w: string) => w[0])
+                    .join('')
+                    .toUpperCase()
+                    .slice(0, 2)
+                }}
               </div>
             </div>
             <span class="team-name">{{ (player as any).teamName || player.name }}</span>
@@ -436,7 +475,9 @@ function closeDetail() {
                 class="clickable"
                 @click="openDetailById(getPlayerPicks(player.id)[round - 1]!.id)"
               />
-              <div v-else class="empty-pick"><span>R{{ round }}</span></div>
+              <div v-else class="empty-pick">
+                <span>R{{ round }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -488,7 +529,12 @@ function closeDetail() {
     :can-draft="isMyTurn && draftStatus === 'Active'"
     :is-picked="pickedIds.has(detailPokemon.id)"
     @close="closeDetail"
-    @draft="(id) => { makePick(id); closeDetail() }"
+    @draft="
+      (id) => {
+        makePick(id)
+        closeDetail()
+      }
+    "
   />
 </template>
 
@@ -828,15 +874,23 @@ select {
   color: var(--text-muted);
   padding: 0.28rem 0.45rem;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 
 .view-toggle button:first-child {
   border-right: 1px solid var(--border-color);
 }
 
-.view-toggle button:hover { background: var(--input-bg); color: var(--text); }
-.view-toggle button.active { background: var(--input-bg); color: var(--text); }
+.view-toggle button:hover {
+  background: var(--input-bg);
+  color: var(--text);
+}
+.view-toggle button.active {
+  background: var(--input-bg);
+  color: var(--text);
+}
 
 /* ── Tier view ───────────────────────────────────────────────────────────── */
 .tier-view {
@@ -1040,8 +1094,12 @@ select {
   min-height: 52px;
 }
 
-.pick-slot :deep(.clickable) { cursor: pointer; }
-.pick-slot :deep(.clickable:hover) { opacity: 0.85; }
+.pick-slot :deep(.clickable) {
+  cursor: pointer;
+}
+.pick-slot :deep(.clickable:hover) {
+  opacity: 0.85;
+}
 .empty-pick {
   border: 1px dashed var(--border-color);
   border-radius: 6px;
@@ -1157,5 +1215,4 @@ select {
     display: none;
   }
 }
-
 </style>

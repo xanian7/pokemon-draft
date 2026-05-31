@@ -13,7 +13,7 @@ const authStore = useAuthStore()
 
 const isGoogleUser = computed(() => authStore.isSignedInWithGoogle)
 
-const leagueCode = ref((route.query.code as string ?? '').toUpperCase())
+const leagueCode = ref(((route.query.code as string) ?? '').toUpperCase())
 const leagueName = ref('')
 const name = ref(authStore.googleUser?.name ?? '')
 const pin = ref('')
@@ -37,11 +37,20 @@ onMounted(async () => {
 
 async function register() {
   error.value = ''
-  if (!name.value.trim()) { error.value = 'Please enter your name.'; return }
+  if (!name.value.trim()) {
+    error.value = 'Please enter your name.'
+    return
+  }
 
   if (!isGoogleUser.value) {
-    if (pin.value.length < 3) { error.value = 'PIN must be at least 3 characters.'; return }
-    if (pin.value !== confirmPin.value) { error.value = 'PINs do not match.'; return }
+    if (pin.value.length < 3) {
+      error.value = 'PIN must be at least 3 characters.'
+      return
+    }
+    if (pin.value !== confirmPin.value) {
+      error.value = 'PINs do not match.'
+      return
+    }
   }
 
   isLoading.value = true
@@ -65,16 +74,25 @@ async function register() {
     })
 
     const text = await res.text()
-    if (!res.ok) { error.value = text || 'Could not register.'; return }
+    if (!res.ok) {
+      error.value = text || 'Could not register.'
+      return
+    }
 
     if (isGoogleUser.value) {
       // Google user: enter league via session token (no PIN)
       const enterErr = await authStore.enterLeague(leagueCode.value)
-      if (enterErr) { error.value = enterErr; return }
+      if (enterErr) {
+        error.value = enterErr
+        return
+      }
     } else {
       // PIN user: auto-login with PIN
       const joinErr = await authStore.join(leagueCode.value, pin.value)
-      if (joinErr) { error.value = joinErr; return }
+      if (joinErr) {
+        error.value = joinErr
+        return
+      }
     }
 
     router.push('/')
@@ -104,7 +122,9 @@ async function register() {
           class="google-avatar"
           alt=""
         />
-        <span>Registering as <strong>{{ authStore.googleUser?.name }}</strong> via Google</span>
+        <span
+          >Registering as <strong>{{ authStore.googleUser?.name }}</strong> via Google</span
+        >
       </div>
 
       <template v-if="step === 'form'">
@@ -117,7 +137,7 @@ async function register() {
               type="text"
               placeholder="ABC123"
               maxlength="6"
-              style="text-transform:uppercase"
+              style="text-transform: uppercase"
             />
           </div>
           <div class="field">
@@ -155,7 +175,7 @@ async function register() {
           <div v-if="error" class="error-msg">{{ error }}</div>
 
           <button type="submit" class="btn btn-primary btn-full btn-lg" :disabled="isLoading">
-          <PokeballLoader v-if="isLoading" variant="inline" :size="16" />
+            <PokeballLoader v-if="isLoading" variant="inline" :size="16" />
             {{ isLoading ? 'Joining…' : 'Join League' }}
           </button>
         </form>
@@ -170,9 +190,18 @@ async function register() {
 </template>
 
 <style scoped>
-.logo { display: flex; justify-content: center; margin-bottom: 0.4rem; color: var(--primary); }
+.logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.4rem;
+  color: var(--primary);
+}
 
-h1 { font-size: 1.5rem; font-weight: 800; margin-bottom: 0.75rem; }
+h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-bottom: 0.75rem;
+}
 
 .league-badge {
   display: inline-block;
@@ -224,8 +253,18 @@ h1 { font-size: 1.5rem; font-weight: 800; margin-bottom: 0.75rem; }
   text-align: left;
 }
 
-.hint { font-size: 0.74rem; color: var(--text-muted); }
-.optional { color: var(--text-muted); font-size: 0.78rem; font-weight: 400; }
+.hint {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+.optional {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
 
-.login-link a { color: var(--primary); text-decoration: none; }
+.login-link a {
+  color: var(--primary);
+  text-decoration: none;
+}
 </style>

@@ -67,9 +67,7 @@ const setupSteps = computed(() => [
   {
     label: 'Add players',
     done: hasPlayers.value,
-    detail: hasPlayers.value
-      ? `${league.value.players.length} players`
-      : 'Minimum 2 required',
+    detail: hasPlayers.value ? `${league.value.players.length} players` : 'Minimum 2 required',
     action: () => router.push('/league/setup'),
   },
   {
@@ -83,11 +81,12 @@ const setupSteps = computed(() => [
   {
     label: 'Start the draft',
     done: draftStatus.value !== 'setup',
-    detail: draftStatus.value === 'active'
-      ? 'In progress'
-      : draftStatus.value === 'complete'
-        ? 'Draft complete'
-        : 'Ready when you are',
+    detail:
+      draftStatus.value === 'active'
+        ? 'In progress'
+        : draftStatus.value === 'complete'
+          ? 'Draft complete'
+          : 'Ready when you are',
     action: () => router.push('/draft'),
   },
 ])
@@ -153,16 +152,20 @@ async function fetchPostDraftData() {
     ])
     if (schedRes.ok) schedule.value = await schedRes.json()
     if (outlookRes.ok) playoffOutlook.value = await outlookRes.json()
-  } catch { /* silent */ }
+  } catch {
+    /* silent */
+  }
 }
 
-const myStanding = computed(() =>
-  schedule.value?.standings?.find((s: any) => s.playerId === authStore.playerId) ?? null
+const myStanding = computed(
+  () => schedule.value?.standings?.find((s: any) => s.playerId === authStore.playerId) ?? null,
 )
 
 const myRank = computed(() => {
   if (!schedule.value?.standings) return 0
-  return (schedule.value.standings as any[]).findIndex((s: any) => s.playerId === authStore.playerId) + 1
+  return (
+    (schedule.value.standings as any[]).findIndex((s: any) => s.playerId === authStore.playerId) + 1
+  )
 })
 
 const myNextMatchup = computed(() => {
@@ -175,10 +178,12 @@ const myNextMatchup = computed(() => {
       ) {
         return {
           week: week.week,
-          opponentName: m.player1Id === authStore.playerId
-            ? (m.player2TeamName || m.player2Name)
-            : (m.player1TeamName || m.player1Name),
-          opponentImg: m.player1Id === authStore.playerId ? m.player2TeamImageUrl : m.player1TeamImageUrl,
+          opponentName:
+            m.player1Id === authStore.playerId
+              ? m.player2TeamName || m.player2Name
+              : m.player1TeamName || m.player1Name,
+          opponentImg:
+            m.player1Id === authStore.playerId ? m.player2TeamImageUrl : m.player1TeamImageUrl,
         }
       }
     }
@@ -196,7 +201,9 @@ const topStandings = computed(() => {
 })
 
 const playoffSpots = computed(() => league.value?.playoffSpots ?? 4)
-const outlookPreview = computed(() => playoffOutlook.value.slice(0, Math.min(6, playoffOutlook.value.length)))
+const outlookPreview = computed(() =>
+  playoffOutlook.value.slice(0, Math.min(6, playoffOutlook.value.length)),
+)
 
 const outlookStatusColor = (status: string) => {
   if (status === 'Clinched') return '#10b981'
@@ -217,7 +224,10 @@ const outlookStatusLabel = (status: string) => {
     <div class="landing-inner">
       <div class="landing-icon"><AppIcon :path="mdiPokeball" :size="64" /></div>
       <h1>PokéDraft</h1>
-      <p class="landing-sub">Run a snake draft for your Pokémon league — assign point values, pick your team, and track everyone's roster in real time.</p>
+      <p class="landing-sub">
+        Run a snake draft for your Pokémon league — assign point values, pick your team, and track
+        everyone's roster in real time.
+      </p>
 
       <div class="landing-actions">
         <button class="btn btn-primary btn-lg" @click="router.push('/join')">
@@ -255,7 +265,9 @@ const outlookStatusLabel = (status: string) => {
     <div class="dash-header">
       <div>
         <h1>{{ league?.name }}</h1>
-        <p class="dash-sub">Commissioner dashboard · Welcome back, <strong>{{ authStore.playerName }}</strong></p>
+        <p class="dash-sub">
+          Commissioner dashboard · Welcome back, <strong>{{ authStore.playerName }}</strong>
+        </p>
       </div>
       <button class="btn btn-primary" @click="router.push('/draft')">
         <AppIcon :path="mdiTrophy" :size="18" />
@@ -300,7 +312,9 @@ const outlookStatusLabel = (status: string) => {
       <div class="draft-status-card">
         <div class="draft-status-row">
           <span class="status-dot" :style="{ background: draftStatusColor }" />
-          <span class="status-label" :style="{ color: draftStatusColor }">{{ draftStatusLabel }}</span>
+          <span class="status-label" :style="{ color: draftStatusColor }">{{
+            draftStatusLabel
+          }}</span>
         </div>
         <div class="progress-bar-wrap">
           <div class="progress-bar-fill" :style="{ width: draftProgress + '%' }" />
@@ -354,7 +368,9 @@ const outlookStatusLabel = (status: string) => {
     <div class="dash-header">
       <div>
         <h1>{{ league?.name }}</h1>
-        <p class="dash-sub">Welcome back, <strong>{{ authStore.playerName }}</strong></p>
+        <p class="dash-sub">
+          Welcome back, <strong>{{ authStore.playerName }}</strong>
+        </p>
       </div>
       <button
         v-if="draftStatus === 'active'"
@@ -362,13 +378,12 @@ const outlookStatusLabel = (status: string) => {
         @click="router.push('/draft')"
       >
         <AppIcon :path="mdiTrophy" :size="18" />
-        {{ isMyTurn ? "Your Turn!" : "Draft Board" }}
+        {{ isMyTurn ? 'Your Turn!' : 'Draft Board' }}
       </button>
     </div>
 
     <!-- ── Post-draft hub ──────────────────────────────────────────────── -->
     <template v-if="draftStatus === 'complete'">
-
       <!-- Row 1: My Record + Next Matchup -->
       <div class="hub-row">
         <!-- My Record -->
@@ -391,8 +406,15 @@ const outlookStatusLabel = (status: string) => {
           </div>
           <div v-if="myNextMatchup" class="matchup-body">
             <div class="matchup-vs">
-              <img v-if="myNextMatchup.opponentImg" :src="myNextMatchup.opponentImg" class="opp-img" :alt="myNextMatchup.opponentName" />
-              <div v-else class="opp-initials">{{ myNextMatchup.opponentName.slice(0, 2).toUpperCase() }}</div>
+              <img
+                v-if="myNextMatchup.opponentImg"
+                :src="myNextMatchup.opponentImg"
+                class="opp-img"
+                :alt="myNextMatchup.opponentName"
+              />
+              <div v-else class="opp-initials">
+                {{ myNextMatchup.opponentName.slice(0, 2).toUpperCase() }}
+              </div>
               <span class="matchup-opp">vs. {{ myNextMatchup.opponentName }}</span>
             </div>
             <button class="btn btn-ghost btn-sm" @click="router.push('/schedule')">
@@ -407,7 +429,9 @@ const outlookStatusLabel = (status: string) => {
       <div class="hub-card hub-standings" v-if="topStandings.length">
         <div class="hub-card-header">
           <div class="hub-card-label">Standings</div>
-          <button class="btn btn-ghost btn-xs" @click="router.push('/schedule')">Full table →</button>
+          <button class="btn btn-ghost btn-xs" @click="router.push('/schedule')">
+            Full table →
+          </button>
         </div>
         <table class="mini-table">
           <thead>
@@ -442,11 +466,17 @@ const outlookStatusLabel = (status: string) => {
       <div class="hub-card hub-outlook" v-if="outlookPreview.length">
         <div class="hub-card-header">
           <div class="hub-card-label">Playoff Outlook</div>
-          <button class="btn btn-ghost btn-xs" @click="router.push('/playoffs')">Full view →</button>
+          <button class="btn btn-ghost btn-xs" @click="router.push('/playoffs')">
+            Full view →
+          </button>
         </div>
         <div class="outlook-strip">
           <template v-for="(e, i) in outlookPreview" :key="e.playerId">
-            <div v-if="i === playoffSpots && outlookPreview.length > playoffSpots" class="cutline-dot" title="Playoff Cutline" />
+            <div
+              v-if="i === playoffSpots && outlookPreview.length > playoffSpots"
+              class="cutline-dot"
+              title="Playoff Cutline"
+            />
             <div
               class="outlook-chip"
               :class="{ 'my-chip': e.playerId === authStore.playerId }"
@@ -458,7 +488,8 @@ const outlookStatusLabel = (status: string) => {
                 class="chip-status"
                 :style="{ color: outlookStatusColor(e.status) }"
                 :title="e.status"
-              >{{ outlookStatusLabel(e.status) }}</span>
+                >{{ outlookStatusLabel(e.status) }}</span
+              >
             </div>
           </template>
         </div>
@@ -495,11 +526,13 @@ const outlookStatusLabel = (status: string) => {
       <section class="section" v-if="myPicks.length">
         <div class="section-row">
           <h2 class="section-heading">My Team</h2>
-          <div style="display:flex;align-items:center;gap:0.5rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem">
             <span class="points-badge" :class="{ over: myPoints > pointLimit }">
               {{ myPoints }} / {{ pointLimit }} pts
             </span>
-            <button class="btn btn-ghost btn-xs" @click="router.push('/team')">Full roster →</button>
+            <button class="btn btn-ghost btn-xs" @click="router.push('/team')">
+              Full roster →
+            </button>
           </div>
         </div>
         <div class="team-grid compact">
@@ -523,7 +556,9 @@ const outlookStatusLabel = (status: string) => {
         <div class="draft-status-card" :class="{ 'my-turn': isMyTurn }">
           <div class="draft-status-row">
             <span class="status-dot" :style="{ background: draftStatusColor }" />
-            <span class="status-label" :style="{ color: draftStatusColor }">{{ draftStatusLabel }}</span>
+            <span class="status-label" :style="{ color: draftStatusColor }">{{
+              draftStatusLabel
+            }}</span>
           </div>
           <template v-if="draftStatus !== 'setup'">
             <div class="progress-bar-wrap">
@@ -546,7 +581,11 @@ const outlookStatusLabel = (status: string) => {
 
         <div v-if="myPicks.length === 0" class="empty-team">
           <span>No Pokémon drafted yet.</span>
-          <button v-if="draftStatus === 'active'" class="btn btn-primary btn-sm" @click="router.push('/draft')">
+          <button
+            v-if="draftStatus === 'active'"
+            class="btn btn-primary btn-sm"
+            @click="router.push('/draft')"
+          >
             Go to Draft
           </button>
         </div>
@@ -568,7 +607,11 @@ const outlookStatusLabel = (status: string) => {
           <span>{{ myPicks.length }} Pokémon</span>
           <span class="separator">·</span>
           <span :class="pointsRemaining < 0 ? 'over-limit' : ''">
-            {{ pointsRemaining >= 0 ? pointsRemaining + ' pts remaining' : Math.abs(pointsRemaining) + ' pts over limit' }}
+            {{
+              pointsRemaining >= 0
+                ? pointsRemaining + ' pts remaining'
+                : Math.abs(pointsRemaining) + ' pts over limit'
+            }}
           </span>
         </div>
       </section>
@@ -593,7 +636,11 @@ const outlookStatusLabel = (status: string) => {
   align-items: center;
 }
 
-.landing-icon { font-size: 4rem; margin-bottom: 0.5rem; color: var(--primary); }
+.landing-icon {
+  font-size: 4rem;
+  margin-bottom: 0.5rem;
+  color: var(--primary);
+}
 
 h1 {
   font-size: 2.4rem;
@@ -635,7 +682,9 @@ h1 {
   gap: 0.4rem;
 }
 
-.feature-icon { color: var(--primary); }
+.feature-icon {
+  color: var(--primary);
+}
 
 .feature-card strong {
   font-size: 0.95rem;
@@ -669,7 +718,9 @@ h1 {
   font-size: 0.9rem;
 }
 
-.dash-sub strong { color: var(--text); }
+.dash-sub strong {
+  color: var(--text);
+}
 
 .section {
   margin-bottom: 1.75rem;
@@ -691,7 +742,9 @@ h1 {
   margin-bottom: 0.75rem;
 }
 
-.section-row .section-heading { margin-bottom: 0; }
+.section-row .section-heading {
+  margin-bottom: 0;
+}
 
 /* ── Checklist ───────────────────────────────────────────────────────────── */
 .checklist {
@@ -709,16 +762,33 @@ h1 {
   border-radius: 10px;
   padding: 0.85rem 1rem;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 
-.checklist-item:hover { border-color: var(--primary); background: var(--input-bg); }
-.checklist-item.done { opacity: 0.6; cursor: default; }
-.checklist-item.done:hover { border-color: var(--border-color); background: var(--card-bg); }
+.checklist-item:hover {
+  border-color: var(--primary);
+  background: var(--input-bg);
+}
+.checklist-item.done {
+  opacity: 0.6;
+  cursor: default;
+}
+.checklist-item.done:hover {
+  border-color: var(--border-color);
+  background: var(--card-bg);
+}
 
-.check-icon { flex-shrink: 0; }
-.checklist-item.done .check-icon { color: #10b981; }
-.checklist-item:not(.done) .check-icon { color: var(--text-muted); }
+.check-icon {
+  flex-shrink: 0;
+}
+.checklist-item.done .check-icon {
+  color: #10b981;
+}
+.checklist-item:not(.done) .check-icon {
+  color: var(--text-muted);
+}
 
 .check-text {
   display: flex;
@@ -727,9 +797,18 @@ h1 {
   flex: 1;
 }
 
-.check-label { font-weight: 600; font-size: 0.95rem; }
-.check-detail { font-size: 0.78rem; color: var(--text-muted); }
-.check-action { color: var(--text-muted); font-size: 1rem; }
+.check-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.check-detail {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.check-action {
+  color: var(--text-muted);
+  font-size: 1rem;
+}
 
 .ready-banner {
   display: flex;
@@ -895,7 +974,9 @@ h1 {
   transition: border-color 0.15s;
 }
 
-.team-pokemon:hover { border-color: var(--primary); }
+.team-pokemon:hover {
+  border-color: var(--primary);
+}
 
 .team-pokemon img {
   width: 64px;
@@ -930,8 +1011,13 @@ h1 {
   color: var(--text-muted);
 }
 
-.separator { color: var(--border-color); }
-.over-limit { color: #f87171; font-weight: 700; }
+.separator {
+  color: var(--border-color);
+}
+.over-limit {
+  color: #f87171;
+  font-weight: 700;
+}
 
 /* ── Post-draft hub ───────────────────────────────────────────────────────── */
 .hub-row {
@@ -941,7 +1027,11 @@ h1 {
   margin-bottom: 0.85rem;
 }
 
-@media (max-width: 540px) { .hub-row { grid-template-columns: 1fr; } }
+@media (max-width: 540px) {
+  .hub-row {
+    grid-template-columns: 1fr;
+  }
+}
 
 .hub-card {
   background: var(--card-bg);
@@ -967,11 +1057,23 @@ h1 {
   margin-bottom: 0.6rem;
 }
 
-.hub-card-header .hub-card-label { margin-bottom: 0; }
+.hub-card-header .hub-card-label {
+  margin-bottom: 0;
+}
 
-.hub-loading { display: flex; align-items: center; justify-content: center; min-height: 60px; }
-.hub-empty { color: var(--text-muted); font-size: 0.85rem; }
-.hub-empty.muted { opacity: 0.6; }
+.hub-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;
+}
+.hub-empty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.hub-empty.muted {
+  opacity: 0.6;
+}
 
 /* Record card */
 .record-body {
@@ -1033,7 +1135,10 @@ h1 {
   flex-shrink: 0;
 }
 
-.matchup-opp { font-weight: 600; font-size: 0.95rem; }
+.matchup-opp {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
 
 /* Mini standings table */
 .mini-table {
@@ -1058,9 +1163,16 @@ h1 {
   border-bottom: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
 }
 
-.mini-table td.num { text-align: center; }
-.mini-table tr.my-row td { background: color-mix(in srgb, var(--primary) 8%, transparent); font-weight: 700; }
-.mini-table tr:last-child td { border-bottom: none; }
+.mini-table td.num {
+  text-align: center;
+}
+.mini-table tr.my-row td {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  font-weight: 700;
+}
+.mini-table tr:last-child td {
+  border-bottom: none;
+}
 
 /* Playoff outlook strip */
 .outlook-strip {
@@ -1087,9 +1199,18 @@ h1 {
   background: color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
-.chip-rank { font-weight: 700; color: var(--text-muted); font-size: 0.68rem; }
-.chip-name { font-weight: 600; }
-.chip-status { font-size: 0.72rem; font-weight: 700; }
+.chip-rank {
+  font-weight: 700;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+.chip-name {
+  font-weight: 600;
+}
+.chip-status {
+  font-size: 0.72rem;
+  font-weight: 700;
+}
 
 .cutline-dot {
   width: 6px;
@@ -1118,14 +1239,24 @@ h1 {
   font-weight: 600;
   color: var(--text);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
   min-width: 78px;
 }
 
-.qnav-btn:hover { border-color: var(--primary); background: var(--card-bg); }
-.qnav-btn :deep(svg) { color: var(--primary); }
+.qnav-btn:hover {
+  border-color: var(--primary);
+  background: var(--card-bg);
+}
+.qnav-btn :deep(svg) {
+  color: var(--primary);
+}
 
-.team-grid.compact .team-pokemon img { width: 52px; height: 52px; }
+.team-grid.compact .team-pokemon img {
+  width: 52px;
+  height: 52px;
+}
 
 .btn-xs {
   font-size: 0.72rem;
@@ -1133,4 +1264,3 @@ h1 {
   border-radius: 4px;
 }
 </style>
-
