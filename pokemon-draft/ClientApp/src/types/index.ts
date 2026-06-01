@@ -78,3 +78,40 @@ export interface ScheduleData {
   weeks: WeekGroup[]
   standings: StandingRow[]
 }
+
+// ── Server broadcast types (must match backend DTOs exactly) ─────────────────
+
+export interface ServerPlayerResponse {
+  id: string
+  name: string
+  teamName: string
+  teamImageUrl: string
+}
+
+export interface ServerDraftPick {
+  pickNumber: number
+  round: number
+  playerId: string
+  pokemonId: number
+}
+
+export interface ServerDraftState {
+  status: string
+  currentPickNumber: number
+  totalPicks: number
+  currentPickerId: string | null
+  currentPickerName: string | null
+  picks: ServerDraftPick[]
+}
+
+export interface ServerLeagueResponse {
+  code: string
+  name: string
+  pointLimit: number
+  rounds: number
+  playoffSpots: number
+  regulationSet: string
+  players: ServerPlayerResponse[]
+  pointValues: Record<number, number>
+  draft: ServerDraftState
+}

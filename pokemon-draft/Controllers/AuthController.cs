@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using BC = BCrypt.Net.BCrypt;
 using Google.Apis.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,12 +10,13 @@ using Microsoft.IdentityModel.Tokens;
 using PokemonDraft.Data;
 using PokemonDraft.DTOs;
 using PokemonDraft.Models;
+using PokemonDraft.Services;
 
 namespace PokemonDraft.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController(DraftDbContext db, IConfiguration config) : ControllerBase
+public class AuthController(DraftDbContext db, IConfiguration config, ILeagueService leagueService) : ControllerBase
 {
     private string IssueJwt(AppUser user)
     {
@@ -142,7 +144,16 @@ public class AuthController(DraftDbContext db, IConfiguration config) : Controll
         return Ok(new { player.Id, player.Name, player.TeamName, player.TeamImageUrl });
     }
 
-    /// <summary>Returns the session info for a Google user's existing player in a league.</summary>
+    /// <summary>Validates a PIN and returns session info. Works for both admin PINs and player PINs.</summary>
+    [HttpPost("join")]
+    public IActionResult Join(JoinRequest req)
+    {
+        var result = leagueService.ValidatePin(req.LeagueCode, req.Pin);
+        return result is null ? Unauthorized() : Ok(result);
+    }
+
+    /// <summary>Returns the session info for a Google user's existing player in a league.
+    /// Rotates the player's session token on each call for better security.</summary>
     [HttpPost("enter-league")]
     [Authorize]
     public async Task<IActionResult> EnterLeague([FromBody] EnterLeagueRequest req)
@@ -156,11 +167,23 @@ public class AuthController(DraftDbContext db, IConfiguration config) : Controll
 
         if (player is null) return NotFound("You are not a member of this league.");
 
+        // Generate a fresh session token. Hash it for storage; return the plaintext to the client.
+        // The client stores this as their "PIN" for all subsequent authenticated API calls.
+        var newToken = Guid.NewGuid().ToString();
+        var tokenHash = BC.HashPassword(newToken);
+        player.Pin = tokenHash;
+
+        // Keep league.AdminPin in sync for the commissioner so VerifyAdminPin still works.
+        if (player.League.CommissionerPlayerId == player.Id)
+            player.League.AdminPin = tokenHash;
+
+        await db.SaveChangesAsync();
+
         bool isAdmin = player.League.CommissionerPlayerId == player.Id;
         return Ok(new JoinResponse(
             player.Id, player.Name, isAdmin,
             player.LeagueCode, player.TeamName, player.TeamImageUrl, player.League.Name,
-            player.SessionToken
+            newToken
         ));
     }
 }

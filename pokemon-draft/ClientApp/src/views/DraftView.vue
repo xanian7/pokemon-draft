@@ -8,12 +8,13 @@ import { useSignalR } from '@/services/signalr'
 import { useRegulationFilter } from '@/composables/useRegulationFilter'
 import PokemonGrid from '@/components/PokemonGrid.vue'
 import DraftRoster from '@/components/DraftRoster.vue'
+import { H, v } from 'vue-router/dist/index-D_VEAp3P.js'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const pokemonStore = usePokemonStore()
 const draftStore = useDraftStore()
-const { connect, disconnect } = useSignalR()
+const { subscribe, unsubscribe } = useSignalR()
 
 if (!authStore.isAuthenticated) router.replace('/join')
 
@@ -29,10 +30,10 @@ function applyState(state: any) {
 onMounted(async () => {
   await pokemonStore.fetchAllPokemon()
   if (!authStore.leagueCode) return
-  await connect(authStore.leagueCode, applyState)
+  await subscribe(authStore.leagueCode, applyState)
 })
 
-onUnmounted(disconnect)
+onUnmounted(() => unsubscribe(applyState))
 
 // ── Draft header ──────────────────────────────────────────────────────────────
 const currentRound = computed(() => {
@@ -135,307 +136,110 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
 </script>
 
 <template>
-  <v-form class="draft-page">
-    <!-- ── Draft bar ── -->
-    <div class="draft-bar">
-      <!-- Status -->
-      <div class="draft-bar__status">
-        <span class="status-dot" :class="`status-dot--${draftStore.status}`" />
-        <span class="status-label">{{ statusLabel }}</span>
-      </div>
-
-      <div class="bar-divider" />
-
-      <!-- Picker info when active -->
-      <div v-if="draftStore.status === 'active'" class="draft-bar__current">
-        <span class="current-label">Now picking</span>
-        <span class="current-name">{{ draftStore.currentPickerName ?? '—' }}</span>
-      </div>
-
-      <div v-if="draftStore.status === 'active'" class="bar-divider" />
-
-      <!-- Scrollable timeline -->
-      <div v-if="draftStore.status === 'active'" class="draft-bar__timeline">
-        <template v-for="group in picksByRound" :key="group.round">
-          <div class="round-separator">
-            <span class="round-label">R{{ group.round }}</span>
+  <v-container fluid>
+    <v-row>
+      <v-col cols="12" md="12">
+        <div v-if="picksByRound.length > 0" class="upcoming-picks">
+          <div class="upcoming-picks-track">
+            <section v-for="group in picksByRound" :key="group.round" class="upcoming-round">
+              <v-card class="round-separator">
+                <v-card-text>
+                  <h3 class="text-subtitle-1">ROUND</h3>
+                  <h3 class="text-subtitle-1">{{ group.round }}</h3>
+                </v-card-text>
+              </v-card>
+              <v-card
+                v-for="pick in group.picks"
+                :key="pick.pickNumber"
+                :class="['upcoming-pick-card', { 'current-upcoming-pick-card': pick.isCurrent }]"
+                :elevation="pick.isCurrent ? 8 : 2"
+                :color="pick.isMe ? 'primary' : 'var(--draft-card-nonuser-bg)'"
+              >
+                <v-card-text class="d-flex align-center">
+                  <v-avatar size="40" class="mr-3" v-if="pick.teamImageUrl">
+                    <v-img :src="pick.teamImageUrl" />
+                  </v-avatar>
+                  <v-avatar size="40" class="mr-3" v-else>
+                    <span class="text-subtitle-1">{{ pick.initials }}</span>
+                  </v-avatar>
+                  <div>
+                    <div class="text-subtitle-2">
+                      {{
+                        pick.isCurrent
+                          ? `ON THE CLOCK: PICK ${pick.pickNumber}`
+                          : `PICK ${pick.pickNumber}`
+                      }}
+                    </div>
+                    <div class="text-body-2">{{ pick.playerName }}</div>
+                  </div>
+                </v-card-text>
+              </v-card>
+            </section>
           </div>
-          <div
-            v-for="pick in group.picks"
-            :key="pick.pickNumber"
-            class="pick-chip"
-            :class="{ 'pick-chip--current': pick.isCurrent, 'pick-chip--mine': pick.isMe }"
-          >
-            <div class="pick-chip__avatar">
-              <img v-if="pick.teamImageUrl" :src="pick.teamImageUrl" :alt="pick.playerName" />
-              <span v-else>{{ pick.initials }}</span>
-            </div>
-            <div class="pick-chip__info">
-              <span class="pick-chip__name">{{ pick.playerName }}</span>
-              <span class="pick-chip__num">#{{ pick.pickNumber }}</span>
-            </div>
-          </div>
-        </template>
-      </div>
-
-      <!-- Draft complete / setup message -->
-      <span v-else class="bar-message">
-        {{ draftStore.status === 'complete' ? 'Draft is complete.' : 'Draft has not started yet.' }}
-      </span>
-    </div>
-
-    <div class="draft-body">
-      <DraftRoster />
-      <PokemonGrid />
-    </div>
-  </v-form>
+        </div>
+      </v-col>
+    </v-row>
+    <v-row>
+      <v-col cols="12" md="2">
+        <DraftRoster />
+      </v-col>
+      <v-col cols="10">
+        <PokemonGrid />
+      </v-col>
+    </v-row>
+  </v-container>
 </template>
 
 <style scoped>
-.draft-page {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* ── Body (roster + grid) ───────────────────────────────────────────────── */
-.draft-body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* ── Draft bar ──────────────────────────────────────────────────────────── */
-.draft-bar {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  padding: 0 1rem;
-  height: 64px;
-  flex-shrink: 0;
-  background: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+.upcoming-picks {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 4px 8px 4px 8px;
   overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-color) transparent;
+  background: var(--bg);
 }
 
-.draft-bar::-webkit-scrollbar {
-  height: 3px;
-}
-.draft-bar::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 2px;
-}
-
-/* ── Status ─────────────────────────────────────────────────────────────── */
-.draft-bar__status {
+.upcoming-round {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  flex-shrink: 0;
-  padding-right: 1rem;
+  flex: 0 0 auto;
+  align-items: stretch;
+  gap: 4px;
 }
 
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.status-dot--active {
-  background: #22c55e;
-  box-shadow: 0 0 6px #22c55e88;
-  animation: pulse-dot 2s ease-in-out infinite;
-}
-.status-dot--complete {
-  background: var(--primary);
-}
-.status-dot--setup {
-  background: var(--text-muted);
-}
-
-@keyframes pulse-dot {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
-}
-
-.status-label {
-  font-size: 0.6rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-/* ── Divider ─────────────────────────────────────────────────────────────── */
-.bar-divider {
-  width: 1px;
-  height: 36px;
-  background: var(--border-color);
-  flex-shrink: 0;
-  margin: 0 0.75rem;
-}
-
-/* ── Current picker summary ──────────────────────────────────────────────── */
-.draft-bar__current {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex-shrink: 0;
-  padding-right: 0.75rem;
-}
-
-.current-label {
-  font-size: 0.6rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-}
-
-.current-name {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--primary);
-  white-space: nowrap;
-}
-
-/* ── Scrollable timeline ─────────────────────────────────────────────────── */
-.draft-bar__timeline {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex: 1;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  padding: 4px 0;
-}
-
-.draft-bar__timeline::-webkit-scrollbar {
-  display: none;
-}
-
-/* ── Round separator ─────────────────────────────────────────────────────── */
 .round-separator {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  flex-shrink: 0;
-  padding: 0 8px;
-  border-left: 1px solid var(--border-color);
-  margin-left: 4px;
-  align-self: stretch;
-  justify-content: center;
-}
-
-.round-separator:first-child {
-  border-left: none;
-  margin-left: 0;
-  padding-left: 0;
-}
-
-.round-label {
-  font-size: 0.6rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-muted);
   white-space: nowrap;
-}
-
-/* ── Pick chip ───────────────────────────────────────────────────────────── */
-.pick-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px 4px 5px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--input-bg);
-  flex-shrink: 0;
-  transition:
-    border-color 0.15s,
-    background 0.15s,
-    box-shadow 0.15s;
-  cursor: default;
-}
-
-.pick-chip--current {
-  border-color: var(--primary);
-  background: var(--primary-hover-bg);
-  box-shadow: 0 0 0 2px rgba(15, 172, 245, 0.15);
-}
-
-.pick-chip--mine:not(.pick-chip--current) {
-  border-color: rgba(34, 197, 94, 0.4);
-  background: rgba(34, 197, 94, 0.07);
-}
-
-.pick-chip__avatar {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--border-color);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.58rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  flex-shrink: 0;
-  overflow: hidden;
-}
-
-.pick-chip__avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.pick-chip__info {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.pick-chip__name {
-  font-size: 0.72rem;
   font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  max-width: 80px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-align: center;
+  padding: 0;
 }
 
-.pick-chip--current .pick-chip__name {
-  color: var(--primary);
+.upcoming-picks-track {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  align-items: stretch;
+  min-width: max-content;
 }
 
-.pick-chip__num {
-  font-size: 0.62rem;
-  color: var(--text-muted);
-  white-space: nowrap;
+.upcoming-pick-card {
+  flex: 0 0 200px;
 }
 
-/* ── Bar message (setup / complete) ─────────────────────────────────────── */
-.bar-message {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  white-space: nowrap;
+.current-upcoming-pick-card {
+  flex-basis: 300px;
+}
+
+.v-avatar {
+  margin-right: 12px;
+}
+
+.draft-status {
+  margin-bottom: 16px;
+  min-width: 280px;
+  text-align: center;
+  font-weight: 600;
+  height: 100%;
 }
 </style>

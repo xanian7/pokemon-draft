@@ -1,11 +1,5 @@
 @import './base.css';
 
-#app {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-}
-
 /* ── Button system ──────────────────────────────────────────────────────────── */
 .btn {
   display: inline-flex;
@@ -76,27 +70,6 @@
   border-radius: 12px;
 }
 
-/* ── Full-height flex-column page ───────────────────────────────────────────── */
-.page {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* ── Sticky header strip inside a .page ────────────────────────────────────── */
-.page-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.65rem 1rem;
-  background: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0;
-  flex-wrap: wrap;
-}
-
 /* ── Eyebrow / section label ────────────────────────────────────────────────── */
 .eyebrow {
   font-size: 0.72rem;
@@ -122,31 +95,6 @@
 .badge-muted {
   background: var(--border-color);
   color: var(--text-muted);
-}
-
-/* ── Global input / select base ─────────────────────────────────────────────── */
-input[type='text'],
-input[type='password'],
-input[type='email'],
-input[type='url'],
-input[type='number'],
-input[type='search'],
-input:not([type]),
-select {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.9rem;
-  font-family: inherit;
-  transition: border-color 0.15s;
-}
-
-input:focus,
-select:focus {
-  outline: none;
-  border-color: var(--primary);
 }
 
 /* ── Scrollbars ─────────────────────────────────────────────────────────── */
@@ -256,4 +204,9 @@ select:focus {
   border: 0;
   color: var(--text);
   outline: none;
+}
+
+.remove-left-right-padding {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
 }

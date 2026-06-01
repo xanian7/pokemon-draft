@@ -21,8 +21,10 @@ public class LeagueService(DraftDbContext db) : ILeagueService
 
         var name = req.Name.Trim();
         var commissionerName = req.CommissionerName.Trim();
-        var sessionToken = isGoogleUser ? Guid.NewGuid().ToString() : null;
-        var adminPin = req.AdminPin ?? sessionToken!;
+
+        // For Google users, AdminPin is not set by the user. A random placeholder is hashed so the
+        // column is never empty. EnterLeague() will rotate it to a real token on first login.
+        var pinToHash = isGoogleUser ? Guid.NewGuid().ToString() : req.AdminPin!;
 
         var code = GenerateCode();
         var commissioner = new Player
@@ -30,17 +32,16 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             Id = Guid.NewGuid().ToString(),
             LeagueCode = code,
             Name = commissionerName,
-            Pin = BC.HashPassword(adminPin),
+            Pin = BC.HashPassword(pinToHash),
             SortOrder = 0,
             UserId = req.UserId,
-            SessionToken = sessionToken,
         };
 
         var league = new League
         {
             Code = code,
             Name = name,
-            AdminPin = BC.HashPassword(adminPin),
+            AdminPin = BC.HashPassword(pinToHash),
             CommissionerPlayerId = commissioner.Id,
             DraftStatus = DraftStatus.Setup,
             CurrentPickNumber = 0,
@@ -118,8 +119,9 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (!isGoogleUser && orderedPlayers.Any(p => BC.Verify(req.Pin!, p.Pin)))
             return (null, "That PIN is already in use. Please choose a different one.");
 
-        var sessionToken = isGoogleUser ? Guid.NewGuid().ToString() : null;
-        var pinToHash = isGoogleUser ? sessionToken! : req.Pin!;
+        // For Google users, a random placeholder is hashed so Pin is never empty.
+        // EnterLeague() will rotate it to a real token on first login.
+        var pinToHash = isGoogleUser ? Guid.NewGuid().ToString() : req.Pin!;
 
         var player = new Player
         {
@@ -131,7 +133,6 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             TeamName = req.TeamName?.Trim() ?? string.Empty,
             TeamImageUrl = req.TeamImageUrl?.Trim() ?? string.Empty,
             UserId = req.UserId,
-            SessionToken = sessionToken,
         };
 
         league.Players.Add(player);
@@ -887,18 +888,11 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         Items: trade.Items.Select(i => new TradeItemResponse(i.FromPlayerId, i.PokemonId)).ToList()
     );
 
-    /// <summary>Accepts either a BCrypt'd PIN or a plaintext SessionToken (for Google users).</summary>
     private static bool VerifyPin(Player player, string input) =>
-        (!string.IsNullOrEmpty(player.SessionToken) && player.SessionToken == input)
-        || BC.Verify(input, player.Pin);
+        BC.Verify(input, player.Pin);
 
-    /// <summary>Verifies the admin PIN for a league: either BCrypt match or commissioner's SessionToken.</summary>
-    private static bool VerifyAdminPin(League league, string input)
-    {
-        if (BC.Verify(input, league.AdminPin)) return true;
-        var commissioner = league.Players.FirstOrDefault(p => p.Id == league.CommissionerPlayerId);
-        return commissioner?.SessionToken != null && commissioner.SessionToken == input;
-    }
+    private static bool VerifyAdminPin(League league, string input) =>
+        BC.Verify(input, league.AdminPin);
 
     private string GenerateCode()
     {

@@ -18,7 +18,7 @@ const authStore = useAuthStore()
 
 // ── Filter state ─────────────────────────────────────────────────────────────
 const searchQuery = ref('')
-const selectedType = ref('')
+const selectedType = ref(null)
 const hidePicked = ref(false)
 const viewMode = ref<'grid' | 'tier'>('grid')
 
@@ -74,54 +74,90 @@ async function handleDraft(pokemonId: number) {
 </script>
 
 <template>
-  <div class="wrapper">
-    <!-- ── Filter bar ─────────────────────────────────────────────────────── -->
-    <div class="pokemon-grid-header">
-      <search-box v-model="searchQuery" />
-      <div class="filter-bar">
-        <select v-model="selectedType">
-          <option value="">All types</option>
-          <option v-for="t in pokemonStore.allTypes" :key="t" :value="t">
-            {{ t.charAt(0).toUpperCase() + t.slice(1) }}
-          </option>
-        </select>
-
-        <label class="toggle">
-          <input v-model="hidePicked" type="checkbox" />
-          Hide picked
-        </label>
-
-        <span v-if="regulationLoading" class="filter-status">Loading...</span>
-
-        <div class="view-toggle">
-          <button
-            :class="{ active: viewMode === 'grid' }"
-            title="Grid view"
-            @click="viewMode = 'grid'"
+  <v-container fluid class="remove-left-right-padding">
+    <v-card class="grid-container">
+      <!-- ── Filter bar ─────────────────────────────────────────────────────── -->
+      <div class="pokemon-grid-header">
+        <v-row>
+          <v-col>
+            <v-text-field
+              v-model="searchQuery"
+              placeholder="Search Pokemon"
+              clearable
+              hide-details
+              variant="outlined"
+              density="compact"
+            />
+          </v-col>
+        </v-row>
+        <div class="filter-bar">
+          <v-select
+            v-model="selectedType"
+            :items="pokemonStore.allTypes"
+            variant="outlined"
+            clearable
+            label="Types"
+            density="compact"
+            class="type-filter"
+            hide-details
           >
-            <AppIcon :path="mdiViewGrid" :size="16" />
-          </button>
-          <button
-            :class="{ active: viewMode === 'tier' }"
-            title="Tier view"
-            @click="viewMode = 'tier'"
-          >
-            <AppIcon :path="mdiViewColumn" :size="16" />
-          </button>
+          </v-select>
+
+          <v-checkbox
+            v-model="hidePicked"
+            label="Hide picked"
+            class="toggle"
+            hide-details
+          ></v-checkbox>
+
+          <span v-if="regulationLoading" class="filter-status">Loading...</span>
+
+          <div class="view-toggle">
+            <button
+              :class="{ active: viewMode === 'grid' }"
+              title="Grid view"
+              @click="viewMode = 'grid'"
+            >
+              <AppIcon :path="mdiViewGrid" :size="16" />
+            </button>
+            <button
+              :class="{ active: viewMode === 'tier' }"
+              title="Tier view"
+              @click="viewMode = 'tier'"
+            >
+              <AppIcon :path="mdiViewColumn" :size="16" />
+            </button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- ── Tier view ──────────────────────────────────────────────────────── -->
-    <div v-if="viewMode === 'tier'" class="tier-view">
-      <div v-for="group in tierGroups" :key="group.pts" class="tier-col">
-        <div class="tier-col-header">
-          <span class="tier-badge">{{ group.pts }} pts</span>
-          <span class="tier-count">{{ group.pokemon.length }}</span>
+      <v-divider></v-divider>
+
+      <!-- ── Tier view ──────────────────────────────────────────────────────── -->
+      <div class="grid-view-container">
+        <div v-if="viewMode === 'tier'" class="tier-view">
+          <div v-for="group in tierGroups" :key="group.pts" class="tier-col">
+            <div class="tier-col-header">
+              <span class="tier-badge">{{ group.pts }} pts</span>
+              <span class="tier-count">{{ group.pokemon.length }}</span>
+            </div>
+            <div class="tier-col-body">
+              <pokemon-card
+                v-for="pokemon in group.pokemon"
+                :key="pokemon.id"
+                :pokemon="pokemon"
+                :is-picked="draftStore.pickedPokemonIds.has(pokemon.id)"
+                :point-value="pokemonStore.getPointValue(pokemon.id)"
+                @click="selectPokemon(pokemon)"
+              />
+            </div>
+          </div>
         </div>
-        <div class="tier-col-body">
+
+        <!-- ── Grid view ──────────────────────────────────────────────────────── -->
+        <div v-else class="pokemon-grid">
           <pokemon-card
-            v-for="pokemon in group.pokemon"
+            v-for="pokemon in filteredPokemon"
             :key="pokemon.id"
             :pokemon="pokemon"
             :is-picked="draftStore.pickedPokemonIds.has(pokemon.id)"
@@ -130,19 +166,7 @@ async function handleDraft(pokemonId: number) {
           />
         </div>
       </div>
-    </div>
-
-    <!-- ── Grid view ──────────────────────────────────────────────────────── -->
-    <div v-else class="pokemon-grid">
-      <pokemon-card
-        v-for="pokemon in filteredPokemon"
-        :key="pokemon.id"
-        :pokemon="pokemon"
-        :is-picked="draftStore.pickedPokemonIds.has(pokemon.id)"
-        :point-value="pokemonStore.getPointValue(pokemon.id)"
-        @click="selectPokemon(pokemon)"
-      />
-    </div>
+    </v-card>
 
     <!-- ── Detail modal ───────────────────────────────────────────────────── -->
     <pokemon-detail-modal
@@ -154,23 +178,12 @@ async function handleDraft(pokemonId: number) {
       @close="selectedPokemon = null"
       @draft="handleDraft"
     />
-  </div>
+  </v-container>
 </template>
 
 <style scoped>
-.wrapper {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  padding: 8px 0px 8px 8px;
-  max-height: calc(100dvh - var(--v-layout-top));
-}
-
 .pokemon-grid-header {
   flex-shrink: 0;
-  padding-bottom: 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -184,18 +197,14 @@ async function handleDraft(pokemonId: number) {
   flex-wrap: wrap;
 }
 
-select {
-  padding: 0.3rem 0.55rem;
-  font-size: 0.82rem;
-  border-radius: 6px;
-}
+
 
 .toggle {
   display: flex;
   align-items: center;
   gap: 0.3rem;
   font-size: 0.8rem;
-  color: var(--text-muted);
+  color: var(--primary);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -245,9 +254,9 @@ select {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 0.4rem;
-  padding-right: 8px;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
 }
 
 /* Tier view */
@@ -259,6 +268,7 @@ select {
   overflow-y: auto;
   padding-right: 8px;
   flex: 1;
+  min-height: 0;
   align-items: flex-start;
 }
 
@@ -305,5 +315,32 @@ select {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+}
+
+.grid-container {
+  border: 1px solid var(--border-color);
+  padding: 8px;
+}
+
+.grid-view-container {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px;
+  margin-top: 8px;
+  max-height: 71dvh;
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+.type-filter {
+  max-width: 200px;
+}
+
+.type-filter :deep(.v-field__input) {
+  padding-inline-start: 12px;
+}
+
+.type-filter :deep(.v-field-label) {
+  left: 12px;
 }
 </style>

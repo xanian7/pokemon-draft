@@ -43,8 +43,6 @@ public class Player
     public string Pin { get; set; } = string.Empty;
     public Guid? UserId { get; set; }
     public AppUser? User { get; set; }
-    /// <summary>Plaintext token for Google-authenticated players; replaces PIN for all actions.</summary>
-    public string? SessionToken { get; set; }
 }
 
 public class DraftPick

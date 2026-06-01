@@ -19,7 +19,7 @@ import {
 const router = useRouter()
 const authStore = useAuthStore()
 const pokemonStore = usePokemonStore()
-const { connect, disconnect, isConnected } = useSignalR()
+const { subscribe, unsubscribe, isConnected } = useSignalR()
 
 // Redirect non-admin/non-auth users
 if (!authStore.isAuthenticated) router.replace('/join')
@@ -52,7 +52,7 @@ function applyState(state: any) {
 
 onMounted(async () => {
   if (!authStore.leagueCode) return
-  await connect(authStore.leagueCode, applyState)
+  await subscribe(authStore.leagueCode, applyState)
   // Seed point values from server state to local pokemon store
   const res = await fetch(`${API_BASE}/leagues/${authStore.leagueCode}`)
   if (res.ok) {
@@ -64,7 +64,7 @@ onMounted(async () => {
   }
 })
 
-onUnmounted(disconnect)
+onUnmounted(() => unsubscribe(applyState))
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 async function patch(path: string, body: object) {

@@ -41,7 +41,7 @@ interface TeamEntry {
 const router = useRouter()
 const authStore = useAuthStore()
 const pokemonStore = usePokemonStore()
-const { connect, disconnect, isConnected } = useSignalR()
+const { subscribe, unsubscribe, isConnected } = useSignalR()
 
 if (!authStore.isAuthenticated) router.replace('/join')
 
@@ -304,17 +304,17 @@ async function submitTrade() {
   }
 }
 
+function handleLeagueState(state: LeagueState) {
+  applyState(state)
+}
+
 onMounted(async () => {
   await loadPage()
-
   if (!leagueCode.value) return
-
-  await connect(leagueCode.value, (state: LeagueState) => {
-    applyState(state)
-  })
+  await subscribe(leagueCode.value, handleLeagueState)
 })
 
-onUnmounted(disconnect)
+onUnmounted(() => unsubscribe(handleLeagueState))
 </script>
 
 <template>

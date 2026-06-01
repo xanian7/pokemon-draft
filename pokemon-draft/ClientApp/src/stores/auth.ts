@@ -1,10 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-
-const SESSION_KEY = 'pokemon-draft:session'
-const RECENT_LEAGUES_KEY = 'pokemon-draft:recent-leagues'
-const AUTH_TOKEN_KEY = 'pokemon-draft:auth-token'
-const AUTH_USER_KEY = 'pokemon-draft:auth-user'
+import { apiPost, apiGet, apiPatch } from '@/services/api'
 
 interface Session {
   leagueCode: string
@@ -29,7 +25,10 @@ export interface GoogleUser {
   picture: string
 }
 
-const API_BASE = import.meta.env.DEV ? 'http://localhost:5050/api' : '/api'
+const SESSION_KEY = 'pokemon-draft:session'
+const RECENT_LEAGUES_KEY = 'pokemon-draft:recent-leagues'
+const AUTH_TOKEN_KEY = 'pokemon-draft:auth-token'
+const AUTH_USER_KEY = 'pokemon-draft:auth-user'
 
 function loadRecentLeagues(): RecentLeague[] {
   try {
@@ -106,19 +105,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   // ── Google Sign-In ───────────────────────────────────────────────────────────
   async function signInWithGoogle(idToken: string): Promise<string | null> {
-    try {
-      const res = await fetch(`${API_BASE}/auth/google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
-      })
-      if (!res.ok) return 'Google sign-in failed. Please try again.'
-      const data = await res.json()
-      saveGoogleUser(data.token, data.user)
-      return null
-    } catch {
-      return 'Could not connect to server.'
-    }
+    const result = await apiPost<{ token: string; user: GoogleUser }>('/auth/google', { idToken })
+    if (result.error) return result.error
+    saveGoogleUser(result.data!.token, result.data!.user)
+    return null
   }
 
   function signOut() {
@@ -129,83 +119,69 @@ export const useAuthStore = defineStore('auth', () => {
   // ── My Leagues ───────────────────────────────────────────────────────────────
   async function fetchMyLeagues() {
     if (!authToken.value) return []
-    try {
-      const res = await fetch(`${API_BASE}/auth/my-leagues`, {
-        headers: authHeaders(),
-      })
-      if (!res.ok) return []
-      return await res.json()
-    } catch {
-      return []
-    }
+    const result = await apiGet<unknown[]>('/auth/my-leagues', authHeaders())
+    return result.data ?? []
   }
 
   /** Enter a league the Google user is already a member of (no PIN required). */
   async function enterLeague(leagueCode: string): Promise<string | null> {
     if (!authToken.value) return 'Not signed in.'
-    try {
-      const res = await fetch(`${API_BASE}/auth/enter-league`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ leagueCode: leagueCode.trim().toUpperCase() }),
-      })
-      if (res.status === 404) return 'You are not a member of this league.'
-      if (!res.ok) return 'Could not enter league.'
-      const data = await res.json()
-      const code = leagueCode.trim().toUpperCase()
-      const lName = data.leagueName ?? ''
-      saveSession({
-        leagueCode: code,
-        leagueName: lName,
-        playerId: data.playerId,
-        playerName: data.playerName,
-        isAdmin: data.isAdmin,
-        pin: data.sessionToken ?? data.pin ?? '',
-        teamName: data.teamName ?? '',
-        teamImageUrl: data.teamImageUrl ?? '',
-      })
-      persistRecentLeague({ code, name: lName })
-      recentLeagues.value = loadRecentLeagues()
-      return null
-    } catch {
-      return 'Could not connect to server.'
-    }
+    const code = leagueCode.trim().toUpperCase()
+    const result = await apiPost<{
+      playerId: string
+      playerName: string
+      isAdmin: boolean
+      leagueName: string
+      teamName: string
+      teamImageUrl: string
+      sessionToken: string
+    }>('/auth/enter-league', { leagueCode: code }, authHeaders())
+    if (result.error) return result.error
+    const data = result.data!
+    const lName = data.leagueName ?? ''
+    saveSession({
+      leagueCode: code,
+      leagueName: lName,
+      playerId: data.playerId,
+      playerName: data.playerName,
+      isAdmin: data.isAdmin,
+      pin: data.sessionToken,
+      teamName: data.teamName ?? '',
+      teamImageUrl: data.teamImageUrl ?? '',
+    })
+    persistRecentLeague({ code, name: lName })
+    recentLeagues.value = loadRecentLeagues()
+    return null
   }
 
   // ── PIN-based join (existing) ────────────────────────────────────────────────
   async function join(leagueCode: string, pin: string): Promise<string | null> {
-    try {
-      const res = await fetch(`${API_BASE}/auth/join`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leagueCode: leagueCode.trim().toUpperCase(), pin: pin.trim() }),
-      })
-
-      if (res.status === 401) return 'Invalid league code or PIN.'
-      if (!res.ok) return 'Server error. Please try again.'
-
-      const data = await res.json()
-      const code = leagueCode.trim().toUpperCase()
-      const lName = data.leagueName ?? ''
-
-      saveSession({
-        leagueCode: code,
-        leagueName: lName,
-        playerId: data.playerId,
-        playerName: data.playerName,
-        isAdmin: data.isAdmin,
-        pin: pin.trim(),
-        teamName: data.teamName ?? '',
-        teamImageUrl: data.teamImageUrl ?? '',
-      })
-
-      persistRecentLeague({ code, name: lName })
-      recentLeagues.value = loadRecentLeagues()
-
-      return null
-    } catch {
-      return 'Could not connect to server.'
-    }
+    const code = leagueCode.trim().toUpperCase()
+    const trimmedPin = pin.trim()
+    const result = await apiPost<{
+      playerId: string
+      playerName: string
+      isAdmin: boolean
+      leagueName: string
+      teamName: string
+      teamImageUrl: string
+    }>('/auth/join', { leagueCode: code, pin: trimmedPin })
+    if (result.error) return result.error
+    const data = result.data!
+    const lName = data.leagueName ?? ''
+    saveSession({
+      leagueCode: code,
+      leagueName: lName,
+      playerId: data.playerId,
+      playerName: data.playerName,
+      isAdmin: data.isAdmin,
+      pin: trimmedPin,
+      teamName: data.teamName ?? '',
+      teamImageUrl: data.teamImageUrl ?? '',
+    })
+    persistRecentLeague({ code, name: lName })
+    recentLeagues.value = loadRecentLeagues()
+    return null
   }
 
   // ── Computed ─────────────────────────────────────────────────────────────────
@@ -222,29 +198,18 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function updateProfile(teamName: string, teamImageUrl: string): Promise<string | null> {
     if (!session.value) return 'Not logged in.'
-    try {
-      const res = await fetch(
-        `${API_BASE}/leagues/${session.value.leagueCode}/players/${session.value.playerId}/profile`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            playerId: session.value.playerId,
-            pin: session.value.pin,
-            teamName: teamName || null,
-            teamImageUrl: teamImageUrl || null,
-          }),
-        },
-      )
-      if (!res.ok) {
-        const text = await res.text()
-        return text || 'Failed to update profile.'
-      }
-      saveSession({ ...session.value, teamName, teamImageUrl })
-      return null
-    } catch {
-      return 'Could not connect to server.'
-    }
+    const result = await apiPatch(
+      `/leagues/${session.value.leagueCode}/players/${session.value.playerId}/profile`,
+      {
+        playerId: session.value.playerId,
+        pin: session.value.pin,
+        teamName: teamName || null,
+        teamImageUrl: teamImageUrl || null,
+      },
+    )
+    if (result.error) return result.error
+    saveSession({ ...session.value, teamName, teamImageUrl })
+    return null
   }
 
   loadSession()

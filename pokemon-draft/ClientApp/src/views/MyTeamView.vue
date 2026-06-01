@@ -38,7 +38,7 @@ interface TeamEntry {
 const router = useRouter()
 const authStore = useAuthStore()
 const pokemonStore = usePokemonStore()
-const { connect, disconnect, isConnected } = useSignalR()
+const { subscribe, unsubscribe, isConnected } = useSignalR()
 
 if (!authStore.isAuthenticated) router.replace('/join')
 
@@ -228,18 +228,18 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString()
 }
 
+function handleLeagueState(state: LeagueState) {
+  applyState(state)
+  void fetchTrades().catch((error) => console.error(error))
+}
+
 onMounted(async () => {
   await loadPage()
-
   if (!leagueCode.value) return
-
-  await connect(leagueCode.value, (state: LeagueState) => {
-    applyState(state)
-    void fetchTrades().catch((error) => console.error(error))
-  })
+  await subscribe(leagueCode.value, handleLeagueState)
 })
 
-onUnmounted(disconnect)
+onUnmounted(() => unsubscribe(handleLeagueState))
 </script>
 
 <template>
