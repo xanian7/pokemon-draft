@@ -14,21 +14,21 @@ public class LeagueController(ILeagueService leagueService, IHubContext<DraftHub
     public IActionResult CreateLeague(CreateLeagueRequest req)
     {
         var reqWithUser = req with { UserId = GetRequestUserId() };
-        var (result, error) = leagueService.CreateLeague(reqWithUser);
+        var (result, error) = LeagueService.CreateLeague(reqWithUser);
         return result is null ? BadRequest(error) : Ok(result);
     }
 
     [HttpGet("{code}")]
     public IActionResult GetLeague(string code)
     {
-        var response = leagueService.GetLeagueResponse(code);
+        var response = LeagueService.GetLeagueResponse(code);
         return response is null ? NotFound() : Ok(response);
     }
 
     [HttpPatch("{code}/config")]
     public async Task<IActionResult> UpdateConfig(string code, UpdateLeagueConfigRequest req)
     {
-        var (success, error) = leagueService.UpdateConfig(code, req);
+        var (success, error) = LeagueService.UpdateConfig(code, req);
         if (!success) return error is null ? NotFound() : BadRequest(error);
         await BroadcastLeague(code);
         return Ok();
@@ -37,7 +37,7 @@ public class LeagueController(ILeagueService leagueService, IHubContext<DraftHub
     [HttpPut("{code}/points")]
     public async Task<IActionResult> SetPointValues(string code, SetPointValuesRequest req)
     {
-        var (success, error) = leagueService.SetPointValues(code, req.Values);
+        var (success, error) = LeagueService.SetPointValues(code, req.Values);
         if (!success) return error is null ? NotFound() : BadRequest(error);
         await BroadcastLeague(code);
         return Ok();

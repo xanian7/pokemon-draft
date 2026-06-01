@@ -14,7 +14,7 @@ public class PlayerController(ILeagueService leagueService, IHubContext<DraftHub
     public async Task<IActionResult> RegisterPlayer(string code, RegisterPlayerRequest req)
     {
         var reqWithUser = req with { UserId = GetRequestUserId() };
-        var (result, error) = leagueService.RegisterPlayer(code, reqWithUser);
+        var (result, error) = LeagueService.RegisterPlayer(code, reqWithUser);
         if (result is null) return BadRequest(error);
         await BroadcastLeague(code);
         return Ok(result);
@@ -23,7 +23,7 @@ public class PlayerController(ILeagueService leagueService, IHubContext<DraftHub
     [HttpPost]
     public async Task<IActionResult> AddPlayer(string code, AddPlayerRequest req)
     {
-        var (result, error) = leagueService.AddPlayer(code, req);
+        var (result, error) = LeagueService.AddPlayer(code, req);
         if (result is null) return error is null ? NotFound() : BadRequest(error);
         await BroadcastLeague(code);
         return Ok(result);
@@ -32,7 +32,7 @@ public class PlayerController(ILeagueService leagueService, IHubContext<DraftHub
     [HttpDelete("{playerId}")]
     public async Task<IActionResult> RemovePlayer(string code, string playerId)
     {
-        var (success, error) = leagueService.RemovePlayer(code, playerId);
+        var (success, error) = LeagueService.RemovePlayer(code, playerId);
         if (!success) return error is null ? NotFound() : BadRequest(error);
         await BroadcastLeague(code);
         return Ok();
@@ -41,7 +41,7 @@ public class PlayerController(ILeagueService leagueService, IHubContext<DraftHub
     [HttpPost("move")]
     public async Task<IActionResult> MovePlayer(string code, MovePlayerRequest req)
     {
-        var (success, error) = leagueService.MovePlayer(code, req.FromIndex, req.ToIndex);
+        var (success, error) = LeagueService.MovePlayer(code, req.FromIndex, req.ToIndex);
         if (!success) return error is null ? NotFound() : BadRequest(error);
         await BroadcastLeague(code);
         return Ok();
@@ -50,7 +50,7 @@ public class PlayerController(ILeagueService leagueService, IHubContext<DraftHub
     [HttpPatch("{playerId}/profile")]
     public async Task<IActionResult> UpdatePlayerProfile(string code, string playerId, UpdatePlayerProfileRequest req)
     {
-        var (success, error) = leagueService.UpdatePlayerProfile(code, playerId, req.Pin, req.TeamName, req.TeamImageUrl);
+        var (success, error) = LeagueService.UpdatePlayerProfile(code, playerId, req.Pin, req.TeamName, req.TeamImageUrl);
         if (!success) return BadRequest(error);
         await BroadcastLeague(code);
         return Ok();

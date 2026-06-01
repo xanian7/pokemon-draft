@@ -13,32 +13,32 @@ public class ScheduleController(ILeagueService leagueService, IHubContext<DraftH
     [HttpGet("schedule")]
     public IActionResult GetSchedule(string code)
     {
-        var schedule = leagueService.GetSchedule(code);
+        var schedule = LeagueService.GetSchedule(code);
         return schedule is null ? NotFound() : Ok(schedule);
     }
 
     [HttpGet("playoff-outlook")]
     public IActionResult GetPlayoffOutlook(string code)
     {
-        var outlook = leagueService.GetPlayoffOutlook(code);
+        var outlook = LeagueService.GetPlayoffOutlook(code);
         return outlook is null ? NotFound() : Ok(outlook);
     }
 
     [HttpPost("schedule/{matchupId}/report")]
     public async Task<IActionResult> ReportMatchup(string code, int matchupId, ReportMatchupRequest req)
     {
-        var (success, error) = leagueService.ReportMatchup(code, matchupId, req.PlayerId, req.Pin, req.Player1Wins, req.Player2Wins);
+        var (success, error) = LeagueService.ReportMatchup(code, matchupId, req.PlayerId, req.Pin, req.Player1Wins, req.Player2Wins);
         if (!success) return BadRequest(error);
-        await hub.Clients.Group(code.ToUpperInvariant()).SendAsync("ScheduleUpdate", leagueService.GetSchedule(code));
+        await Hub.Clients.Group(code.ToUpperInvariant()).SendAsync("ScheduleUpdate", LeagueService.GetSchedule(code));
         return Ok();
     }
 
     [HttpPatch("schedule/{matchupId}/edit")]
     public async Task<IActionResult> EditMatchup(string code, int matchupId, EditMatchupRequest req)
     {
-        var (success, error) = leagueService.EditMatchup(code, matchupId, req.AdminPin, req.Player1Wins, req.Player2Wins);
+        var (success, error) = LeagueService.EditMatchup(code, matchupId, req.AdminPin, req.Player1Wins, req.Player2Wins);
         if (!success) return BadRequest(error);
-        await hub.Clients.Group(code.ToUpperInvariant()).SendAsync("ScheduleUpdate", leagueService.GetSchedule(code));
+        await Hub.Clients.Group(code.ToUpperInvariant()).SendAsync("ScheduleUpdate", LeagueService.GetSchedule(code));
         return Ok();
     }
 }

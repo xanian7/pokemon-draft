@@ -9,8 +9,20 @@ namespace PokemonDraft.Controllers;
 
 /// <summary>Shared helpers for controllers that interact with league state.</summary>
 [ApiController]
-public abstract class LeagueBaseController(ILeagueService leagueService, IHubContext<DraftHub> hub) : ControllerBase
+public abstract class LeagueBaseController : ControllerBase
 {
+    private readonly ILeagueService _leagueService;
+    private readonly IHubContext<DraftHub> _hub;
+
+    protected LeagueBaseController(ILeagueService leagueService, IHubContext<DraftHub> hub)
+    {
+        _leagueService = leagueService;
+        _hub = hub;
+    }
+
+    protected ILeagueService LeagueService => _leagueService;
+    protected IHubContext<DraftHub> Hub => _hub;
+
     /// <summary>Returns the authenticated Google user's ID, or null for PIN-only requests.</summary>
     protected Guid? GetRequestUserId()
     {
@@ -21,8 +33,8 @@ public abstract class LeagueBaseController(ILeagueService leagueService, IHubCon
     /// <summary>Pushes the current league state to all connected clients in the league's SignalR group.</summary>
     protected async Task BroadcastLeague(string code)
     {
-        var state = leagueService.GetLeagueResponse(code);
+        var state = _leagueService.GetLeagueResponse(code);
         if (state is not null)
-            await hub.Clients.Group(code.ToUpperInvariant()).SendAsync("LeagueState", state);
+            await _hub.Clients.Group(code.ToUpperInvariant()).SendAsync("LeagueState", state);
     }
 }

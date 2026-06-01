@@ -13,7 +13,7 @@ public class RosterController(ILeagueService leagueService, IHubContext<DraftHub
     [HttpPost("drop")]
     public async Task<IActionResult> DropPokemon(string code, RosterChangeRequest req)
     {
-        var (success, error) = leagueService.DropPokemon(code, req.PlayerId, req.Pin, req.PokemonId);
+        var (success, error) = LeagueService.DropPokemon(code, req.PlayerId, req.Pin, req.PokemonId);
         if (!success) return BadRequest(error);
         await BroadcastLeague(code);
         return Ok();
@@ -22,7 +22,7 @@ public class RosterController(ILeagueService leagueService, IHubContext<DraftHub
     [HttpPost("add")]
     public async Task<IActionResult> AddPokemon(string code, RosterChangeRequest req)
     {
-        var (success, error) = leagueService.AddPokemon(code, req.PlayerId, req.Pin, req.PokemonId);
+        var (success, error) = LeagueService.AddPokemon(code, req.PlayerId, req.Pin, req.PokemonId);
         if (!success) return BadRequest(error);
         await BroadcastLeague(code);
         return Ok();

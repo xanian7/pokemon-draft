@@ -79,6 +79,14 @@ export interface ScheduleData {
   standings: StandingRow[]
 }
 
+export interface NavigationButton {
+  label: string
+  icon: string
+  route: string
+  requiresAuth: boolean
+  adminOnly?: boolean
+}
+
 // ── Server broadcast types (must match backend DTOs exactly) ─────────────────
 
 export interface ServerPlayerResponse {
