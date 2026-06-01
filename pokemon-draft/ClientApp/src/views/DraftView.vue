@@ -8,7 +8,6 @@ import { useSignalR } from '@/services/signalr'
 import { useRegulationFilter } from '@/composables/useRegulationFilter'
 import PokemonGrid from '@/components/PokemonGrid.vue'
 import DraftRoster from '@/components/DraftRoster.vue'
-import { H, v } from 'vue-router/dist/index-D_VEAp3P.js'
 
 const router = useRouter()
 const authStore = useAuthStore()

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/stores/auth'
-import { NavigationButton } from '@/types/navigationbutton'
+import { NavigationButton } from '@/types/NavigationButton'
 import { reactive, ref } from 'vue'
 
 const authStore = useAuthStore()
