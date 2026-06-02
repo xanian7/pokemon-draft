@@ -180,7 +180,7 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
         </v-col>
       </v-row>
       <v-row class="draft-main-row">
-        <v-col cols="12" md="2">
+        <v-col cols="12" md="2" class="draft-grid-col">
           <DraftRoster />
         </v-col>
         <v-col cols="12" md="10" class="draft-grid-col">
