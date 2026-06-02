@@ -11,11 +11,11 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
-const isGoogleUser = computed(() => authStore.isSignedInWithGoogle)
+const isGoogleUser = computed(() => authStore.isSignedIn)
 
 const leagueCode = ref(((route.query.code as string) ?? '').toUpperCase())
 const leagueName = ref('')
-const name = ref(authStore.googleUser?.name ?? '')
+const name = ref(authStore.authUser?.name ?? '')
 const pin = ref('')
 const confirmPin = ref('')
 const teamName = ref('')
@@ -117,13 +117,13 @@ async function register() {
       <!-- Google user indicator -->
       <div v-if="isGoogleUser" class="google-banner">
         <img
-          v-if="authStore.googleUser?.picture"
-          :src="authStore.googleUser.picture"
+        v-if="authStore.authUser?.pictureUrl"
+        :src="authStore.authUser.pictureUrl"
           class="google-avatar"
           alt=""
         />
         <span
-          >Registering as <strong>{{ authStore.googleUser?.name }}</strong> via Google</span
+        >Registering as <strong>{{ authStore.authUser?.name }}</strong></span
         >
       </div>
 

@@ -214,7 +214,6 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
 
 function handleDraft() {
   emit('draft', props.pokemon.id)
-  emit('close')
 }
 
 function filteredMoves(moves: MoveEntry[]): MoveEntry[] {

@@ -1,6 +1,9 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Net.Http.Headers;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using BC = BCrypt.Net.BCrypt;
 using Google.Apis.Auth;
 using Microsoft.AspNetCore.Authorization;
@@ -16,7 +19,7 @@ namespace PokemonDraft.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController(DraftDbContext db, IConfiguration config, ILeagueService leagueService) : ControllerBase
+public class AuthController(DraftDbContext db, IConfiguration config, ILeagueService leagueService, IHttpClientFactory httpClientFactory) : ControllerBase
 {
     private string IssueJwt(AppUser user)
     {
@@ -185,5 +188,116 @@ public class AuthController(DraftDbContext db, IConfiguration config, ILeagueSer
             player.LeagueCode, player.TeamName, player.TeamImageUrl, player.League.Name,
             newToken
         ));
+    }
+
+    /// <summary>Redirects to Discord OAuth2 authorization. Stores a state cookie for CSRF protection.</summary>
+    [HttpGet("discord")]
+    public IActionResult DiscordLogin()
+    {
+        var clientId = config["Discord:ClientId"];
+        if (string.IsNullOrWhiteSpace(clientId))
+            return StatusCode(503, "Discord authentication is not configured.");
+
+        var state = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var isLocalhost = HttpContext.Request.Host.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase);
+        Response.Cookies.Append("discord_oauth_state", state, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = !isLocalhost,
+            SameSite = SameSiteMode.Lax,
+            MaxAge = TimeSpan.FromMinutes(10),
+        });
+
+        var redirectUri = Uri.EscapeDataString(config["Discord:RedirectUri"] ?? "");
+        var url = $"https://discord.com/oauth2/authorize?client_id={clientId}&redirect_uri={redirectUri}&response_type=code&scope=identify%20email&state={Uri.EscapeDataString(state)}";
+        return Redirect(url);
+    }
+
+    /// <summary>Discord OAuth2 callback. Exchanges code for user info, upserts AppUser, issues JWT,
+    /// and redirects to the frontend callback page with the token in the URL fragment.</summary>
+    [HttpGet("discord/callback")]
+    public async Task<IActionResult> DiscordCallback(
+        [FromQuery] string? code,
+        [FromQuery] string? state,
+        [FromQuery] string? error)
+    {
+        var frontendUrl = config["Discord:FrontendUrl"] ?? string.Empty;
+        const string callbackPath = "/auth/discord/callback";
+
+        // Validate CSRF state
+        var cookieState = Request.Cookies["discord_oauth_state"];
+        Response.Cookies.Delete("discord_oauth_state");
+        if (string.IsNullOrWhiteSpace(cookieState) || cookieState != state)
+            return Redirect($"{frontendUrl}{callbackPath}#error=state_mismatch");
+
+        if (!string.IsNullOrWhiteSpace(error) || string.IsNullOrWhiteSpace(code))
+            return Redirect($"{frontendUrl}{callbackPath}#error=access_denied");
+
+        try
+        {
+            var http = httpClientFactory.CreateClient("discord");
+
+            // Exchange authorization code for access token
+            using var tokenReq = new HttpRequestMessage(HttpMethod.Post, "https://discord.com/api/oauth2/token");
+            tokenReq.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["client_id"] = config["Discord:ClientId"]!,
+                ["client_secret"] = config["Discord:ClientSecret"]!,
+                ["grant_type"] = "authorization_code",
+                ["code"] = code,
+                ["redirect_uri"] = config["Discord:RedirectUri"]!,
+            });
+            var tokenResp = await http.SendAsync(tokenReq);
+            if (!tokenResp.IsSuccessStatusCode)
+                return Redirect($"{frontendUrl}{callbackPath}#error=token_exchange_failed");
+
+            using var tokenDoc = await JsonDocument.ParseAsync(await tokenResp.Content.ReadAsStreamAsync());
+            if (!tokenDoc.RootElement.TryGetProperty("access_token", out var accessTokenEl))
+                return Redirect($"{frontendUrl}{callbackPath}#error=no_access_token");
+            var accessToken = accessTokenEl.GetString()!;
+
+            // Fetch Discord user profile
+            using var userReq = new HttpRequestMessage(HttpMethod.Get, "https://discord.com/api/users/@me");
+            userReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            var userResp = await http.SendAsync(userReq);
+            if (!userResp.IsSuccessStatusCode)
+                return Redirect($"{frontendUrl}{callbackPath}#error=user_fetch_failed");
+
+            using var userDoc = await JsonDocument.ParseAsync(await userResp.Content.ReadAsStreamAsync());
+            var root = userDoc.RootElement;
+            if (!root.TryGetProperty("id", out var idEl) || !root.TryGetProperty("username", out var usernameEl))
+                return Redirect($"{frontendUrl}{callbackPath}#error=invalid_user_data");
+
+            var discordId = idEl.GetString()!;
+            var username = usernameEl.GetString()!;
+            var email = root.TryGetProperty("email", out var emailEl) ? emailEl.GetString() ?? string.Empty : string.Empty;
+            var avatarHash = root.TryGetProperty("avatar", out var avatarEl) ? avatarEl.GetString() : null;
+            var pictureUrl = avatarHash != null
+                ? $"https://cdn.discordapp.com/avatars/{discordId}/{avatarHash}.png"
+                : string.Empty;
+
+            // Upsert AppUser
+            var user = await db.AppUsers.FirstOrDefaultAsync(u => u.DiscordId == discordId);
+            if (user is null)
+            {
+                user = new AppUser { DiscordId = discordId, Email = email, Name = username, PictureUrl = pictureUrl };
+                db.AppUsers.Add(user);
+            }
+            else
+            {
+                user.Name = username;
+                user.PictureUrl = pictureUrl;
+                if (!string.IsNullOrEmpty(email)) user.Email = email;
+            }
+            await db.SaveChangesAsync();
+
+            var jwt = IssueJwt(user);
+            return Redirect($"{frontendUrl}{callbackPath}#token={Uri.EscapeDataString(jwt)}");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Discord OAuth callback error: {ex.Message}");
+            return Redirect($"{frontendUrl}{callbackPath}#error=server_error");
+        }
     }
 }

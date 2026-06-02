@@ -3,7 +3,8 @@ namespace PokemonDraft.Models;
 public class AppUser
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public string GoogleId { get; set; } = string.Empty;
+    public string? GoogleId { get; set; }
+    public string? DiscordId { get; set; }
     public string Email { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string PictureUrl { get; set; } = string.Empty;

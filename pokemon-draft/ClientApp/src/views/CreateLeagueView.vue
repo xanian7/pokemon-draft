@@ -10,10 +10,10 @@ import { mdiTrophy, mdiPartyPopper, mdiGoogle } from '@mdi/js'
 const router = useRouter()
 const authStore = useAuthStore()
 
-const isGoogleUser = computed(() => authStore.isSignedInWithGoogle)
+const isGoogleUser = computed(() => authStore.isSignedIn)
 
 const leagueName = ref('My Draft League')
-const commissionerName = ref(authStore.googleUser?.name ?? '')
+const commissionerName = ref(authStore.authUser?.name ?? '')
 const adminPin = ref('')
 const error = ref('')
 const isLoading = ref(false)
@@ -83,13 +83,13 @@ async function enterAsAdmin() {
         <!-- Google user indicator -->
         <div v-if="isGoogleUser" class="google-banner">
           <img
-            v-if="authStore.googleUser?.picture"
-            :src="authStore.googleUser.picture"
+            v-if="authStore.authUser?.pictureUrl"
+            :src="authStore.authUser.pictureUrl"
             class="google-avatar"
             alt=""
           />
           <span
-            >Creating as <strong>{{ authStore.googleUser?.name }}</strong> via Google</span
+            >Creating as <strong>{{ authStore.authUser?.name }}</strong></span
           >
         </div>
 

@@ -14,9 +14,14 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
-builder.Services.AddDbContext<DraftDbContext>(opts => opts.UseSqlServer(connectionString));
+builder.Services.AddDbContext<DraftDbContext>(opts => opts
+    .UseSqlServer(connectionString, sqlOpts => sqlOpts
+        .EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null)
+        .CommandTimeout(60)));
 builder.Services.AddScoped<ILeagueService, LeagueService>();
+builder.Services.AddHttpClient<IDiscordService, DiscordService>();
 builder.Services.AddHttpClient<IPokemonService, PokemonService>();
+builder.Services.AddHttpClient("discord");
 builder.Services.AddMemoryCache();
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
@@ -86,6 +91,8 @@ if (app.Environment.IsDevelopment())
 {
     var clientAppDir = Path.Combine(app.Environment.ContentRootPath, "ClientApp");
     var isWindows = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows);
+    StopProcessOnPort(5173);
+
     var vite = new System.Diagnostics.Process
     {
         StartInfo = new System.Diagnostics.ProcessStartInfo
@@ -93,7 +100,8 @@ if (app.Environment.IsDevelopment())
             FileName = isWindows ? "cmd.exe" : "npm",
             Arguments = isWindows ? "/c npm run dev" : "run dev",
             WorkingDirectory = clientAppDir,
-            UseShellExecute = false,
+            UseShellExecute = isWindows,
+            WindowStyle = isWindows ? System.Diagnostics.ProcessWindowStyle.Normal : System.Diagnostics.ProcessWindowStyle.Hidden,
         }
     };
     vite.Start();
@@ -103,7 +111,7 @@ if (app.Environment.IsDevelopment())
         {
             if (isWindows)
             {
-                vite.Kill(true);
+                if (!vite.HasExited) vite.Kill(true);
             }
             else
             {
@@ -118,6 +126,8 @@ if (app.Environment.IsDevelopment())
             }
         }
         catch { }
+
+        StopProcessOnPort(5173);
     });
 }
 else
@@ -153,3 +163,24 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.Run();
+
+static void StopProcessOnPort(int port)
+{
+    if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+    {
+        return;
+    }
+
+    try
+    {
+        using var powershell = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"$conn = Get-NetTCPConnection -LocalPort {port} -State Listen -ErrorAction SilentlyContinue; if ($conn) {{ $conn | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object {{ Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }} }}\"",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        });
+        powershell?.WaitForExit(3000);
+    }
+    catch { }
+}

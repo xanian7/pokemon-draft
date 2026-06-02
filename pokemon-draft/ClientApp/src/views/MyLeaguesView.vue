@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import AppIcon from '@/components/AppIcon.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
 import { mdiPokeball, mdiTrophy, mdiPlusCircle, mdiLogin } from '@mdi/js'
+import LoginForm from '@/components/LoginForm.vue'
 
 interface MyLeague {
   code: string
@@ -25,7 +26,7 @@ const enteringCode = ref<string | null>(null)
 const error = ref('')
 
 onMounted(async () => {
-  if (!authStore.isSignedInWithGoogle) {
+  if (!authStore.isSignedIn) {
     router.replace('/join')
     return
   }
@@ -47,72 +48,58 @@ async function enterLeague(code: string) {
 </script>
 
 <template>
-  <div class="page">
-    <div class="page-header">
-      <div class="header-icon"><AppIcon :path="mdiTrophy" :size="28" /></div>
-      <div>
-        <h1>My Leagues</h1>
-        <p class="subtitle" v-if="authStore.googleUser">
-          Signed in as {{ authStore.googleUser.name }}
-        </p>
-      </div>
-    </div>
-
+  <v-container fluid class="page">
     <div v-if="isLoading" class="loader-wrap">
       <PokeballLoader />
     </div>
 
     <template v-else>
       <div v-if="error" class="error-msg" style="margin-bottom: 1rem">{{ error }}</div>
-
-      <div v-if="leagues.length === 0" class="empty-state">
-        <AppIcon :path="mdiPokeball" :size="48" class="empty-icon" />
-        <p>You haven't joined any leagues yet.</p>
-        <p class="empty-sub">Create a new league or register for one using a league code.</p>
-      </div>
-
-      <div v-else class="league-grid">
-        <div v-for="league in leagues" :key="league.code" class="league-card">
-          <div class="league-info">
-            <div class="league-name">{{ league.name }}</div>
-            <div class="league-meta">
-              <span class="code-badge">{{ league.code }}</span>
-              <span v-if="league.isCommissioner" class="commissioner-badge">Commissioner</span>
-            </div>
-            <div class="player-name">
-              Playing as <strong>{{ league.playerName }}</strong>
-            </div>
-            <div v-if="league.teamName" class="team-name">{{ league.teamName }}</div>
-          </div>
-          <button
-            class="btn btn-primary enter-btn"
-            :disabled="enteringCode === league.code"
-            @click="enterLeague(league.code)"
+      <v-row>
+        <v-col cols="2"></v-col>
+        <v-col cols="12" md="2" class="d-flex justify-end">
+          <LoginForm />
+        </v-col>
+        <v-col cols="12" md="6" class="d-flex justify-start">
+          <v-data-table
+            :items="leagues"
+            :headers="[
+              { title: 'League Name', value: 'name' },
+              { title: 'Your Team', value: 'team' },
+              { title: 'Actions', value: 'actions', sortable: false },
+            ]"
+            class="rounded-lg"
           >
-            <PokeballLoader v-if="enteringCode === league.code" variant="inline" :size="14" />
-            <AppIcon v-else :path="mdiLogin" :size="16" />
-            {{ enteringCode === league.code ? 'Entering…' : 'Enter League' }}
-          </button>
-        </div>
-      </div>
-
-      <div class="actions">
-        <button class="btn btn-ghost" @click="router.push('/league/create')">
-          <AppIcon :path="mdiPlusCircle" :size="18" />
-          Create a League
-        </button>
-        <button class="btn btn-ghost" @click="router.push('/register')">
-          <AppIcon :path="mdiPokeball" :size="18" />
-          Join a New League
-        </button>
-      </div>
+            <template #item.team="{ item }">
+              <div class="d-flex align-center">
+                <v-avatar v-if="item.teamImageUrl" :image="item.teamImageUrl" size="36" />
+                <div>
+                  <div class="player-name">{{ item.playerName }}</div>
+                  <div class="team-name">{{ item.teamName }}</div>
+                </div>
+              </div>
+            </template>
+            <template #item.actions="{ item }">
+              <v-btn
+                :color="item.isCommissioner ? 'primary' : 'secondary'"
+                @click="enterLeague(item.code)"
+                :loading="enteringCode === item.code"
+                class="enter-btn"
+              >
+                <AppIcon :path="mdiLogin" :size="18" class="icon" />
+                Enter League
+              </v-btn>
+            </template>
+          </v-data-table>
+        </v-col> 
+        <v-col cols="2"></v-col> 
+      </v-row>
     </template>
-  </div>
+  </v-container>
 </template>
 
 <style scoped>
 .page {
-  max-width: 700px;
   margin: 0 auto;
   padding: 2rem 1.25rem;
 }
@@ -242,15 +229,12 @@ h1 {
   flex-shrink: 0;
 }
 
-.actions {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+.v-avatar {
+  margin-right: 12px;
 }
 
-.actions .btn {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
+.icon {
+  margin-top: 2px;
+  margin-right: 4px;
 }
 </style>

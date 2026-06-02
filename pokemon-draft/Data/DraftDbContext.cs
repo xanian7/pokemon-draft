@@ -19,7 +19,8 @@ public class DraftDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<AppUser>().HasKey(u => u.Id);
-        model.Entity<AppUser>().HasIndex(u => u.GoogleId).IsUnique();
+        model.Entity<AppUser>().HasIndex(u => u.GoogleId).IsUnique().HasFilter("[GoogleId] IS NOT NULL");
+        model.Entity<AppUser>().HasIndex(u => u.DiscordId).IsUnique().HasFilter("[DiscordId] IS NOT NULL");
         model.Entity<AppUser>()
             .HasMany(u => u.Players).WithOne(p => p.User)
             .HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.SetNull);

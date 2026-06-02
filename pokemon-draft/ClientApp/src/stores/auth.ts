@@ -18,11 +18,11 @@ interface RecentLeague {
   name: string
 }
 
-export interface GoogleUser {
+export interface AuthUser {
   id: string
   email: string
   name: string
-  picture: string
+  pictureUrl: string
 }
 
 const SESSION_KEY = 'pokemon-draft:session'
@@ -50,18 +50,25 @@ export const useAuthStore = defineStore('auth', () => {
   const session = ref<Session | null>(null)
   const recentLeagues = ref<RecentLeague[]>(loadRecentLeagues())
 
-  // ── Global Google identity (persisted in localStorage) ───────────────────────
+  // ── Global auth identity (persisted in localStorage, works for Google + Discord) ─
   const authToken = ref<string | null>(localStorage.getItem(AUTH_TOKEN_KEY))
 
-  function loadGoogleUser(): GoogleUser | null {
+  function loadAuthUser(): AuthUser | null {
     try {
       const stored = localStorage.getItem(AUTH_USER_KEY)
-      return stored ? JSON.parse(stored) : null
+      if (!stored) return null
+      const user = JSON.parse(stored)
+      // Migrate old 'picture' field name to 'pictureUrl'
+      if (user.picture !== undefined && user.pictureUrl === undefined) {
+        user.pictureUrl = user.picture
+        delete user.picture
+      }
+      return user
     } catch {
       return null
     }
   }
-  const googleUser = ref<GoogleUser | null>(loadGoogleUser())
+  const authUser = ref<AuthUser | null>(loadAuthUser())
 
   function loadSession() {
     const stored = sessionStorage.getItem(SESSION_KEY)
@@ -84,16 +91,16 @@ export const useAuthStore = defineStore('auth', () => {
     sessionStorage.removeItem(SESSION_KEY)
   }
 
-  function saveGoogleUser(token: string, user: GoogleUser) {
+  function saveAuthUser(token: string, user: AuthUser) {
     authToken.value = token
-    googleUser.value = user
+    authUser.value = user
     localStorage.setItem(AUTH_TOKEN_KEY, token)
     localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user))
   }
 
-  function clearGoogleUser() {
+  function clearAuthUser() {
     authToken.value = null
-    googleUser.value = null
+    authUser.value = null
     localStorage.removeItem(AUTH_TOKEN_KEY)
     localStorage.removeItem(AUTH_USER_KEY)
   }
@@ -103,16 +110,16 @@ export const useAuthStore = defineStore('auth', () => {
     return authToken.value ? { Authorization: `Bearer ${authToken.value}` } : {}
   }
 
-  // ── Google Sign-In ───────────────────────────────────────────────────────────
+  // ── Sign-In ──────────────────────────────────────────────────────────────────
   async function signInWithGoogle(idToken: string): Promise<string | null> {
-    const result = await apiPost<{ token: string; user: GoogleUser }>('/auth/google', { idToken })
+    const result = await apiPost<{ token: string; user: AuthUser }>('/auth/google', { idToken })
     if (result.error) return result.error
-    saveGoogleUser(result.data!.token, result.data!.user)
+    saveAuthUser(result.data!.token, result.data!.user)
     return null
   }
 
   function signOut() {
-    clearGoogleUser()
+    clearAuthUser()
     clearSession()
   }
 
@@ -186,7 +193,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   // ── Computed ─────────────────────────────────────────────────────────────────
   const isAuthenticated = computed(() => session.value !== null)
-  const isSignedInWithGoogle = computed(() => googleUser.value !== null)
+  const isSignedIn = computed(() => authUser.value !== null)
   const leagueCode = computed(() => session.value?.leagueCode ?? null)
   const leagueName = computed(() => session.value?.leagueName ?? '')
   const playerId = computed(() => session.value?.playerId ?? null)
@@ -217,10 +224,10 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     session,
     recentLeagues,
-    googleUser,
+    authUser,
     authToken,
     isAuthenticated,
-    isSignedInWithGoogle,
+    isSignedIn,
     leagueCode,
     leagueName,
     playerId,
@@ -230,6 +237,7 @@ export const useAuthStore = defineStore('auth', () => {
     teamName,
     teamImageUrl,
     authHeaders,
+    saveAuthUser,
     signInWithGoogle,
     signOut,
     fetchMyLeagues,

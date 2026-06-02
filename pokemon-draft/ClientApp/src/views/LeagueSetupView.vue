@@ -6,6 +6,7 @@ import { REGULATIONS } from '@/data/regulations'
 import { useSignalR, API_BASE } from '@/services/signalr'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
+import { useDraftStore } from '@/stores/draft'
 import {
   mdiCog,
   mdiCheck,
@@ -19,6 +20,7 @@ import {
 const router = useRouter()
 const authStore = useAuthStore()
 const pokemonStore = usePokemonStore()
+const draftStore = useDraftStore()
 const { subscribe, unsubscribe, isConnected } = useSignalR()
 
 // Redirect non-admin/non-auth users

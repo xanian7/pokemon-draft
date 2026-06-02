@@ -94,6 +94,7 @@ export interface ServerPlayerResponse {
   name: string
   teamName: string
   teamImageUrl: string
+  discordId?: string
 }
 
 export interface ServerDraftPick {

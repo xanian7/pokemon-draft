@@ -210,3 +210,11 @@
   padding-left: 0 !important;
   padding-right: 0 !important;
 }
+
+.poke-input :deep(.v-field__input) {
+  padding-inline-start: 12px !important;
+}
+
+.poke-input :deep(.v-field-label) {
+  left: 12px !important;
+}

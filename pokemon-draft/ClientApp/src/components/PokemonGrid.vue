@@ -62,13 +62,19 @@ const canDraft = computed(
 )
 
 const selectedPokemon = ref<Pokemon | null>(null)
+const draftError = ref<string | null>(null)
 
 function selectPokemon(pokemon: Pokemon) {
+  draftError.value = null
   selectedPokemon.value = pokemon
 }
 
 async function handleDraft(pokemonId: number) {
-  await draftStore.makePick(pokemonId)
+  draftError.value = await draftStore.makePick(pokemonId)
+  if (draftError.value) {
+    console.error('Draft pick failed:', draftError.value)
+    return
+  }
   selectedPokemon.value = null
 }
 </script>
@@ -78,6 +84,17 @@ async function handleDraft(pokemonId: number) {
     <v-card class="grid-container">
       <!-- ── Filter bar ─────────────────────────────────────────────────────── -->
       <div class="pokemon-grid-header">
+        <v-alert
+          v-if="draftError"
+          type="error"
+          variant="tonal"
+          density="compact"
+          closable
+          @click:close="draftError = null"
+        >
+          {{ draftError }}
+        </v-alert>
+
         <v-row>
           <v-col>
             <v-text-field

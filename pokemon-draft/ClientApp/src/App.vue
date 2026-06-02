@@ -18,6 +18,13 @@ const appVersion = (import.meta.env.VITE_GIT_SHA ?? 'dev').slice(0, 7)
 const menuOpen = ref(false)
 const menuRef = ref<HTMLElement | null>(null)
 
+onMounted(() => {
+  
+  if (!authStore.isAuthenticated) {
+    router.push('/login')
+  }
+})
+
 const avatarInitials = computed(() => {
   const name = authStore.playerName
   if (!name) return '?'

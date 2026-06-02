@@ -70,6 +70,11 @@ const router = createRouter({
       component: () => import('../views/PlayoffsView.vue'),
     },
     {
+      path: '/auth/discord/callback',
+      name: 'discord-callback',
+      component: () => import('../views/DiscordCallbackView.vue'),
+    },
+    {
       path: '/my-leagues',
       name: 'my-leagues',
       component: () => import('../views/MyLeaguesView.vue'),
@@ -79,6 +84,11 @@ const router = createRouter({
       name: 'team-manage',
       component: () => import('../views/RosterView.vue'),
     },
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('../views/LoginView.vue'),
+    }
   ],
 })
 

@@ -4,7 +4,7 @@
     {
       "label": "Build Backend",
       "type": "shell",
-      "command": "dotnet build PokemonDraftApi/PokemonDraftApi.csproj -c Debug",
+      "command": "dotnet build pokemon-draft/pokemon-draft-api.csproj -c Debug",
       "options": { "cwd": "${workspaceFolder}" },
       "group": "build",
       "problemMatcher": "$msCompile"
@@ -13,13 +13,23 @@
       "label": "Install Frontend Deps",
       "type": "shell",
       "command": "npm install",
-      "options": { "cwd": "${workspaceFolder}/pokemon-draft" }
+      "options": { "cwd": "${workspaceFolder}/pokemon-draft/ClientApp" },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     },
     {
       "label": "Start Frontend",
       "type": "shell",
       "command": "npm run dev",
-      "options": { "cwd": "${workspaceFolder}/pokemon-draft" },
+      "options": { "cwd": "${workspaceFolder}/pokemon-draft/ClientApp" },
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true
+      },
       "dependsOn": "Install Frontend Deps",
       "isBackground": true,
       "problemMatcher": {
@@ -31,6 +41,16 @@
           "endsPattern": "Local:"
         }
       }
+    },
+    {
+      "label": "Stop Frontend",
+      "type": "shell",
+      "command": "$conn = Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue; if ($conn) { $conn | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue } }",
+      "presentation": {
+        "reveal": "never",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
     }
   ]
 }

@@ -52,13 +52,28 @@ export const useDraftStore = defineStore('draft', () => {
   /** Posts a draft pick to the API. Returns null on success or an error message. */
   async function makePick(pokemonId: number): Promise<string | null> {
     const authStore = useAuthStore()
+    const draftee = currentPicker.value
     if (!authStore.leagueCode || !authStore.playerId || !authStore.pin) return 'Not authenticated.'
-    const result = await apiPost(`/leagues/${authStore.leagueCode}/draft/pick`, {
+    let result = await apiPost(`/leagues/${authStore.leagueCode}/draft/pick`, {
       playerId: authStore.playerId,
       pin: authStore.pin,
       pokemonId,
     })
-    return result.error
+
+    if (result.error === 'Invalid player or PIN.' && authStore.authToken) {
+      const refreshError = await authStore.enterLeague(authStore.leagueCode)
+      if (!refreshError) {
+        result = await apiPost(`/leagues/${authStore.leagueCode}/draft/pick`, {
+          playerId: authStore.playerId,
+          pin: authStore.pin,
+          pokemonId,
+        })
+      }
+    }
+
+    if (result.error) return result.error
+
+    return null
   }
 
   function getPlayerPicks(playerId: string): ServerDraftPick[] {

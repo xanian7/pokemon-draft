@@ -68,7 +68,7 @@ public record LeagueResponse(
     DraftStateResponse Draft
 );
 
-public record PlayerResponse(string Id, string Name, string TeamName, string TeamImageUrl);
+public record PlayerResponse(string Id, string Name, string TeamName, string TeamImageUrl, string? DiscordId);
 
 public record DraftStateResponse(
     string Status,

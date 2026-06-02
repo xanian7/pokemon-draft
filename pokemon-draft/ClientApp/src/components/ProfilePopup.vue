@@ -45,7 +45,7 @@ const avatarInitials = computed(() => {
               </v-btn>
               <v-divider></v-divider>
               <v-btn variant="text" width="100%">
-                <router-link to="/leagues">Return to My Leagues</router-link>
+                <router-link to="/my-leagues">Return to My Leagues</router-link>
               </v-btn>
             </div>
           </v-card-text>

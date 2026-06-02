@@ -55,14 +55,14 @@ public class LeagueService(DraftDbContext db) : ILeagueService
 
     public LeagueResponse? GetLeagueResponse(string code)
     {
-        var league = LoadLeague(code);
+        var league = LoadLeagueReadOnly(code);
         return league is null ? null : ToResponse(league);
     }
 
     /// <inheritdoc/>
     public (bool success, string? error) UpdateConfig(string code, UpdateLeagueConfigRequest req)
     {
-        var league = LoadLeague(code);
+        var league = LoadLeagueBase(code);
         if (league is null) return (false, null);
         if (req.Name is not null) league.Name = req.Name;
         if (req.PointLimit is not null) league.PointLimit = req.PointLimit.Value;
@@ -79,7 +79,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (string.IsNullOrWhiteSpace(req.Name) || string.IsNullOrWhiteSpace(req.Pin))
             return (null, "Name and PIN are required.");
 
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueWithPlayers(leagueCode);
         if (league is null) return (null, null);
 
         var player = new Player
@@ -105,7 +105,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (string.IsNullOrWhiteSpace(req.Name))
             return (null, "Name is required.");
 
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueWithPlayers(leagueCode);
         if (league is null)
             return (null, "League not found.");
 
@@ -143,7 +143,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public (bool success, string? error) RemovePlayer(string leagueCode, string playerId)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueWithPlayers(leagueCode);
         if (league is null) return (false, null);
 
         var player = league.Players.FirstOrDefault(p => p.Id == playerId);
@@ -158,7 +158,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public (bool success, string? error) MovePlayer(string leagueCode, int fromIndex, int toIndex)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueWithPlayers(leagueCode);
         if (league is null) return (false, null);
 
         var players = GetOrderedPlayers(league);
@@ -176,7 +176,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public (bool success, string? error) SetPointValues(string leagueCode, Dictionary<int, int> values)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueWithPointValues(leagueCode);
         if (league is null) return (false, null);
 
         var existing = league.PointValues.ToDictionary(pv => pv.PokemonId);
@@ -211,7 +211,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public JoinResponse? ValidatePin(string leagueCode, string pin)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueWithPlayers(leagueCode);
         if (league is null) return null;
 
         if (VerifyAdminPin(league, pin))
@@ -265,7 +265,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public (bool success, string? error, bool draftCompleted) MakePick(string leagueCode, string playerId, string pin, int pokemonId)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueWithDraft(leagueCode);
         if (league is null)
             return (false, "League not found.", false);
 
@@ -330,7 +330,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             Rounds: league.Rounds,
             PlayoffSpots: league.PlayoffSpots,
             RegulationSet: league.RegulationSet,
-            Players: players.Select(p => new PlayerResponse(p.Id, p.Name, p.TeamName, p.TeamImageUrl)).ToList(),
+            Players: players.Select(p => new PlayerResponse(p.Id, p.Name, p.TeamName, p.TeamImageUrl, p.User?.DiscordId)).ToList(),
             PointValues: league.PointValues.ToDictionary(pv => pv.PokemonId, pv => pv.Value),
             Draft: new DraftStateResponse(
                 Status: league.DraftStatus.ToString(),
@@ -346,7 +346,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public void GenerateSchedule(string leagueCode)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueWithSchedule(leagueCode);
         if (league is null) return;
 
         db.Matchups.RemoveRange(league.Matchups);
@@ -394,7 +394,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public ScheduleResponse? GetSchedule(string leagueCode)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueScheduleReadOnly(leagueCode);
         if (league is null) return null;
 
         var players = GetOrderedPlayers(league).ToDictionary(p => p.Id);
@@ -499,7 +499,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public List<PlayoffOutlookEntry>? GetPlayoffOutlook(string leagueCode)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueScheduleReadOnly(leagueCode);
         if (league is null) return null;
 
         var players = GetOrderedPlayers(league).ToDictionary(p => p.Id);
@@ -611,7 +611,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public (bool success, string? error) ReportMatchup(string leagueCode, int matchupId, string playerId, string pin, int player1Wins, int player2Wins)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueWithSchedule(leagueCode);
         if (league is null) return (false, "League not found.");
 
         var matchup = league.Matchups.FirstOrDefault(m => m.Id == matchupId);
@@ -647,7 +647,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public (bool success, string? error) EditMatchup(string leagueCode, int matchupId, string adminPin, int player1Wins, int player2Wins)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueWithSchedule(leagueCode);
         if (league is null) return (false, "League not found.");
 
         if (!VerifyAdminPin(league, adminPin))
@@ -675,7 +675,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public (bool success, string? error) UpdatePlayerProfile(string leagueCode, string playerId, string pin, string? teamName, string? teamImageUrl)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueWithPlayers(leagueCode);
         if (league is null) return (false, "League not found.");
 
         var player = GetOrderedPlayers(league).FirstOrDefault(p => p.Id == playerId);
@@ -688,11 +688,13 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         return (true, null);
     }
 
+    // Full tracked load with split queries — used for complex write operations (StartDraft, ResetDraft).
     private League? LoadLeague(string code)
     {
         var normalizedCode = NormalizeLeagueCode(code);
         var league = db.Leagues
-            .Include(l => l.Players)
+            .AsSplitQuery()
+            .Include(l => l.Players).ThenInclude(p => p.User)
             .Include(l => l.Picks)
             .Include(l => l.PointValues)
             .Include(l => l.Trades).ThenInclude(t => t.Items)
@@ -700,12 +702,136 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             .FirstOrDefault(l => l.Code == normalizedCode);
 
         if (league is null) return null;
+        SortLeagueCollections(league);
+        return league;
+    }
 
+    // Full read-only load — no change tracking overhead, for GET response endpoints.
+    private League? LoadLeagueReadOnly(string code)
+    {
+        var normalizedCode = NormalizeLeagueCode(code);
+        var league = db.Leagues
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(l => l.Players).ThenInclude(p => p.User)
+            .Include(l => l.Picks)
+            .Include(l => l.PointValues)
+            .Include(l => l.Trades).ThenInclude(t => t.Items)
+            .Include(l => l.Matchups)
+            .FirstOrDefault(l => l.Code == normalizedCode);
+
+        if (league is null) return null;
+        SortLeagueCollections(league);
+        return league;
+    }
+
+    // League scalar fields only — for operations that only modify top-level properties.
+    private League? LoadLeagueBase(string code)
+    {
+        var normalizedCode = NormalizeLeagueCode(code);
+        return db.Leagues.FirstOrDefault(l => l.Code == normalizedCode);
+    }
+
+    // League + Players — for player management and PIN validation.
+    private League? LoadLeagueWithPlayers(string code)
+    {
+        var normalizedCode = NormalizeLeagueCode(code);
+        var league = db.Leagues
+            .Include(l => l.Players)
+            .FirstOrDefault(l => l.Code == normalizedCode);
+        if (league is null) return null;
+        league.Players = league.Players.OrderBy(p => p.SortOrder).ToList();
+        return league;
+    }
+
+    // League + PointValues only — for SetPointValues.
+    private League? LoadLeagueWithPointValues(string code)
+    {
+        var normalizedCode = NormalizeLeagueCode(code);
+        return db.Leagues
+            .Include(l => l.PointValues)
+            .FirstOrDefault(l => l.Code == normalizedCode);
+    }
+
+    // League + Players + Picks — for draft picks and post-draft roster changes.
+    private League? LoadLeagueWithDraft(string code)
+    {
+        var normalizedCode = NormalizeLeagueCode(code);
+        var league = db.Leagues
+            .AsSplitQuery()
+            .Include(l => l.Players)
+            .Include(l => l.Picks)
+            .FirstOrDefault(l => l.Code == normalizedCode);
+        if (league is null) return null;
+        league.Players = league.Players.OrderBy(p => p.SortOrder).ToList();
+        league.Picks = league.Picks.OrderBy(p => p.PickNumber).ToList();
+        return league;
+    }
+
+    // League + Players + Matchups — for schedule generation and matchup reporting.
+    private League? LoadLeagueWithSchedule(string code)
+    {
+        var normalizedCode = NormalizeLeagueCode(code);
+        var league = db.Leagues
+            .AsSplitQuery()
+            .Include(l => l.Players)
+            .Include(l => l.Matchups)
+            .FirstOrDefault(l => l.Code == normalizedCode);
+        if (league is null) return null;
+        league.Players = league.Players.OrderBy(p => p.SortOrder).ToList();
+        league.Matchups = league.Matchups.OrderBy(m => m.Week).ThenBy(m => m.Id).ToList();
+        return league;
+    }
+
+    // Read-only schedule view — no change tracking, for GET schedule/standings endpoints.
+    private League? LoadLeagueScheduleReadOnly(string code)
+    {
+        var normalizedCode = NormalizeLeagueCode(code);
+        var league = db.Leagues
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(l => l.Players)
+            .Include(l => l.Matchups)
+            .FirstOrDefault(l => l.Code == normalizedCode);
+        if (league is null) return null;
+        league.Players = league.Players.OrderBy(p => p.SortOrder).ToList();
+        league.Matchups = league.Matchups.OrderBy(m => m.Week).ThenBy(m => m.Id).ToList();
+        return league;
+    }
+
+    // Read-only trades view — no change tracking, for GetTrades.
+    private League? LoadLeagueTradesReadOnly(string code)
+    {
+        var normalizedCode = NormalizeLeagueCode(code);
+        return db.Leagues
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(l => l.Trades).ThenInclude(t => t.Items)
+            .FirstOrDefault(l => l.Code == normalizedCode);
+    }
+
+    // League + Players + Picks + Trades — for trade proposals and responses.
+    private League? LoadLeagueWithTrades(string code)
+    {
+        var normalizedCode = NormalizeLeagueCode(code);
+        var league = db.Leagues
+            .AsSplitQuery()
+            .Include(l => l.Players)
+            .Include(l => l.Picks)
+            .Include(l => l.Trades).ThenInclude(t => t.Items)
+            .FirstOrDefault(l => l.Code == normalizedCode);
+        if (league is null) return null;
+        league.Players = league.Players.OrderBy(p => p.SortOrder).ToList();
+        league.Picks = league.Picks.OrderBy(p => p.PickNumber).ToList();
+        return league;
+    }
+
+    private static void SortLeagueCollections(League league)
+    {
         league.Players = league.Players.OrderBy(p => p.SortOrder).ToList();
         league.Picks = league.Picks.OrderBy(p => p.PickNumber).ToList();
         league.PointValues = league.PointValues.OrderBy(p => p.PokemonId).ToList();
         league.Matchups = league.Matchups.OrderBy(m => m.Week).ThenBy(m => m.Id).ToList();
-        return league;
     }
 
     private static List<Player> GetOrderedPlayers(League league) => league.Players.OrderBy(p => p.SortOrder).ToList();
@@ -732,7 +858,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public (bool success, string? error) DropPokemon(string leagueCode, string playerId, string pin, int pokemonId)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueWithDraft(leagueCode);
         if (league is null) return (false, "League not found.");
 
         var player = league.Players.FirstOrDefault(p => p.Id == playerId);
@@ -750,7 +876,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public (bool success, string? error) AddPokemon(string leagueCode, string playerId, string pin, int pokemonId)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueWithDraft(leagueCode);
         if (league is null) return (false, "League not found.");
 
         var player = league.Players.FirstOrDefault(p => p.Id == playerId);
@@ -783,7 +909,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public List<TradeResponse> GetTrades(string leagueCode)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueTradesReadOnly(leagueCode);
         if (league is null) return [];
         return league.Trades.OrderByDescending(t => t.ProposedAt).Select(ToTradeResponse).ToList();
     }
@@ -793,7 +919,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         string leagueCode, string initiatorId, string initiatorPin,
         string targetId, List<int> offering, List<int> requesting)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueWithTrades(leagueCode);
         if (league is null) return (null, "League not found.");
 
         var initiator = league.Players.FirstOrDefault(p => p.Id == initiatorId);
@@ -836,7 +962,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     /// <inheritdoc/>
     public (bool success, string? error) RespondToTrade(string leagueCode, int tradeId, string playerId, string pin, TradeStatus response)
     {
-        var league = LoadLeague(leagueCode);
+        var league = LoadLeagueWithTrades(leagueCode);
         if (league is null) return (false, "League not found.");
 
         var trade = league.Trades.FirstOrDefault(t => t.Id == tradeId);
