@@ -143,7 +143,7 @@ const isInLeague = computed(() => authStore.isAuthenticated)
       <!-- ── Signed in, not in a league: join / create tabs ──────────────── -->
 
         <!-- Discord user banner -->
-        <div class="discord-banner mb-4">
+        <div class="discord-banner mb-4" v-if="isSignedIn">
           <v-avatar v-if="authStore.authUser?.pictureUrl" :image="authStore.authUser.pictureUrl" size="24" />
           <span class="text-body-2 text-medium-emphasis">
             Signed in as <strong>{{ authStore.authUser?.name }}</strong>

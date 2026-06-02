@@ -18,7 +18,7 @@ const avatarInitials = computed(() => {
 
 <template>
   <v-container fluid>
-    <v-row class="justify-center">
+    <v-row class="justify-center" v-if="authStore.playerId">
       <v-menu min-width="200px">
         <template v-slot:activator="{ props }">
           <v-btn icon v-bind="props">
