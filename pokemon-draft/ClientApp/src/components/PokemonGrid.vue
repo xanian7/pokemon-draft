@@ -80,7 +80,7 @@ async function handleDraft(pokemonId: number) {
 </script>
 
 <template>
-  <v-container fluid class="remove-left-right-padding">
+  <v-container fluid class="remove-left-right-padding pokemon-grid-shell">
     <v-card class="grid-container">
       <!-- ── Filter bar ─────────────────────────────────────────────────────── -->
       <div class="pokemon-grid-header">
@@ -200,6 +200,7 @@ async function handleDraft(pokemonId: number) {
 
 <style scoped>
 .pokemon-grid-header {
+  flex: 0 0 auto;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -271,9 +272,8 @@ async function handleDraft(pokemonId: number) {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 0.4rem;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
+  width: 100%;
+  align-content: start;
 }
 
 /* Tier view */
@@ -281,12 +281,9 @@ async function handleDraft(pokemonId: number) {
   display: flex;
   flex-direction: row;
   gap: 0.65rem;
-  overflow-x: auto;
-  overflow-y: auto;
   padding-right: 8px;
-  flex: 1;
-  min-height: 0;
   align-items: flex-start;
+  min-width: max-content;
 }
 
 .tier-col {
@@ -334,18 +331,42 @@ async function handleDraft(pokemonId: number) {
   gap: 0.3rem;
 }
 
+.pokemon-grid-shell {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 0;
+  padding-top: 0;
+}
+
 .grid-container {
   border: 1px solid var(--border-color);
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
   padding: 8px;
+  width: 100%;
 }
 
 .grid-view-container {
   border: 1px solid var(--border-color);
   border-radius: 6px;
+  display: block;
+  flex: 1 1 auto;
+  height: 0;
+  min-height: 0;
   padding: 8px;
   margin-top: 8px;
-  max-height: 71dvh;
-  overflow-y: auto;
+  overflow: auto;
   background: var(--bg);
 }
 

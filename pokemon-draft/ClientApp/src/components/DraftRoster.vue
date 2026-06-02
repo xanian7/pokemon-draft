@@ -69,7 +69,7 @@ function toggleTeam(playerId: string) {
 </script>
 
 <template>
-  <v-container fluid class="remove-left-right-padding">
+  <v-container fluid class="pa-0">
     <v-card class="team-outline">
       <v-card color="var(--primary)">
         <v-card-title class="text-subtitle-1">
@@ -148,6 +148,7 @@ function toggleTeam(playerId: string) {
   gap: 0.4rem;
   overflow-y: auto;
   flex: 1;
+
 }
 
 .v-expansion-panels {
@@ -163,7 +164,7 @@ function toggleTeam(playerId: string) {
 .team-outline {
   padding: 8px;
   border: 1px solid var(--border-color);
-  max-height: 81vh;
+  max-height: 100%;
   overflow-y: auto;
 }
 </style>

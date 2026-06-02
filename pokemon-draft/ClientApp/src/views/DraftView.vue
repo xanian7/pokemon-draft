@@ -136,56 +136,58 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
 
 <template>
   <v-container fluid>
-    <v-row>
-      <v-col cols="12" md="12">
-        <div v-if="picksByRound.length > 0" class="upcoming-picks">
-          <div class="upcoming-picks-track">
-            <section v-for="group in picksByRound" :key="group.round" class="upcoming-round">
-              <v-card class="round-separator">
-                <v-card-text>
-                  <h3 class="text-subtitle-1">ROUND</h3>
-                  <h3 class="text-subtitle-1">{{ group.round }}</h3>
-                </v-card-text>
-              </v-card>
-              <v-card
-                v-for="pick in group.picks"
-                :key="pick.pickNumber"
-                :class="['upcoming-pick-card', { 'current-upcoming-pick-card': pick.isCurrent }]"
-                :elevation="pick.isCurrent ? 8 : 2"
-                :color="pick.isMe ? 'primary' : 'var(--draft-card-nonuser-bg)'"
-              >
-                <v-card-text class="d-flex align-center">
-                  <v-avatar size="40" class="mr-3" v-if="pick.teamImageUrl">
-                    <v-img :src="pick.teamImageUrl" />
-                  </v-avatar>
-                  <v-avatar size="40" class="mr-3" v-else>
-                    <span class="text-subtitle-1">{{ pick.initials }}</span>
-                  </v-avatar>
-                  <div>
-                    <div class="text-subtitle-2">
-                      {{
-                        pick.isCurrent
-                          ? `ON THE CLOCK: PICK ${pick.pickNumber}`
-                          : `PICK ${pick.pickNumber}`
-                      }}
+    <v-card class="wrapper-card">
+      <v-row class="upcoming-picks-row">
+        <v-col cols="12" md="12">
+          <div v-if="picksByRound.length > 0" class="upcoming-picks">
+            <div class="upcoming-picks-track">
+              <section v-for="group in picksByRound" :key="group.round" class="upcoming-round">
+                <v-card class="round-separator">
+                  <v-card-text>
+                    <h3 class="text-subtitle-1">ROUND</h3>
+                    <h3 class="text-subtitle-1">{{ group.round }}</h3>
+                  </v-card-text>
+                </v-card>
+                <v-card
+                  v-for="pick in group.picks"
+                  :key="pick.pickNumber"
+                  :class="['upcoming-pick-card', { 'current-upcoming-pick-card': pick.isCurrent }]"
+                  :elevation="pick.isCurrent ? 8 : 2"
+                  :color="pick.isMe ? 'primary' : 'var(--draft-card-nonuser-bg)'"
+                >
+                  <v-card-text class="d-flex align-center">
+                    <v-avatar size="40" class="mr-3" v-if="pick.teamImageUrl">
+                      <v-img :src="pick.teamImageUrl" />
+                    </v-avatar>
+                    <v-avatar size="40" class="mr-3" v-else>
+                      <span class="text-subtitle-1">{{ pick.initials }}</span>
+                    </v-avatar>
+                    <div>
+                      <div class="text-subtitle-2">
+                        {{
+                          pick.isCurrent
+                            ? `ON THE CLOCK: PICK ${pick.pickNumber}`
+                            : `PICK ${pick.pickNumber}`
+                        }}
+                      </div>
+                      <div class="text-body-2">{{ pick.playerName }}</div>
                     </div>
-                    <div class="text-body-2">{{ pick.playerName }}</div>
-                  </div>
-                </v-card-text>
-              </v-card>
-            </section>
+                  </v-card-text>
+                </v-card>
+              </section>
+            </div>
           </div>
-        </div>
-      </v-col>
-    </v-row>
-    <v-row>
-      <v-col cols="12" md="2">
-        <DraftRoster />
-      </v-col>
-      <v-col cols="10">
-        <PokemonGrid />
-      </v-col>
-    </v-row>
+        </v-col>
+      </v-row>
+      <v-row class="draft-main-row">
+        <v-col cols="12" md="2">
+          <DraftRoster />
+        </v-col>
+        <v-col cols="12" md="10" class="draft-grid-col">
+          <PokemonGrid />
+        </v-col>
+      </v-row>
+    </v-card>
   </v-container>
 </template>
 
@@ -240,5 +242,33 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
   text-align: center;
   font-weight: 600;
   height: 100%;
+}
+
+.wrapper-card {
+  max-height: 92dvh;
+  height: 92dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+}
+
+.upcoming-picks-row {
+  flex: 0 0 auto;
+  margin-bottom: 4px;
+}
+
+.upcoming-picks-row > .v-col {
+  padding-bottom: 4px;
+}
+
+.draft-main-row {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 0;
+}
+
+.draft-grid-col {
+  min-height: 0;
+  display: flex;
 }
 </style>
