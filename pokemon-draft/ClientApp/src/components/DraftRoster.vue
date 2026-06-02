@@ -69,7 +69,7 @@ function toggleTeam(playerId: string) {
 </script>
 
 <template>
-  <v-container fluid class="pa-0">
+  <v-container fluid class="pa-0 roster-shell">
     <v-card class="team-outline">
       <v-card color="var(--primary)">
         <v-card-title class="text-subtitle-1">
@@ -149,6 +149,19 @@ function toggleTeam(playerId: string) {
   overflow-y: auto;
   flex: 1;
 
+}
+
+.roster-shell {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 0;
+  padding-top: 0;
 }
 
 .v-expansion-panels {
