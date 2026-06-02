@@ -19,7 +19,12 @@ namespace PokemonDraft.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController(DraftDbContext db, IConfiguration config, ILeagueService leagueService, IHttpClientFactory httpClientFactory) : ControllerBase
+public class AuthController(
+    DraftDbContext db,
+    IConfiguration config,
+    ILeagueService leagueService,
+    IHttpClientFactory httpClientFactory,
+    ILogger<AuthController> logger) : ControllerBase
 {
     private string IssueJwt(AppUser user)
     {
@@ -249,11 +254,21 @@ public class AuthController(DraftDbContext db, IConfiguration config, ILeagueSer
             });
             var tokenResp = await http.SendAsync(tokenReq);
             if (!tokenResp.IsSuccessStatusCode)
+            {
+                var tokenError = await tokenResp.Content.ReadAsStringAsync();
+                logger.LogWarning(
+                    "Discord token exchange failed with status {StatusCode}: {Error}",
+                    tokenResp.StatusCode,
+                    tokenError);
                 return Redirect($"{frontendUrl}{callbackPath}#error=token_exchange_failed");
+            }
 
             using var tokenDoc = await JsonDocument.ParseAsync(await tokenResp.Content.ReadAsStreamAsync());
             if (!tokenDoc.RootElement.TryGetProperty("access_token", out var accessTokenEl))
+            {
+                logger.LogWarning("Discord token exchange response did not include an access_token.");
                 return Redirect($"{frontendUrl}{callbackPath}#error=no_access_token");
+            }
             var accessToken = accessTokenEl.GetString()!;
 
             // Fetch Discord user profile
@@ -261,12 +276,22 @@ public class AuthController(DraftDbContext db, IConfiguration config, ILeagueSer
             userReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             var userResp = await http.SendAsync(userReq);
             if (!userResp.IsSuccessStatusCode)
+            {
+                var userError = await userResp.Content.ReadAsStringAsync();
+                logger.LogWarning(
+                    "Discord user fetch failed with status {StatusCode}: {Error}",
+                    userResp.StatusCode,
+                    userError);
                 return Redirect($"{frontendUrl}{callbackPath}#error=user_fetch_failed");
+            }
 
             using var userDoc = await JsonDocument.ParseAsync(await userResp.Content.ReadAsStreamAsync());
             var root = userDoc.RootElement;
             if (!root.TryGetProperty("id", out var idEl) || !root.TryGetProperty("username", out var usernameEl))
+            {
+                logger.LogWarning("Discord user response did not include the expected id and username fields.");
                 return Redirect($"{frontendUrl}{callbackPath}#error=invalid_user_data");
+            }
 
             var discordId = idEl.GetString()!;
             var username = usernameEl.GetString()!;
@@ -296,7 +321,7 @@ public class AuthController(DraftDbContext db, IConfiguration config, ILeagueSer
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Discord OAuth callback error: {ex.Message}");
+            logger.LogError(ex, "Discord OAuth callback failed.");
             return Redirect($"{frontendUrl}{callbackPath}#error=server_error");
         }
     }

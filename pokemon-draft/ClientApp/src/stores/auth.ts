@@ -18,6 +18,16 @@ interface RecentLeague {
   name: string
 }
 
+export interface MyLeague {
+  code: string
+  name: string
+  playerId: string
+  playerName: string
+  teamName: string
+  teamImageUrl: string
+  isCommissioner: boolean
+}
+
 export interface AuthUser {
   id: string
   email: string
@@ -126,7 +136,7 @@ export const useAuthStore = defineStore('auth', () => {
   // ── My Leagues ───────────────────────────────────────────────────────────────
   async function fetchMyLeagues() {
     if (!authToken.value) return []
-    const result = await apiGet<unknown[]>('/auth/my-leagues', authHeaders())
+    const result = await apiGet<MyLeague[]>('/auth/my-leagues', authHeaders())
     return result.data ?? []
   }
 
@@ -159,6 +169,13 @@ export const useAuthStore = defineStore('auth', () => {
     persistRecentLeague({ code, name: lName })
     recentLeagues.value = loadRecentLeagues()
     return null
+  }
+
+  async function linkPlayer(leagueCode: string, pin: string): Promise<string | null> {
+    if (!authToken.value) return 'Not signed in.'
+    const code = leagueCode.trim().toUpperCase()
+    const result = await apiPost('/auth/link-player', { leagueCode: code, pin: pin.trim() }, authHeaders())
+    return result.error
   }
 
   // ── PIN-based join (existing) ────────────────────────────────────────────────
@@ -242,6 +259,7 @@ export const useAuthStore = defineStore('auth', () => {
     signOut,
     fetchMyLeagues,
     enterLeague,
+    linkPlayer,
     join,
     updateProfile,
     clearSession,

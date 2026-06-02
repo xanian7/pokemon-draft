@@ -21,6 +21,9 @@ onMounted(async () => {
       access_denied: 'Discord login was cancelled.',
       state_mismatch: 'Login session expired. Please try again.',
       token_exchange_failed: 'Could not connect to Discord. Please try again.',
+      no_access_token: 'Discord did not return a login token. Please try again.',
+      user_fetch_failed: 'Could not load your Discord profile. Please try again.',
+      invalid_user_data: 'Discord returned an incomplete profile. Please try again.',
       server_error: 'An unexpected error occurred. Please try again.',
     }
     errorMsg.value = messages[error] ?? 'Login failed. Please try again.'

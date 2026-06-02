@@ -18,9 +18,11 @@ const appVersion = (import.meta.env.VITE_GIT_SHA ?? 'dev').slice(0, 7)
 const menuOpen = ref(false)
 const menuRef = ref<HTMLElement | null>(null)
 
-onMounted(() => {
-  
-  if (!authStore.isAuthenticated) {
+onMounted(async () => {
+  await router.isReady()
+  const publicPaths = ['/login', '/auth/discord/callback']
+  const currentPath = router.currentRoute.value.path
+  if (!authStore.isAuthenticated && !publicPaths.some(p => currentPath.startsWith(p))) {
     router.push('/login')
   }
 })

@@ -76,7 +76,13 @@ async function join() {
   }
   isLoading.value = true
   error.value = ''
-  const err = await authStore.join(leagueCode.value, pin.value)
+  let err: string | null
+  if (authStore.isSignedIn) {
+    err = await authStore.linkPlayer(leagueCode.value, pin.value)
+    if (!err) err = await authStore.enterLeague(leagueCode.value)
+  } else {
+    err = await authStore.join(leagueCode.value, pin.value)
+  }
   isLoading.value = false
   if (err) {
     error.value = err
