@@ -2,7 +2,6 @@
 import { useAuthStore } from '@/stores/auth'
 import type { NavigationButton } from '@/types'
 import { reactive, ref } from 'vue'
-import { v } from 'vue-router/dist/index-D_VEAp3P.js'
 
 const authStore = useAuthStore()
 
@@ -81,7 +80,6 @@ function expandOrCollapse() {
         prepend-icon="mdi-logout"
         @click="authStore.signOut()"
       >
-
       </v-list-item>
     </v-list>
     <v-btn
