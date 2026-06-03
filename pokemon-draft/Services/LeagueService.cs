@@ -240,6 +240,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         db.Matchups.RemoveRange(league.Matchups);
         league.Picks.Clear();
         league.Matchups.Clear();
+        RandomizePlayerOrder(league);
         league.DraftStatus = DraftStatus.Active;
         league.CurrentPickNumber = 0;
         db.SaveChanges();
@@ -874,6 +875,18 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     {
         for (var i = 0; i < players.Count; i++)
             players[i].SortOrder = i;
+    }
+
+    private static void RandomizePlayerOrder(League league)
+    {
+        var players = league.Players.ToList();
+        for (var i = players.Count - 1; i > 0; i--)
+        {
+            var j = Random.Shared.Next(i + 1);
+            (players[i], players[j]) = (players[j], players[i]);
+        }
+
+        ReindexPlayers(players);
     }
 
     // ── Roster management ──────────────────────────────────────────────────────

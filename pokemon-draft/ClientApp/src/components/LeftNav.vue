@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useAuthStore } from '@/stores/auth'
 import type { NavigationButton } from '@/types'
-import { reactive, ref } from 'vue'
+import {computed, reactive, ref } from 'vue'
 
 const authStore = useAuthStore()
 
@@ -57,6 +57,10 @@ const pageData = reactive({
 
 const rail = ref(true)
 
+const visibleNavigationButtons = computed(() =>
+  pageData.navigationButtons.filter((button) => !button.adminOnly || authStore.isAdmin),
+)
+
 function expandOrCollapse() {
   // on click, if the drawer is expanded, collapse it. If it's collapsed, expand it.
   rail.value = !rail.value
@@ -67,7 +71,8 @@ function expandOrCollapse() {
   <v-navigation-drawer app permanent :rail="rail" class="left-nav">
     <v-list v-if="authStore.isAuthenticated" nav>
       <v-list-item
-        v-for="button in pageData.navigationButtons"
+        v-for="button in visibleNavigationButtons"
+        :key="button.route"
         :prepend-icon="button.icon"
         :title="button.label"
         :to="button.route"
