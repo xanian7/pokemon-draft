@@ -279,7 +279,7 @@ function replayHost(replayUrl: string) {
 
       <v-card-text>
         <div v-if="isLoading" class="state-panel">
-          <PokeballLoader variant="page" label="Loading schedule..." />
+          <!-- <PokeballLoader variant="page" label="Loading schedule..." /> -->
         </div>
         <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>
         <v-alert v-else-if="!schedule || !schedule.weeks.length" type="info" variant="tonal">
@@ -410,9 +410,25 @@ function replayHost(replayUrl: string) {
         <v-card-text>
           <div class="report-grid">
             <div class="report-team">{{ teamLabel(activeMatchup.player1Name, activeMatchup.player1TeamName) }}</div>
-            <v-number-input v-model="reportP1Wins" :min="0" :max="2" density="compact" variant="outlined" hide-details />
+            <v-number-input
+              v-model="reportP1Wins"
+              :min="0"
+              :max="2"
+              class="score-input"
+              density="compact"
+              variant="outlined"
+              hide-details
+            />
             <div class="report-team right">{{ teamLabel(activeMatchup.player2Name, activeMatchup.player2TeamName) }}</div>
-            <v-number-input v-model="reportP2Wins" :min="0" :max="2" density="compact" variant="outlined" hide-details />
+            <v-number-input
+              v-model="reportP2Wins"
+              :min="0"
+              :max="2"
+              class="score-input"
+              density="compact"
+              variant="outlined"
+              hide-details
+            />
           </div>
 
           <v-text-field
@@ -432,8 +448,8 @@ function replayHost(replayUrl: string) {
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="tonal" @click="closeReport">Cancel</v-btn>
-          <v-btn color="primary" :loading="reportLoading" @click="submitReport">Save</v-btn>
+          <v-btn class="btn-secondary" @click="closeReport">Cancel</v-btn>
+          <v-btn class="btn-primary" :loading="reportLoading" @click="submitReport">Save</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -587,8 +603,12 @@ h1 {
   align-items: center;
   display: grid;
   gap: 10px;
-  grid-template-columns: 1fr 96px;
+  grid-template-columns: 1fr 140px;
   margin-bottom: 16px;
+}
+
+.score-input {
+  width: 140px;
 }
 
 .report-team {
