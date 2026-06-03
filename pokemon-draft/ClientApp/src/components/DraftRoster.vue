@@ -95,7 +95,7 @@ function toggleTeam(playerId: string) {
         </v-card-text>
       </v-card>
       <v-divider />
-      <v-expansion-panels v-model="openTeams" multiple>
+      <v-expansion-panels v-model="openTeams" multiple class="roster-scroll">
         <v-expansion-panel v-for="player in otherPlayers" :key="player.id">
           <v-expansion-panel-title class="text-subtitle-1">
             {{ player.teamName || player.name }}
@@ -146,9 +146,7 @@ function toggleTeam(playerId: string) {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 0.4rem;
-  overflow-y: auto;
-  flex: 1;
-
+  align-content: start;
 }
 
 .roster-shell {
@@ -175,9 +173,26 @@ function toggleTeam(playerId: string) {
   margin-top: 12px;
 }
 .team-outline {
-  padding: 8px;
   border: 1px solid var(--border-color);
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
   max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px;
+}
+
+.team-outline > .v-card {
+  flex: 0 0 auto;
+}
+
+.roster-scroll {
+  flex: 1 1 auto;
+  height: 0;
+  min-height: 0;
   overflow-y: auto;
 }
 </style>
