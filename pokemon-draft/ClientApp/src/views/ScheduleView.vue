@@ -286,8 +286,8 @@ function replayHost(replayUrl: string) {
           The schedule will appear here once the draft is complete.
         </v-alert>
 
-        <div v-else class="schedule-layout">
-          <div class="weeks-col">
+        <v-row v-else class="schedule-layout">
+          <v-col cols="12" lg="6" xl="5">
             <v-expansion-panels v-model="openWeeks" multiple>
               <v-expansion-panel v-for="week in filteredWeeks" :key="week.week" :value="week.week">
                 <v-expansion-panel-title>
@@ -374,31 +374,33 @@ function replayHost(replayUrl: string) {
                 </v-expansion-panel-text>
               </v-expansion-panel>
             </v-expansion-panels>
-          </div>
+          </v-col>
 
-          <v-card class="standings-card">
-            <v-card-title class="text-h6">Standings</v-card-title>
-            <v-data-table
-              :headers="standingsHeaders"
-              :items="standingsRows"
-              :items-per-page="-1"
-              class="standings-table"
-              density="compact"
-              hide-default-footer
-              item-value="playerId"
-            >
-              <template #item.team="{ item }">
-                <div class="standing-team" :class="{ mine: item.playerId === authStore.playerId }">
-                  <v-avatar size="28">
-                    <v-img v-if="item.teamImageUrl" :src="item.teamImageUrl" :alt="item.team" />
-                    <span v-else>{{ avatarInitials(item.playerName, item.teamName) }}</span>
-                  </v-avatar>
-                  <span>{{ item.team }}</span>
-                </div>
-              </template>
-            </v-data-table>
-          </v-card>
-        </div>
+          <v-col cols="12" lg="6" xl="5">
+            <v-card class="standings-card">
+              <v-card-title class="text-h6">Standings</v-card-title>
+              <v-data-table
+                :headers="standingsHeaders"
+                :items="standingsRows"
+                :items-per-page="-1"
+                class="standings-table"
+                density="compact"
+                hide-default-footer
+                item-value="playerId"
+              >
+                <template #item.team="{ item }">
+                  <div class="standing-team" :class="{ mine: item.playerId === authStore.playerId }">
+                    <v-avatar size="28">
+                      <v-img v-if="item.teamImageUrl" :src="item.teamImageUrl" :alt="item.team" />
+                      <span v-else>{{ avatarInitials(item.playerName, item.teamName) }}</span>
+                    </v-avatar>
+                    <span>{{ item.team }}</span>
+                  </div>
+                </template>
+              </v-data-table>
+            </v-card>
+          </v-col>
+        </v-row>
       </v-card-text>
     </v-card>
 
@@ -476,9 +478,6 @@ h1 {
 
 .schedule-layout {
   align-items: start;
-  display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(0, 1fr) 340px;
 }
 
 .week-title {
@@ -605,11 +604,7 @@ h1 {
   margin-bottom: 12px;
 }
 
-@media (max-width: 960px) {
-  .schedule-layout {
-    grid-template-columns: 1fr;
-  }
-
+@media (max-width: 1279px) {
   .standings-card {
     position: static;
   }
