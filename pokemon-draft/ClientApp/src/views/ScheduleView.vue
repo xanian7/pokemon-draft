@@ -287,7 +287,7 @@ function replayHost(replayUrl: string) {
         </v-alert>
 
         <v-row v-else class="schedule-layout">
-          <v-col cols="12" lg="6" xl="5">
+          <v-col cols="12" lg="6" xl="7">
             <v-expansion-panels v-model="openWeeks" multiple>
               <v-expansion-panel v-for="week in filteredWeeks" :key="week.week" :value="week.week">
                 <v-expansion-panel-title>
