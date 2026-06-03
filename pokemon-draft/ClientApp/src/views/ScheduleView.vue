@@ -258,7 +258,7 @@ function replayHost(replayUrl: string) {
 </script>
 
 <template>
-  <v-container fluid class="schedule-wrap">
+  <v-container fluid>
     <v-card class="page-card">
       <v-card-title class="page-header">
         <div>
@@ -439,10 +439,6 @@ function replayHost(replayUrl: string) {
 </template>
 
 <style scoped>
-.schedule-wrap {
-  max-width: 1280px;
-  padding-bottom: 32px;
-}
 
 .page-card {
   border: 1px solid var(--border-color);
