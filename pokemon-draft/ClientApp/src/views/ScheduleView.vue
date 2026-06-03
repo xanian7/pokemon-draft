@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import PokeballLoader from '@/components/PokeballLoader.vue'
-import type { MatchupResponse, ScheduleData } from '@/types'
+import type { MatchupResponse, ScheduleData, StandingRow, WeekGroup } from '@/types'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -16,18 +16,37 @@ const schedule = ref<ScheduleData | null>(null)
 const isLoading = ref(true)
 const error = ref('')
 const showMyMatchesOnly = ref(false)
-const collapsedWeeks = ref<Set<number>>(new Set())
+const openWeeks = ref<number[]>([])
 
-const reportingMatchupId = ref<number | null>(null)
+const activeMatchup = ref<MatchupResponse | null>(null)
 const reportP1Wins = ref(2)
 const reportP2Wins = ref(0)
+const reportReplayUrl = ref('')
 const reportError = ref('')
 const reportLoading = ref(false)
 const isEditing = ref(false)
 
+const standingsHeaders = [
+  { title: '#', key: 'rank', width: 56 },
+  { title: 'Team', key: 'team' },
+  { title: 'W', key: 'wins', align: 'end' as const, width: 64 },
+  { title: 'L', key: 'losses', align: 'end' as const, width: 64 },
+  { title: 'Pts', key: 'matchPoints', align: 'end' as const, width: 72 },
+  { title: 'Games', key: 'games', align: 'end' as const, width: 96 },
+]
+
+const matchupHeaders = [
+  { title: 'Matchup', key: 'matchup' },
+  { title: 'Score', key: 'score', align: 'center' as const, width: 150 },
+  { title: 'Pts', key: 'points', align: 'center' as const, width: 120 },
+  { title: 'Replay', key: 'replay', align: 'center' as const, width: 110 },
+  { title: '', key: 'actions', align: 'end' as const, sortable: false, width: 150 },
+]
+
 async function fetchSchedule() {
   if (!authStore.leagueCode) return
 
+  isLoading.value = true
   try {
     error.value = ''
     const res = await fetch(`${API_BASE}/api/leagues/${authStore.leagueCode}/schedule`)
@@ -37,19 +56,10 @@ async function fetchSchedule() {
     }
 
     schedule.value = (await res.json()) as ScheduleData
-
-    const nextCollapsed = new Set<number>()
     const currentWeek = schedule.value.weeks.find((week) =>
       week.matchups.some((matchup) => matchup.player1Wins === null),
     )?.week
-
-    if (currentWeek) {
-      schedule.value.weeks.forEach((week) => {
-        if (week.week !== currentWeek) nextCollapsed.add(week.week)
-      })
-    }
-
-    collapsedWeeks.value = nextCollapsed
+    openWeeks.value = currentWeek ? [currentWeek] : schedule.value.weeks.slice(0, 1).map((w) => w.week)
   } catch {
     error.value = 'Could not connect to server.'
   } finally {
@@ -59,14 +69,7 @@ async function fetchSchedule() {
 
 onMounted(fetchSchedule)
 
-function toggleWeek(week: number) {
-  const next = new Set(collapsedWeeks.value)
-  if (next.has(week)) next.delete(week)
-  else next.add(week)
-  collapsedWeeks.value = next
-}
-
-const filteredWeeks = computed(() => {
+const filteredWeeks = computed<WeekGroup[]>(() => {
   if (!schedule.value) return []
   if (!showMyMatchesOnly.value) return schedule.value.weeks
 
@@ -81,51 +84,87 @@ const filteredWeeks = computed(() => {
     .filter((week) => week.matchups.length > 0)
 })
 
+const standingsRows = computed(() =>
+  (schedule.value?.standings ?? []).map((row, index) => ({
+    ...row,
+    rank: index + 1,
+    team: teamLabel(row.playerName, row.teamName),
+    games: `${row.gamesWon}-${row.gamesLost}`,
+  })),
+)
+
 function isMyMatchup(matchup: MatchupResponse) {
   return matchup.player1Id === authStore.playerId || matchup.player2Id === authStore.playerId
 }
 
-function startReport(matchup: MatchupResponse) {
-  reportingMatchupId.value = matchup.id
+function canReport(matchup: MatchupResponse) {
+  return isMyMatchup(matchup) && matchup.player1Wins === null
+}
+
+function canEdit(matchup: MatchupResponse) {
+  return authStore.isAdmin && matchup.player1Wins !== null
+}
+
+function openReport(matchup: MatchupResponse) {
+  activeMatchup.value = matchup
   reportP1Wins.value = 2
   reportP2Wins.value = 0
+  reportReplayUrl.value = ''
   reportError.value = ''
   isEditing.value = false
 }
 
-function startEdit(matchup: MatchupResponse) {
-  reportingMatchupId.value = matchup.id
+function openEdit(matchup: MatchupResponse) {
+  activeMatchup.value = matchup
   reportP1Wins.value = matchup.player1Wins ?? 2
   reportP2Wins.value = matchup.player2Wins ?? 0
+  reportReplayUrl.value = matchup.replayUrl ?? ''
   reportError.value = ''
   isEditing.value = true
 }
 
-function cancelReport() {
-  reportingMatchupId.value = null
+function closeReport() {
+  activeMatchup.value = null
   reportError.value = ''
 }
 
-async function submitReport(matchup: MatchupResponse) {
+function validateReport() {
   if (
     reportP1Wins.value < 0 ||
     reportP2Wins.value < 0 ||
     reportP1Wins.value > 2 ||
     reportP2Wins.value > 2
   ) {
-    reportError.value = 'Wins must be between 0 and 2.'
-    return
+    return 'Wins must be between 0 and 2.'
   }
-  if (reportP1Wins.value + reportP2Wins.value > 3) {
-    reportError.value = 'A best-of-3 cannot exceed 3 games.'
-    return
-  }
-  if (reportP1Wins.value !== 2 && reportP2Wins.value !== 2) {
-    reportError.value = 'One player must have 2 wins.'
-    return
-  }
+  if (reportP1Wins.value + reportP2Wins.value > 3) return 'A best-of-3 cannot exceed 3 games.'
+  if (reportP1Wins.value !== 2 && reportP2Wins.value !== 2) return 'One player must have 2 wins.'
   if (reportP1Wins.value === 2 && reportP2Wins.value === 2) {
-    reportError.value = 'Both players cannot have 2 wins.'
+    return 'Both players cannot have 2 wins.'
+  }
+
+  const trimmedReplay = reportReplayUrl.value.trim()
+  if (trimmedReplay) {
+    try {
+      const url = new URL(trimmedReplay)
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        return 'Replay link must be a valid http or https URL.'
+      }
+    } catch {
+      return 'Replay link must be a valid URL.'
+    }
+  }
+
+  return ''
+}
+
+async function submitReport() {
+  const matchup = activeMatchup.value
+  if (!matchup) return
+
+  const validationError = validateReport()
+  if (validationError) {
+    reportError.value = validationError
     return
   }
 
@@ -137,17 +176,20 @@ async function submitReport(matchup: MatchupResponse) {
       ? `${API_BASE}/api/leagues/${authStore.leagueCode}/schedule/${matchup.id}/edit`
       : `${API_BASE}/api/leagues/${authStore.leagueCode}/schedule/${matchup.id}/report`
 
+    const replayUrl = reportReplayUrl.value.trim() || null
     const body = isEditing.value
       ? {
           adminPin: authStore.pin,
           player1Wins: reportP1Wins.value,
           player2Wins: reportP2Wins.value,
+          replayUrl,
         }
       : {
           playerId: authStore.playerId,
           pin: authStore.pin,
           player1Wins: reportP1Wins.value,
           player2Wins: reportP2Wins.value,
+          replayUrl,
         }
 
     const res = await fetch(url, {
@@ -157,12 +199,12 @@ async function submitReport(matchup: MatchupResponse) {
     })
 
     if (!res.ok) {
-      const txt = await res.text()
-      reportError.value = txt || 'Failed to report score.'
+      const text = await res.text()
+      reportError.value = text || 'Failed to report score.'
       return
     }
 
-    reportingMatchupId.value = null
+    closeReport()
     await fetchSchedule()
   } catch {
     reportError.value = 'Could not connect to server.'
@@ -179,677 +221,417 @@ function avatarInitials(name: string, teamName: string) {
   const label = teamName?.trim() || name
   return label
     .split(' ')
-    .map((word: string) => word[0])
+    .map((word) => word[0])
     .join('')
     .toUpperCase()
     .slice(0, 2)
 }
+
+function isWinner(matchup: MatchupResponse, side: 1 | 2) {
+  if (matchup.player1Wins === null || matchup.player2Wins === null) return false
+  return side === 1
+    ? matchup.player1Wins > matchup.player2Wins
+    : matchup.player2Wins > matchup.player1Wins
+}
+
+function completedCount(week: WeekGroup) {
+  return week.matchups.filter((matchup) => matchup.player1Wins !== null).length
+}
+
+function scoreLabel(matchup: MatchupResponse) {
+  if (matchup.player1Wins === null || matchup.player2Wins === null) return 'vs'
+  return `${matchup.player1Wins}-${matchup.player2Wins}`
+}
+
+function pointsLabel(matchup: MatchupResponse) {
+  if (matchup.player1MatchPoints === null || matchup.player2MatchPoints === null) return '-'
+  return `${matchup.player1MatchPoints}-${matchup.player2MatchPoints}`
+}
+
+function replayHost(replayUrl: string) {
+  try {
+    return new URL(replayUrl).hostname.replace(/^www\./, '')
+  } catch {
+    return 'Replay'
+  }
+}
 </script>
 
 <template>
-  <main class="schedule-wrap">
-    <div class="schedule-header">
-      <div>
-        <p class="eyebrow">League</p>
-        <h1>Schedule &amp; Standings</h1>
-      </div>
-      <div class="filter-toggle">
-        <button
-          :class="['filter-btn', { active: !showMyMatchesOnly }]"
-          @click="showMyMatchesOnly = false"
+  <v-container fluid class="schedule-wrap">
+    <v-card class="page-card">
+      <v-card-title class="page-header">
+        <div>
+          <div class="eyebrow">League</div>
+          <h1>Schedule &amp; Standings</h1>
+        </div>
+        <v-btn-toggle
+          v-model="showMyMatchesOnly"
+          class="match-filter"
+          mandatory
+          density="compact"
+          variant="outlined"
         >
-          All Matches
-        </button>
-        <button
-          :class="['filter-btn', { active: showMyMatchesOnly }]"
-          @click="showMyMatchesOnly = true"
-        >
-          My Matches
-        </button>
-      </div>
-    </div>
+          <v-btn :value="false">All Matches</v-btn>
+          <v-btn :value="true">My Matches</v-btn>
+        </v-btn-toggle>
+      </v-card-title>
 
-    <div v-if="isLoading" class="loading">
-      <PokeballLoader variant="page" label="Loading schedule…" />
-    </div>
-    <div v-else-if="error" class="error-msg">{{ error }}</div>
-    <div v-else-if="!schedule || !schedule.weeks.length" class="empty-msg">
-      The schedule will appear here once the draft is complete.
-    </div>
+      <v-card-text>
+        <div v-if="isLoading" class="state-panel">
+          <PokeballLoader variant="page" label="Loading schedule..." />
+        </div>
+        <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>
+        <v-alert v-else-if="!schedule || !schedule.weeks.length" type="info" variant="tonal">
+          The schedule will appear here once the draft is complete.
+        </v-alert>
 
-    <div v-else class="schedule-layout">
-      <div class="weeks-col">
-        <div v-for="week in filteredWeeks" :key="week.week" class="week-section">
-          <button class="week-header" @click="toggleWeek(week.week)">
-            <span class="week-label">Week {{ week.week }}</span>
-            <span class="week-meta">
-              {{ week.matchups.filter((matchup) => matchup.player1Wins !== null).length }}/{{
-                week.matchups.length
-              }}
-              played
-            </span>
-            <span class="week-chevron" :class="{ open: !collapsedWeeks.has(week.week) }"
-              >&#9660;</span
-            >
-          </button>
-
-          <div v-if="!collapsedWeeks.has(week.week)" class="week-matchups">
-            <div
-              v-for="matchup in week.matchups"
-              :key="matchup.id"
-              class="matchup-card"
-              :class="{ 'my-matchup': isMyMatchup(matchup) }"
-            >
-              <div
-                class="team-side"
-                :class="{
-                  winner:
-                    matchup.player1Wins !== null && matchup.player1Wins > matchup.player2Wins!,
-                }"
-              >
-                <div class="team-avatar">
-                  <img
-                    v-if="matchup.player1TeamImageUrl"
-                    :src="matchup.player1TeamImageUrl"
-                    :alt="matchup.player1TeamName"
-                    class="avatar-img"
-                  />
-                  <div v-else class="avatar-initials">
-                    {{ avatarInitials(matchup.player1Name, matchup.player1TeamName) }}
+        <div v-else class="schedule-layout">
+          <div class="weeks-col">
+            <v-expansion-panels v-model="openWeeks" multiple>
+              <v-expansion-panel v-for="week in filteredWeeks" :key="week.week" :value="week.week">
+                <v-expansion-panel-title>
+                  <div class="week-title">
+                    <span>Week {{ week.week }}</span>
+                    <v-chip size="small" variant="tonal">
+                      {{ completedCount(week) }}/{{ week.matchups.length }} played
+                    </v-chip>
                   </div>
-                </div>
-                <span class="team-label-text">{{
-                  teamLabel(matchup.player1Name, matchup.player1TeamName)
-                }}</span>
-                <span v-if="matchup.player1Wins !== null" class="score">{{
-                  matchup.player1Wins
-                }}</span>
-              </div>
-
-              <div class="vs-col">
-                <span v-if="matchup.player1Wins === null" class="vs-text">vs</span>
-                <template v-else>
-                  <span class="match-pts-label">Match Pts</span>
-                  <span class="match-pts"
-                    >{{ matchup.player1MatchPoints }} – {{ matchup.player2MatchPoints }}</span
+                </v-expansion-panel-title>
+                <v-expansion-panel-text>
+                  <v-data-table
+                    :headers="matchupHeaders"
+                    :items="week.matchups"
+                    :items-per-page="-1"
+                    class="matchup-table"
+                    density="comfortable"
+                    hide-default-footer
+                    item-value="id"
                   >
-                </template>
-              </div>
-
-              <div
-                class="team-side right"
-                :class="{
-                  winner:
-                    matchup.player2Wins !== null && matchup.player2Wins > matchup.player1Wins!,
-                }"
-              >
-                <span v-if="matchup.player2Wins !== null" class="score">{{
-                  matchup.player2Wins
-                }}</span>
-                <span class="team-label-text">{{
-                  teamLabel(matchup.player2Name, matchup.player2TeamName)
-                }}</span>
-                <div class="team-avatar">
-                  <img
-                    v-if="matchup.player2TeamImageUrl"
-                    :src="matchup.player2TeamImageUrl"
-                    :alt="matchup.player2TeamName"
-                    class="avatar-img"
-                  />
-                  <div v-else class="avatar-initials">
-                    {{ avatarInitials(matchup.player2Name, matchup.player2TeamName) }}
-                  </div>
-                </div>
-              </div>
-
-              <div
-                v-if="(isMyMatchup(matchup) && matchup.player1Wins === null) || authStore.isAdmin"
-                class="report-area"
-              >
-                <template v-if="reportingMatchupId === matchup.id">
-                  <div class="report-form">
-                    <p class="report-form-title">
-                      {{ isEditing ? '✏️ Edit Score' : 'Report Score' }}
-                    </p>
-                    <div class="report-inputs">
-                      <div class="report-player">
-                        <span class="report-player-name">{{
-                          teamLabel(matchup.player1Name, matchup.player1TeamName)
-                        }}</span>
-                        <input
-                          v-model.number="reportP1Wins"
-                          type="number"
-                          min="0"
-                          max="2"
-                          class="wins-input"
-                        />
+                    <template #item.matchup="{ item }">
+                      <div class="matchup-cell" :class="{ 'my-matchup': isMyMatchup(item) }">
+                        <div class="team-pill" :class="{ winner: isWinner(item, 1) }">
+                          <v-avatar size="34">
+                            <v-img
+                              v-if="item.player1TeamImageUrl"
+                              :src="item.player1TeamImageUrl"
+                              :alt="item.player1TeamName"
+                            />
+                            <span v-else>{{ avatarInitials(item.player1Name, item.player1TeamName) }}</span>
+                          </v-avatar>
+                          <span>{{ teamLabel(item.player1Name, item.player1TeamName) }}</span>
+                        </div>
+                        <span class="versus">vs</span>
+                        <div class="team-pill right" :class="{ winner: isWinner(item, 2) }">
+                          <span>{{ teamLabel(item.player2Name, item.player2TeamName) }}</span>
+                          <v-avatar size="34">
+                            <v-img
+                              v-if="item.player2TeamImageUrl"
+                              :src="item.player2TeamImageUrl"
+                              :alt="item.player2TeamName"
+                            />
+                            <span v-else>{{ avatarInitials(item.player2Name, item.player2TeamName) }}</span>
+                          </v-avatar>
+                        </div>
                       </div>
-                      <span class="report-dash">–</span>
-                      <div class="report-player">
-                        <input
-                          v-model.number="reportP2Wins"
-                          type="number"
-                          min="0"
-                          max="2"
-                          class="wins-input"
-                        />
-                        <span class="report-player-name">{{
-                          teamLabel(matchup.player2Name, matchup.player2TeamName)
-                        }}</span>
-                      </div>
-                    </div>
-                    <p v-if="reportError" class="report-error">{{ reportError }}</p>
-                    <div class="report-actions">
-                      <button class="btn btn-secondary btn-sm" @click="cancelReport">Cancel</button>
-                      <button
-                        class="btn btn-primary btn-sm"
-                        :disabled="reportLoading"
-                        @click="submitReport(matchup)"
+                    </template>
+
+                    <template #item.score="{ item }">
+                      <v-chip :color="item.player1Wins === null ? undefined : 'primary'" size="small" variant="tonal">
+                        {{ scoreLabel(item) }}
+                      </v-chip>
+                    </template>
+
+                    <template #item.points="{ item }">
+                      <span class="points-label">{{ pointsLabel(item) }}</span>
+                    </template>
+
+                    <template #item.replay="{ item }">
+                      <v-btn
+                        v-if="item.replayUrl"
+                        :href="item.replayUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        size="small"
+                        variant="tonal"
                       >
-                        {{ reportLoading ? 'Saving…' : 'Submit' }}
-                      </button>
-                    </div>
-                  </div>
-                </template>
-                <button
-                  v-else-if="matchup.player1Wins === null"
-                  class="report-btn"
-                  @click="startReport(matchup)"
-                >
-                  Report Score
-                </button>
-                <button
-                  v-if="
-                    authStore.isAdmin &&
-                    matchup.player1Wins !== null &&
-                    reportingMatchupId !== matchup.id
-                  "
-                  class="edit-score-btn"
-                  @click="startEdit(matchup)"
-                >
-                  ✏️ Edit Score
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                        {{ replayHost(item.replayUrl) }}
+                      </v-btn>
+                      <span v-else class="muted">-</span>
+                    </template>
 
-      <aside class="standings-col">
-        <div class="standings-card">
-          <h2>Standings</h2>
-          <table class="standings-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Team</th>
-                <th>W</th>
-                <th>L</th>
-                <th>Pts</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(row, index) in schedule.standings"
-                :key="row.playerId"
-                :class="{ 'my-row': row.playerId === authStore.playerId }"
-              >
-                <td class="rank">{{ index + 1 }}</td>
-                <td class="team-cell">
-                  <div class="standing-avatar">
-                    <img
-                      v-if="row.teamImageUrl"
-                      :src="row.teamImageUrl"
-                      :alt="row.teamName"
-                      class="avatar-img"
-                    />
-                    <div v-else class="avatar-initials sm">
-                      {{ avatarInitials(row.playerName, row.teamName) }}
-                    </div>
-                  </div>
-                  <span class="standing-name">{{ row.teamName || row.playerName }}</span>
-                </td>
-                <td class="stat">{{ row.wins }}</td>
-                <td class="stat">{{ row.losses }}</td>
-                <td class="stat pts">{{ row.matchPoints }}</td>
-              </tr>
-            </tbody>
-          </table>
+                    <template #item.actions="{ item }">
+                      <div class="table-actions">
+                        <v-btn v-if="canReport(item)" size="small" variant="tonal" @click="openReport(item)">
+                          Report
+                        </v-btn>
+                        <v-btn v-if="canEdit(item)" size="small" variant="text" @click="openEdit(item)">
+                          Edit
+                        </v-btn>
+                      </div>
+                    </template>
+                  </v-data-table>
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+            </v-expansion-panels>
+          </div>
+
+          <v-card class="standings-card">
+            <v-card-title class="text-h6">Standings</v-card-title>
+            <v-data-table
+              :headers="standingsHeaders"
+              :items="standingsRows"
+              :items-per-page="-1"
+              class="standings-table"
+              density="compact"
+              hide-default-footer
+              item-value="playerId"
+            >
+              <template #item.team="{ item }">
+                <div class="standing-team" :class="{ mine: item.playerId === authStore.playerId }">
+                  <v-avatar size="28">
+                    <v-img v-if="item.teamImageUrl" :src="item.teamImageUrl" :alt="item.team" />
+                    <span v-else>{{ avatarInitials(item.playerName, item.teamName) }}</span>
+                  </v-avatar>
+                  <span>{{ item.team }}</span>
+                </div>
+              </template>
+            </v-data-table>
+          </v-card>
         </div>
-      </aside>
-    </div>
-  </main>
+      </v-card-text>
+    </v-card>
+
+    <v-dialog :model-value="activeMatchup !== null" max-width="560" @update:model-value="(value) => !value && closeReport()">
+      <v-card v-if="activeMatchup" class="report-card">
+        <v-card-title>{{ isEditing ? 'Edit Score' : 'Report Score' }}</v-card-title>
+        <v-card-text>
+          <div class="report-grid">
+            <div class="report-team">{{ teamLabel(activeMatchup.player1Name, activeMatchup.player1TeamName) }}</div>
+            <v-number-input v-model="reportP1Wins" :min="0" :max="2" density="compact" variant="outlined" hide-details />
+            <div class="report-team right">{{ teamLabel(activeMatchup.player2Name, activeMatchup.player2TeamName) }}</div>
+            <v-number-input v-model="reportP2Wins" :min="0" :max="2" density="compact" variant="outlined" hide-details />
+          </div>
+
+          <v-text-field
+            v-model="reportReplayUrl"
+            class="replay-input"
+            label="Replay link"
+            placeholder="https://replay.pokemonshowdown.com/..."
+            variant="outlined"
+            density="compact"
+            clearable
+            hide-details
+          />
+
+          <v-alert v-if="reportError" type="error" variant="tonal" density="compact">
+            {{ reportError }}
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="tonal" @click="closeReport">Cancel</v-btn>
+          <v-btn color="primary" :loading="reportLoading" @click="submitReport">Save</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </v-container>
 </template>
 
 <style scoped>
 .schedule-wrap {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem 1.25rem 4rem;
+  max-width: 1280px;
+  padding-bottom: 32px;
 }
 
-.schedule-header {
+.page-card {
+  border: 1px solid var(--border-color);
+}
+
+.page-header {
+  align-items: center;
   display: flex;
-  align-items: flex-end;
   justify-content: space-between;
-  margin-bottom: 1.75rem;
-  gap: 1rem;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
 .eyebrow {
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
   font-size: 0.72rem;
-  margin-bottom: 0.25rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 h1 {
-  font-size: 2rem;
-  font-weight: 800;
   color: var(--text);
+  font-size: 1.8rem;
+  font-weight: 800;
+  line-height: 1.2;
   margin: 0;
 }
 
-.filter-toggle {
-  display: flex;
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.filter-btn {
-  border: none;
-  background: none;
-  padding: 0.5rem 1rem;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-
-.filter-btn.active {
-  background: var(--primary);
-  color: white;
-}
-
-.loading,
-.empty-msg {
-  color: var(--text-muted);
-  padding: 3rem 0;
-  text-align: center;
+.state-panel {
   display: flex;
   justify-content: center;
-}
-
-.error-msg {
-  color: #f87171;
-  padding: 1rem;
+  padding: 48px 0;
 }
 
 .schedule-layout {
-  display: grid;
-  grid-template-columns: 1fr 280px;
-  gap: 1.5rem;
   align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 340px;
 }
 
-@media (max-width: 860px) {
+.week-title {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+  font-weight: 800;
+}
+
+.matchup-table,
+.standings-table {
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.matchup-table :deep(th),
+.standings-table :deep(th) {
+  background: var(--input-bg) !important;
+  color: var(--text-muted) !important;
+  font-size: 0.7rem;
+  font-weight: 800 !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.matchup-cell {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr);
+  padding: 4px 0;
+}
+
+.matchup-cell.my-matchup {
+  color: var(--primary);
+}
+
+.team-pill {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.team-pill.right {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.team-pill span:last-child,
+.team-pill span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-pill.winner {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.versus,
+.muted {
+  color: var(--text-muted);
+}
+
+.points-label {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.table-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.standings-card {
+  border: 1px solid var(--border-color);
+  position: sticky;
+  top: 12px;
+}
+
+.standing-team {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.standing-team span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.standing-team.mine {
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.report-grid {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 96px;
+  margin-bottom: 16px;
+}
+
+.report-team {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.report-team.right {
+  grid-column: 1;
+}
+
+.replay-input {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 960px) {
   .schedule-layout {
     grid-template-columns: 1fr;
   }
 
-  .standings-col {
-    order: -1;
+  .standings-card {
+    position: static;
   }
 }
 
-.week-section {
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  overflow: hidden;
-  margin-bottom: 1rem;
-  background: var(--card-bg);
-}
+@media (max-width: 720px) {
+  .matchup-cell {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
 
-.week-header {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.85rem 1.1rem;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text);
-}
+  .team-pill.right {
+    justify-content: flex-start;
+    text-align: left;
+  }
 
-.week-header:hover {
-  background: var(--input-bg);
-}
-
-.week-label {
-  font-weight: 800;
-  font-size: 1rem;
-}
-
-.week-meta {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  flex: 1;
-  text-align: right;
-}
-
-.week-chevron {
-  color: var(--text-muted);
-  font-size: 0.7rem;
-  transition: transform 0.2s;
-}
-
-.week-chevron.open {
-  transform: rotate(180deg);
-}
-
-.week-matchups {
-  padding: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.matchup-card {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 0.75rem 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.matchup-card.my-matchup {
-  border-color: rgba(204, 0, 0, 0.4);
-  box-shadow: 0 0 0 1px rgba(204, 0, 0, 0.15);
-}
-
-.team-side {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex: 1;
-  min-width: 100px;
-}
-
-.team-side.right {
-  flex-direction: row-reverse;
-  text-align: right;
-}
-
-.team-side.winner .team-label-text {
-  font-weight: 800;
-  color: var(--text);
-}
-
-.team-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  overflow: hidden;
-  flex-shrink: 0;
-  border: 1px solid var(--border-color);
-}
-
-.avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-initials {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(59, 76, 202, 0.25);
-  color: #a5b4fc;
-  font-size: 0.65rem;
-  font-weight: 800;
-}
-
-.team-label-text {
-  font-size: 0.88rem;
-  color: var(--text);
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.score {
-  font-size: 1.4rem;
-  font-weight: 800;
-  color: var(--text);
-  min-width: 1.5ch;
-  text-align: center;
-}
-
-.vs-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
-  min-width: 56px;
-}
-
-.vs-text {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.match-pts-label {
-  font-size: 0.62rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.match-pts {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.report-area {
-  width: 100%;
-  margin-top: 0.5rem;
-}
-
-.report-btn {
-  border: 1px solid var(--border-color);
-  background: var(--card-bg);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 0.4rem 0.9rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.report-btn:hover {
-  background: var(--input-bg);
-}
-
-.edit-score-btn {
-  border: 1px solid var(--border-color);
-  background: var(--card-bg);
-  color: var(--text-muted);
-  border-radius: 8px;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  margin-left: 0.5rem;
-}
-
-.edit-score-btn:hover {
-  background: var(--input-bg);
-  color: var(--text);
-}
-
-.report-form-title {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  margin-bottom: 0.5rem;
-}
-
-.report-form {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 0.75rem;
-}
-
-.report-inputs {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
-}
-
-.report-player {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex: 1;
-}
-
-.report-player-name {
-  font-size: 0.82rem;
-  color: var(--text);
-  font-weight: 600;
-}
-
-.wins-input {
-  width: 52px;
-  text-align: center;
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 0.35rem;
-  color: var(--text);
-  font-size: 1rem;
-  font-weight: 700;
-}
-
-.report-dash {
-  font-size: 1.2rem;
-  color: var(--text-muted);
-}
-
-.report-error {
-  color: #f87171;
-  font-size: 0.8rem;
-  margin-bottom: 0.4rem;
-}
-
-.report-actions {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-}
-
-.standings-col {
-  position: sticky;
-  top: 1rem;
-}
-
-.standings-card {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 1.25rem;
-}
-
-h2 {
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: var(--text);
-  margin: 0 0 1rem;
-}
-
-.standings-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-}
-
-.standings-table th {
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0.3rem 0.5rem;
-  text-align: left;
-}
-
-.standings-table td {
-  padding: 0.5rem;
-  border-top: 1px solid var(--border-color);
-  vertical-align: middle;
-}
-
-.standings-table tr.my-row td {
-  background: rgba(204, 0, 0, 0.06);
-}
-
-.rank {
-  color: var(--text-muted);
-  font-weight: 700;
-  width: 1.5rem;
-}
-
-.team-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  max-width: 160px;
-}
-
-.standing-avatar {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.avatar-initials.sm {
-  font-size: 0.55rem;
-}
-
-.standing-name {
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.stat {
-  text-align: center;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
-.stat.pts {
-  color: var(--primary);
-  font-weight: 800;
+  .versus {
+    display: none;
+  }
 }
 </style>

@@ -72,10 +72,10 @@ public interface ILeagueService
     List<PlayoffOutlookEntry>? GetPlayoffOutlook(string leagueCode);
 
     /// <summary>Reports match result. Only a player in the matchup can report.</summary>
-    (bool success, string? error) ReportMatchup(string leagueCode, int matchupId, string playerId, string pin, int player1Wins, int player2Wins);
+    (bool success, string? error) ReportMatchup(string leagueCode, int matchupId, string playerId, string pin, int player1Wins, int player2Wins, string? replayUrl);
 
     /// <summary>Commissioner override — edits any matchup score using the admin PIN.</summary>
-    (bool success, string? error) EditMatchup(string leagueCode, int matchupId, string adminPin, int player1Wins, int player2Wins);
+    (bool success, string? error) EditMatchup(string leagueCode, int matchupId, string adminPin, int player1Wins, int player2Wins, string? replayUrl);
 
     // ── Roster ─────────────────────────────────────────────────────────────────
 

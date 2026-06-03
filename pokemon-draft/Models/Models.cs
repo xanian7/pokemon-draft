@@ -97,6 +97,7 @@ public class Matchup
     public string Player2Id { get; set; } = string.Empty;
     public int? Player1Wins { get; set; }
     public int? Player2Wins { get; set; }
+    public string? ReplayUrl { get; set; }
     public string? ReportedByPlayerId { get; set; }
     public DateTime? ReportedAt { get; set; }
 }

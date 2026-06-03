@@ -437,7 +437,8 @@ public class LeagueService(DraftDbContext db) : ILeagueService
                 matchup.Player1Wins,
                 matchup.Player2Wins,
                 player1MatchPoints,
-                player2MatchPoints);
+                player2MatchPoints,
+                matchup.ReplayUrl);
         }
 
         var completedMatchups = league.Matchups.Where(m => m.Player1Wins.HasValue && m.Player2Wins.HasValue).ToList();
@@ -609,7 +610,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     }
 
     /// <inheritdoc/>
-    public (bool success, string? error) ReportMatchup(string leagueCode, int matchupId, string playerId, string pin, int player1Wins, int player2Wins)
+    public (bool success, string? error) ReportMatchup(string leagueCode, int matchupId, string playerId, string pin, int player1Wins, int player2Wins, string? replayUrl)
     {
         var league = LoadLeagueWithSchedule(leagueCode);
         if (league is null) return (false, "League not found.");
@@ -636,8 +637,12 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (player1Wins == 2 && player2Wins == 2)
             return (false, "Both players cannot have 2 wins.");
 
+        var (normalizedReplayUrl, replayError) = NormalizeReplayUrl(replayUrl);
+        if (replayError is not null) return (false, replayError);
+
         matchup.Player1Wins = player1Wins;
         matchup.Player2Wins = player2Wins;
+        matchup.ReplayUrl = normalizedReplayUrl;
         matchup.ReportedByPlayerId = playerId;
         matchup.ReportedAt = DateTime.UtcNow;
         db.SaveChanges();
@@ -645,7 +650,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     }
 
     /// <inheritdoc/>
-    public (bool success, string? error) EditMatchup(string leagueCode, int matchupId, string adminPin, int player1Wins, int player2Wins)
+    public (bool success, string? error) EditMatchup(string leagueCode, int matchupId, string adminPin, int player1Wins, int player2Wins, string? replayUrl)
     {
         var league = LoadLeagueWithSchedule(leagueCode);
         if (league is null) return (false, "League not found.");
@@ -665,11 +670,29 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (player1Wins == 2 && player2Wins == 2)
             return (false, "Both players cannot have 2 wins.");
 
+        var (normalizedReplayUrl, replayError) = NormalizeReplayUrl(replayUrl);
+        if (replayError is not null) return (false, replayError);
+
         matchup.Player1Wins = player1Wins;
         matchup.Player2Wins = player2Wins;
+        matchup.ReplayUrl = normalizedReplayUrl;
         matchup.ReportedAt = DateTime.UtcNow;
         db.SaveChanges();
         return (true, null);
+    }
+
+    private static (string? replayUrl, string? error) NormalizeReplayUrl(string? replayUrl)
+    {
+        var trimmed = replayUrl?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed)) return (null, null);
+
+        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return (null, "Replay link must be a valid http or https URL.");
+        }
+
+        return (trimmed, null);
     }
 
     /// <inheritdoc/>

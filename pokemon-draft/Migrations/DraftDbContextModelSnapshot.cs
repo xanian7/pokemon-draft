@@ -164,6 +164,9 @@ namespace PokemonDraft.Migrations
                     b.Property<int?>("Player2Wins")
                         .HasColumnType("int");
 
+                    b.Property<string>("ReplayUrl")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime?>("ReportedAt")
                         .HasColumnType("datetime2");
 

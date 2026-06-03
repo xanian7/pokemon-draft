@@ -69,11 +69,10 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Apply any pending EF Core migrations on startup (non-blocking background task).
-_ = Task.Run(async () =>
+// Apply any pending EF Core migrations before serving requests so the runtime
+// model cannot query columns that have not been created yet.
+using (var scope = app.Services.CreateScope())
 {
-    await Task.Delay(500); // brief pause to let the app start first
-    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<DraftDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     try
@@ -85,7 +84,7 @@ _ = Task.Run(async () =>
     {
         logger.LogError(ex, "Failed to apply database migrations.");
     }
-});
+}
 
 if (app.Environment.IsDevelopment())
 {

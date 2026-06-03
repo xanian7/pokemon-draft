@@ -27,7 +27,7 @@ public class ScheduleController(ILeagueService leagueService, IHubContext<DraftH
     [HttpPost("schedule/{matchupId}/report")]
     public async Task<IActionResult> ReportMatchup(string code, int matchupId, ReportMatchupRequest req)
     {
-        var (success, error) = LeagueService.ReportMatchup(code, matchupId, req.PlayerId, req.Pin, req.Player1Wins, req.Player2Wins);
+        var (success, error) = LeagueService.ReportMatchup(code, matchupId, req.PlayerId, req.Pin, req.Player1Wins, req.Player2Wins, req.ReplayUrl);
         if (!success) return BadRequest(error);
         await Hub.Clients.Group(code.ToUpperInvariant()).SendAsync("ScheduleUpdate", LeagueService.GetSchedule(code));
         return Ok();
@@ -36,7 +36,7 @@ public class ScheduleController(ILeagueService leagueService, IHubContext<DraftH
     [HttpPatch("schedule/{matchupId}/edit")]
     public async Task<IActionResult> EditMatchup(string code, int matchupId, EditMatchupRequest req)
     {
-        var (success, error) = LeagueService.EditMatchup(code, matchupId, req.AdminPin, req.Player1Wins, req.Player2Wins);
+        var (success, error) = LeagueService.EditMatchup(code, matchupId, req.AdminPin, req.Player1Wins, req.Player2Wins, req.ReplayUrl);
         if (!success) return BadRequest(error);
         await Hub.Clients.Group(code.ToUpperInvariant()).SendAsync("ScheduleUpdate", LeagueService.GetSchedule(code));
         return Ok();
