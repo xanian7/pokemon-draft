@@ -175,10 +175,10 @@ function toggleTeam(playerId: string) {
 .team-outline {
   border: 1px solid var(--border-color);
   display: flex;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   flex-direction: column;
   width: 100%;
-  height: 100%;
+  height: 0;
   max-height: 100%;
   min-height: 0;
   overflow-y: auto;
