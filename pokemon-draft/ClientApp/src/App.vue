@@ -5,9 +5,11 @@ import { useAuthStore } from '@/stores/auth'
 import AppIcon from '@/components/AppIcon.vue'
 import ConnectionBanner from '@/components/ConnectionBanner.vue'
 import { useSignalR } from '@/services/signalr'
+import { isApiLoading } from '@/services/apiLoading'
 import { mdiPokeball, mdiLogout, mdiCog, mdiTrophy } from '@mdi/js'
 import LeftNav from '@/components/LeftNav.vue'
 import TopBar from './components/TopBar.vue'
+import PokeballLoader from '@/components/PokeballLoader.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -73,6 +75,14 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
         <RouterView />
       </v-main>
       <ConnectionBanner />
+      <v-overlay
+        :model-value="isApiLoading"
+        class="api-loading-overlay"
+        persistent
+        scrim="rgba(0, 0, 0, 0.45)"
+      >
+        <PokeballLoader variant="page" label="Loading…" />
+      </v-overlay>
     </v-layout>
   </v-app>
 </template>
@@ -103,5 +113,11 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
 .main-scroll {
   min-height: 0;
   overflow-y: auto;
+}
+
+.api-loading-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

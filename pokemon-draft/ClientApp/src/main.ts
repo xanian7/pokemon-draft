@@ -11,6 +11,7 @@ import vue3GoogleLogin from 'vue3-google-login'
 
 import App from './App.vue'
 import router from './router'
+import { installApiLoadingTracker } from './services/apiLoading'
 
 const vuetify = createVuetify({
   components,
@@ -23,6 +24,8 @@ const vuetify = createVuetify({
 async function bootstrap() {
   const res = await fetch('/api/config')
   const cfg = await res.json()
+
+  installApiLoadingTracker()
 
   const app = createApp(App)
   app.use(createPinia())

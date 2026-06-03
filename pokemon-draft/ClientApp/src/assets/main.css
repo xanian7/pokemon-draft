@@ -18,17 +18,11 @@
   font-family: inherit;
 }
 
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.btn:hover:not(:disabled) {
-  opacity: 0.88;
-}
 
 .btn-primary {
   background: var(--primary);
   color: #fff;
+  border: 1px solid var(--primary);
 }
 .btn-secondary {
   background: var(--input-bg);
@@ -43,11 +37,6 @@
   background: transparent;
   border: 1.5px solid var(--border-color);
   color: var(--text);
-}
-.btn-ghost:hover:not(:disabled) {
-  border-color: var(--primary);
-  background: var(--input-bg);
-  opacity: 1;
 }
 
 .btn-sm {

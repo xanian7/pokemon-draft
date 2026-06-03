@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import AppIcon from '@/components/AppIcon.vue'
-import PokeballLoader from '@/components/PokeballLoader.vue'
+import { computed, onMounted, ref } from 'vue'
 import { formatPokemonName, TYPE_COLORS } from '@/utils/format'
 import type { Pokemon } from '@/types'
-import { mdiClose } from '@mdi/js'
 
 const props = withDefaults(
   defineProps<{
@@ -12,9 +9,7 @@ const props = withDefaults(
     pointValue?: number
     canDraft: boolean
     isPicked: boolean
-    /** Label for the primary action button. Defaults to 'Draft'. */
     actionLabel?: string
-    /** Show the draft/picked action footer. Set false on non-draft screens. */
     showDraftAction?: boolean
   }>(),
   {
@@ -26,8 +21,6 @@ const emit = defineEmits<{
   close: []
   draft: [pokemonId: number]
 }>()
-
-// ── Backend DTO shapes ────────────────────────────────────────────────────────
 
 interface ApiStat {
   name: string
@@ -50,8 +43,6 @@ interface ApiPokemonDetail {
   moves: ApiMove[]
 }
 
-// ── Parsed detail ─────────────────────────────────────────────────────────────
-
 interface StatEntry {
   label: string
   value: number
@@ -60,9 +51,11 @@ interface StatEntry {
 interface AbilityEntry {
   name: string
   isHidden: boolean
+  description?: string
 }
 
 interface MoveEntry {
+  id: string
   name: string
   type: string
   power: number | null
@@ -74,6 +67,21 @@ interface PokemonDetail {
   stats: StatEntry[]
   abilities: AbilityEntry[]
   moves: MoveEntry[]
+}
+
+interface MegaForm {
+  name: string
+  label: string
+  sprite: string | null
+  types: string[]
+  stats: StatEntry[]
+  abilities: AbilityEntry[]
+  error: string | null
+}
+
+interface CachedDetail {
+  detail: PokemonDetail
+  megaForms: MegaForm[]
 }
 
 const STAT_LABELS: Record<string, string> = {
@@ -98,62 +106,50 @@ const CATEGORY_COLOR: Record<string, string> = {
 }
 
 const STAT_MAX = 255
+const detailCache = new Map<number, CachedDetail>()
+const abilityDescriptionCache = new Map<string, string>()
 
-// Module-level cache — persists across modal open/close without re-fetching
-const detailCache = new Map<number, PokemonDetail>()
-
+const isDialogOpen = ref(true)
 const detail = ref<PokemonDetail | null>(null)
+const megaForms = ref<MegaForm[]>([])
 const isLoading = ref(true)
 const fetchError = ref<string | null>(null)
 const moveFilter = ref('')
-const abilityDescriptions = ref(new Map<string, string>())
-const abilityFetching = new Set<string>()
+const activeTab = ref('base')
 
-const tooltip = ref<{ text: string; x: number; y: number } | null>(null)
+const tabs = computed(() => [
+  { value: 'base', label: 'Base' },
+  ...megaForms.value.map((form) => ({ value: form.name, label: form.label })),
+])
 
-async function fetchAbilityDescription(abilityName: string) {
-  if (abilityFetching.has(abilityName)) return
-  abilityFetching.add(abilityName)
-  try {
-    const slug = abilityName.toLowerCase().replace(/\s+/g, '-')
-    const res = await fetch(`https://pokeapi.co/api/v2/ability/${slug}`)
-    if (!res.ok) return
-    const json = await res.json()
-    const entry = (
-      json.flavor_text_entries as { flavor_text: string; language: { name: string } }[]
-    ).find((e) => e.language.name === 'en')
-    if (entry) {
-      abilityDescriptions.value = new Map(abilityDescriptions.value).set(
-        abilityName,
-        entry.flavor_text.replace(/\n|\f/g, ' '),
-      )
-    }
-  } catch {
-    // silently ignore
-  }
+const activeMegaForm = computed(() =>
+  activeTab.value !== 'base'
+    ? (megaForms.value.find((form) => form.name === activeTab.value) ?? null)
+    : null,
+)
+
+const filteredMoves = computed(() => {
+  const moves = detail.value?.moves ?? []
+  const query = moveFilter.value.trim().toLowerCase()
+  if (!query) return moves
+  return moves.filter((move) => move.name.toLowerCase().includes(query))
+})
+
+const moveHeaders = [
+  { title: 'Type', key: 'type', width: 92 },
+  { title: 'Move', key: 'name' },
+  { title: 'Cat', key: 'category', width: 84 },
+  { title: 'Pow', key: 'power', align: 'end' as const, width: 70 },
+  { title: 'PP', key: 'pp', align: 'end' as const, width: 70 },
+]
+
+function closeModal() {
+  isDialogOpen.value = false
+  emit('close')
 }
 
-function showTooltip(e: MouseEvent, abilityName: string) {
-  fetchAbilityDescription(abilityName)
-  const desc = abilityDescriptions.value.get(abilityName)
-  if (!desc) {
-    // wait for fetch then show
-    const unwatch = setInterval(() => {
-      const d = abilityDescriptions.value.get(abilityName)
-      if (d) {
-        clearInterval(unwatch)
-        const rect = (e.target as HTMLElement).getBoundingClientRect()
-        tooltip.value = { text: d, x: rect.left + rect.width / 2, y: rect.top }
-      }
-    }, 100)
-    return
-  }
-  const rect = (e.target as HTMLElement).getBoundingClientRect()
-  tooltip.value = { text: desc, x: rect.left + rect.width / 2, y: rect.top }
-}
-
-function hideTooltip() {
-  tooltip.value = null
+function handleDraft() {
+  emit('draft', props.pokemon.id)
 }
 
 function statColor(value: number): string {
@@ -164,308 +160,293 @@ function statColor(value: number): string {
   return '#22c55e'
 }
 
-onMounted(async () => {
-  fetchMegaForms()
-  if (detailCache.has(props.pokemon.id)) {
-    detail.value = detailCache.get(props.pokemon.id)!
+function parseMegaLabel(name: string): string {
+  const index = name.indexOf('-mega')
+  if (index === -1) return formatPokemonName(name)
+  return name
+    .slice(index + 1)
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase())
+}
+
+function parseDetail(raw: ApiPokemonDetail): PokemonDetail {
+  return {
+    stats: raw.stats.map((stat) => ({
+      label: STAT_LABELS[stat.name] ?? stat.name,
+      value: stat.baseStat,
+    })),
+    abilities: raw.abilities.map((ability) => ({
+      name: formatPokemonName(ability.name),
+      isHidden: ability.isHidden,
+    })),
+    moves: raw.moves.map((move) => ({
+      id: `${move.name}-${move.type}-${move.category}-${move.power ?? 'none'}-${move.pp ?? 'none'}`,
+      name: formatPokemonName(move.name),
+      type: move.type,
+      power: move.power,
+      pp: move.pp,
+      category: move.category,
+    })),
+  }
+}
+
+async function fetchAbilityDescription(abilityName: string): Promise<string | undefined> {
+  if (abilityDescriptionCache.has(abilityName)) return abilityDescriptionCache.get(abilityName)
+
+  const slug = abilityName.toLowerCase().replace(/\s+/g, '-')
+  const res = await fetch(`https://pokeapi.co/api/v2/ability/${slug}`)
+  if (!res.ok) return undefined
+
+  const json = await res.json()
+  const entry = (
+    json.flavor_text_entries as { flavor_text: string; language: { name: string } }[]
+  ).find((item) => item.language.name === 'en')
+
+  const description = entry?.flavor_text.replace(/\n|\f/g, ' ')
+  if (description) abilityDescriptionCache.set(abilityName, description)
+  return description
+}
+
+async function hydrateAbilityDescriptions(abilityGroups: AbilityEntry[][]) {
+  const abilities = abilityGroups
+    .flat()
+    .filter((ability, index, all) => all.findIndex((item) => item.name === ability.name) === index)
+
+  await Promise.all(
+    abilities.map(async (ability) => {
+      ability.description = await fetchAbilityDescription(ability.name)
+    }),
+  )
+}
+
+async function fetchMegaNames(): Promise<string[]> {
+  const res = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${props.pokemon.speciesId}`)
+  if (!res.ok) return []
+
+  const json = await res.json()
+  return (json.varieties as { pokemon: { name: string } }[])
+    .map((variety) => variety.pokemon.name)
+    .filter((name) => name.includes('-mega'))
+}
+
+async function fetchMegaForm(name: string): Promise<MegaForm> {
+  const form: MegaForm = {
+    name,
+    label: parseMegaLabel(name),
+    sprite: null,
+    types: [],
+    stats: [],
+    abilities: [],
+    error: null,
+  }
+
+  try {
+    const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${name}`)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+    const json = await res.json()
+    form.sprite = json.sprites.front_default
+    form.types = (json.types as { type: { name: string } }[]).map((type) => type.type.name)
+    form.stats = (json.stats as { stat: { name: string }; base_stat: number }[]).map((stat) => ({
+      label: STAT_LABELS[stat.stat.name] ?? stat.stat.name,
+      value: stat.base_stat,
+    }))
+    form.abilities = (json.abilities as { ability: { name: string }; is_hidden: boolean }[]).map(
+      (ability) => ({
+        name: formatPokemonName(ability.ability.name),
+        isHidden: ability.is_hidden,
+      }),
+    )
+  } catch {
+    form.error = 'Failed to load mega evolution data.'
+  }
+
+  return form
+}
+
+async function loadModalData() {
+  const cached = detailCache.get(props.pokemon.id)
+  if (cached) {
+    detail.value = cached.detail
+    megaForms.value = cached.megaForms
     isLoading.value = false
     return
   }
 
+  isLoading.value = true
+  fetchError.value = null
+
   try {
-    const res = await fetch(`/api/pokemon/${props.pokemon.id}/detail`)
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const raw: ApiPokemonDetail = await res.json()
+    const detailResponse = await fetch(`/api/pokemon/${props.pokemon.id}/detail`)
+    if (!detailResponse.ok) throw new Error(`HTTP ${detailResponse.status}`)
 
-    const parsed: PokemonDetail = {
-      stats: raw.stats.map((s) => ({
-        label: STAT_LABELS[s.name] ?? s.name,
-        value: s.baseStat,
-      })),
-      abilities: raw.abilities.map((a) => ({
-        name: formatPokemonName(a.name),
-        isHidden: a.isHidden,
-      })),
-      moves: raw.moves.map((m) => ({
-        name: formatPokemonName(m.name),
-        type: m.type,
-        power: m.power,
-        pp: m.pp,
-        category: m.category,
-      })),
-    }
+    const parsedDetail = parseDetail(await detailResponse.json())
+    const megaNames = await fetchMegaNames()
+    const forms = await Promise.all(megaNames.map(fetchMegaForm))
 
-    detailCache.set(props.pokemon.id, parsed)
-    detail.value = parsed
-  } catch (err) {
-    console.error('PokemonDetailModal fetch error:', err)
-    fetchError.value = 'Failed to load Pokémon details. Check your connection and try again.'
+    await hydrateAbilityDescriptions([
+      parsedDetail.abilities,
+      ...forms.map((form) => form.abilities),
+    ])
+
+    detailCache.set(props.pokemon.id, { detail: parsedDetail, megaForms: forms })
+    detail.value = parsedDetail
+    megaForms.value = forms
+  } catch (error) {
+    console.error('PokemonDetailModal fetch error:', error)
+    fetchError.value = 'Failed to load Pokemon details. Check your connection and try again.'
   } finally {
     isLoading.value = false
   }
-})
-
-function handleKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') emit('close')
 }
 
-onMounted(() => window.addEventListener('keydown', handleKeydown))
-onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
-
-function handleDraft() {
-  emit('draft', props.pokemon.id)
-}
-
-function filteredMoves(moves: MoveEntry[]): MoveEntry[] {
-  const q = moveFilter.value.toLowerCase()
-  return q ? moves.filter((m) => m.name.toLowerCase().includes(q)) : moves
-}
-
-// ── Mega evolution ─────────────────────────────────────────────────────────────
-
-interface MegaForm {
-  name: string
-  label: string
-  sprite: string | null
-  types: string[]
-  stats: StatEntry[]
-  abilities: AbilityEntry[]
-  isLoading: boolean
-  error: string | null
-}
-
-const megaForms = ref<MegaForm[]>([])
-const activeTab = ref<'base' | string>('base')
-
-const activeMegaForm = computed(() =>
-  activeTab.value !== 'base'
-    ? (megaForms.value.find((f) => f.name === activeTab.value) ?? null)
-    : null,
-)
-
-function parseMegaLabel(name: string): string {
-  const idx = name.indexOf('-mega')
-  if (idx === -1) return name
-  return name
-    .slice(idx + 1)
-    .replace(/-/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
-async function fetchMegaForms() {
-  try {
-    const res = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${props.pokemon.speciesId}`)
-    if (!res.ok) return
-    const json = await res.json()
-    const megaNames = (json.varieties as any[])
-      .map((v: any) => v.pokemon.name as string)
-      .filter((n: string) => n.includes('-mega'))
-
-    megaForms.value = megaNames.map((name) => ({
-      name,
-      label: parseMegaLabel(name),
-      sprite: null,
-      types: [],
-      stats: [],
-      abilities: [],
-      isLoading: false,
-      error: null,
-    }))
-  } catch {
-    // No megas available, tab won't show
-  }
-}
-
-async function fetchMegaData(form: MegaForm) {
-  if (form.stats.length > 0 || form.isLoading) return
-  form.isLoading = true
-  try {
-    const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${form.name}`)
-    if (!res.ok) throw new Error()
-    const json = await res.json()
-    form.sprite = json.sprites.front_default
-    form.types = (json.types as any[]).map((t: any) => t.type.name as string)
-    form.stats = (json.stats as any[]).map((s: any) => ({
-      label: STAT_LABELS[s.stat.name] ?? s.stat.name,
-      value: s.base_stat as number,
-    }))
-    form.abilities = (json.abilities as any[]).map((a: any) => ({
-      name: formatPokemonName(a.ability.name),
-      isHidden: a.is_hidden as boolean,
-    }))
-  } catch {
-    form.error = 'Failed to load mega evolution data.'
-  } finally {
-    form.isLoading = false
-  }
-}
-
-function switchTab(tab: 'base' | string) {
-  activeTab.value = tab
-  if (tab !== 'base') {
-    const form = megaForms.value.find((f) => f.name === tab)
-    if (form) fetchMegaData(form)
-  }
-}
+onMounted(loadModalData)
 </script>
 
 <template>
-  <Teleport to="body">
-    <div class="modal-backdrop" @click.self="emit('close')">
-      <div class="modal" role="dialog" :aria-label="`${formatPokemonName(pokemon.name)} details`">
-        <!-- Header -->
-        <div class="modal-header">
-          <img
-            :src="pokemon.spriteUrl"
-            :alt="formatPokemonName(pokemon.name)"
-            class="modal-sprite"
-          />
-          <div class="modal-title">
-            <span class="modal-id">#{{ String(pokemon.id).padStart(3, '0') }}</span>
-            <h2>{{ formatPokemonName(pokemon.name) }}</h2>
-            <div class="modal-types">
-              <span
-                v-for="type in pokemon.types"
-                :key="type"
-                class="type-badge"
-                :style="{ backgroundColor: TYPE_COLORS[type] ?? '#888' }"
-              >
-                {{ type }}
-              </span>
-            </div>
-            <span v-if="pointValue !== undefined" class="modal-pts">{{ pointValue }} pts</span>
+  <v-dialog
+    :model-value="isDialogOpen"
+    max-width="550"
+    scrollable
+    @update:model-value="(value) => !value && closeModal()"
+  >
+    <v-card class="detail-card">
+      <v-card-title class="detail-header">
+        <img :src="pokemon.spriteUrl" :alt="formatPokemonName(pokemon.name)" class="modal-sprite" />
+        <div class="modal-title">
+          <span class="modal-id">#{{ String(pokemon.id).padStart(3, '0') }}</span>
+          <span class="modal-name">{{ formatPokemonName(pokemon.name) }}</span>
+          <div class="modal-types">
+            <span
+              v-for="type in pokemon.types"
+              :key="type"
+              class="type-badge"
+              :style="{ backgroundColor: TYPE_COLORS[type] ?? '#888' }"
+            >
+              {{ type }}
+            </span>
           </div>
-          <button class="close-btn" aria-label="Close" @click="emit('close')">
-            <AppIcon :path="mdiClose" :size="20" />
-          </button>
+          <span v-if="pointValue !== undefined" class="modal-pts">{{ pointValue }} pts</span>
         </div>
+        <v-btn icon="mdi-close" variant="text" density="comfortable" @click="closeModal" />
+      </v-card-title>
 
-        <!-- Tabs (shown only when mega forms exist) -->
-        <div v-if="megaForms.length > 0" class="modal-tabs">
-          <button
-            class="modal-tab"
-            :class="{ 'modal-tab--active': activeTab === 'base' }"
-            @click="switchTab('base')"
-          >
-            Base
-          </button>
-          <button
-            v-for="form in megaForms"
-            :key="form.name"
-            class="modal-tab"
-            :class="{ 'modal-tab--active': activeTab === form.name }"
-            @click="switchTab(form.name)"
-          >
-            {{ form.label }}
-          </button>
-        </div>
+      <v-divider />
 
-        <!-- Body -->
-        <div class="modal-body">
-          <!-- Base tab -->
+      <v-tabs v-if="tabs.length > 1" v-model="activeTab" density="compact">
+        <v-tab v-for="tab in tabs" :key="tab.value" :value="tab.value">
+          {{ tab.label }}
+        </v-tab>
+      </v-tabs>
+      <v-divider />
+
+      <v-card-text class="detail-body">
+        <div v-if="isLoading" class="state-message"></div>
+        <div v-else-if="fetchError" class="state-message error-state">{{ fetchError }}</div>
+
+        <template v-else-if="detail">
           <template v-if="activeTab === 'base'">
-            <div v-if="isLoading" class="loading-state">
-              <PokeballLoader variant="page" label="Loading details…" />
-            </div>
-            <div v-else-if="fetchError" class="error-state">{{ fetchError }}</div>
-            <template v-else-if="detail">
-              <!-- Base Stats -->
-              <section class="detail-section">
-                <h3>Base Stats</h3>
-                <div class="stats-grid">
-                  <template v-for="stat in detail.stats" :key="stat.label">
-                    <span class="stat-label">{{ stat.label }}</span>
-                    <span class="stat-value">{{ stat.value }}</span>
-                    <div class="stat-bar-track">
-                      <div
-                        class="stat-bar-fill"
-                        :style="{
-                          width: `${(stat.value / STAT_MAX) * 100}%`,
-                          backgroundColor: statColor(stat.value),
-                        }"
-                      />
-                    </div>
-                  </template>
-                </div>
-              </section>
-
-              <!-- Abilities -->
-              <section class="detail-section">
-                <h3>Abilities</h3>
-                <div class="abilities">
-                  <span
-                    v-for="ability in detail.abilities"
-                    :key="ability.name"
-                    class="ability-chip"
-                    :class="{ hidden: ability.isHidden }"
-                    @mouseenter="showTooltip($event, ability.name)"
-                    @mouseleave="hideTooltip"
-                  >
-                    {{ ability.name }}
-                    <em v-if="ability.isHidden">(Hidden)</em>
-                  </span>
-                </div>
-              </section>
-
-              <!-- Moves -->
-              <section class="detail-section">
-                <div class="moves-header">
-                  <h3>
-                    Learnable Moves
-                    <span class="move-count">({{ detail.moves.length }})</span>
-                  </h3>
-                  <input
-                    v-model="moveFilter"
-                    class="move-search"
-                    type="text"
-                    placeholder="Filter moves…"
-                  />
-                </div>
-                <div class="moves-table">
-                  <div class="moves-table-header">
-                    <span>Type</span>
-                    <span>Move</span>
-                    <span>Cat</span>
-                    <span class="col-right">Pow</span>
-                    <span class="col-right">PP</span>
-                  </div>
-                  <div class="moves-table-rows">
+            <section class="detail-section">
+              <h3>Base Stats</h3>
+              <div class="stats-grid">
+                <template v-for="stat in detail.stats" :key="stat.label">
+                  <span class="stat-label">{{ stat.label }}</span>
+                  <span class="stat-value">{{ stat.value }}</span>
+                  <div class="stat-bar-track">
                     <div
-                      v-for="move in filteredMoves(detail.moves)"
-                      :key="move.name"
-                      class="moves-table-row"
-                    >
-                      <span
-                        class="type-badge"
-                        :style="{ backgroundColor: TYPE_COLORS[move.type] ?? '#888' }"
-                      >
-                        {{ move.type }}
-                      </span>
-                      <span class="move-name">{{ move.name }}</span>
-                      <span
-                        class="category-badge"
-                        :style="{ backgroundColor: CATEGORY_COLOR[move.category] ?? '#64748b' }"
-                      >
-                        {{ CATEGORY_LABEL[move.category] ?? move.category }}
-                      </span>
-                      <span class="col-right stat-val">{{ move.power ?? '—' }}</span>
-                      <span class="col-right stat-val">{{ move.pp ?? '—' }}</span>
-                    </div>
-                    <div v-if="filteredMoves(detail.moves).length === 0" class="no-moves">
-                      No moves match "{{ moveFilter }}"
-                    </div>
+                      class="stat-bar-fill"
+                      :style="{
+                        width: `${(stat.value / STAT_MAX) * 100}%`,
+                        backgroundColor: statColor(stat.value),
+                      }"
+                    />
                   </div>
-                </div>
-              </section>
-            </template>
+                </template>
+              </div>
+            </section>
+
+            <section class="detail-section">
+              <h3>Abilities</h3>
+              <div class="abilities">
+                <v-tooltip
+                  v-for="ability in detail.abilities"
+                  :key="ability.name"
+                  :text="ability.description || 'No description available.'"
+                  location="top"
+                >
+                  <template #activator="{ props: tooltipProps }">
+                    <v-chip
+                      v-bind="tooltipProps"
+                      :variant="ability.isHidden ? 'outlined' : 'tonal'"
+                      size="small"
+                    >
+                      {{ ability.name }}
+                      <em v-if="ability.isHidden">&nbsp;(Hidden)</em>
+                    </v-chip>
+                  </template>
+                </v-tooltip>
+              </div>
+            </section>
+
+            <section class="detail-section moves-section">
+              <div class="moves-header">
+                <h3>
+                  Learnable Moves
+                  <span class="move-count">({{ detail.moves.length }})</span>
+                </h3>
+                <v-text-field
+                  v-model="moveFilter"
+                  class="move-search"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  clearable
+                  placeholder="Filter moves"
+                />
+              </div>
+
+              <v-data-table
+                :headers="moveHeaders"
+                :items="filteredMoves"
+                :items-per-page="-1"
+                class="moves-table"
+                density="compact"
+                fixed-header
+                height="300"
+                hide-default-footer
+                item-value="id"
+              >
+                <template #item.type="{ item }">
+                  <span
+                    class="type-badge"
+                    :style="{ backgroundColor: TYPE_COLORS[item.type] ?? '#888' }"
+                  >
+                    {{ item.type }}
+                  </span>
+                </template>
+                <template #item.category="{ item }">
+                  <span
+                    class="category-badge"
+                    :style="{ backgroundColor: CATEGORY_COLOR[item.category] ?? '#64748b' }"
+                  >
+                    {{ CATEGORY_LABEL[item.category] ?? item.category }}
+                  </span>
+                </template>
+                <template #item.power="{ item }">
+                  {{ item.power ?? '-' }}
+                </template>
+                <template #item.pp="{ item }">
+                  {{ item.pp ?? '-' }}
+                </template>
+                <template #no-data>
+                  <div class="no-moves">No moves match the current filter.</div>
+                </template>
+              </v-data-table>
+            </section>
           </template>
 
-          <!-- Mega tab -->
           <template v-else-if="activeMegaForm">
-            <div v-if="activeMegaForm.isLoading" class="loading-state">
-              <PokeballLoader variant="page" label="Loading mega data…" />
-            </div>
-            <div v-else-if="activeMegaForm.error" class="error-state">
+            <div v-if="activeMegaForm.error" class="state-message error-state">
               {{ activeMegaForm.error }}
             </div>
             <template v-else>
@@ -488,7 +469,6 @@ function switchTab(tab: 'base' | string) {
                 </div>
               </div>
 
-              <!-- Mega Stats -->
               <section class="detail-section">
                 <h3>Base Stats</h3>
                 <div class="stats-grid">
@@ -508,90 +488,65 @@ function switchTab(tab: 'base' | string) {
                 </div>
               </section>
 
-              <!-- Mega Ability -->
               <section class="detail-section">
-                <h3>Ability</h3>
+                <h3>Abilities</h3>
                 <div class="abilities">
-                  <span
+                  <v-tooltip
                     v-for="ability in activeMegaForm.abilities"
                     :key="ability.name"
-                    class="ability-chip"
-                    :class="{ hidden: ability.isHidden }"
-                    @mouseenter="showTooltip($event, ability.name)"
-                    @mouseleave="hideTooltip"
+                    :text="ability.description || 'No description available.'"
+                    location="top"
                   >
-                    {{ ability.name }}
-                    <em v-if="ability.isHidden">(Hidden)</em>
-                  </span>
+                    <template #activator="{ props: tooltipProps }">
+                      <v-chip
+                        v-bind="tooltipProps"
+                        :variant="ability.isHidden ? 'outlined' : 'tonal'"
+                        size="small"
+                      >
+                        {{ ability.name }}
+                        <em v-if="ability.isHidden">&nbsp;(Hidden)</em>
+                      </v-chip>
+                    </template>
+                  </v-tooltip>
                 </div>
               </section>
             </template>
           </template>
-        </div>
+        </template>
+      </v-card-text>
 
-        <!-- Footer -->
-        <div class="modal-footer">
-          <button class="btn btn-secondary" @click="emit('close')">Close</button>
-          <template v-if="props.showDraftAction">
-            <span v-if="isPicked" class="already-drafted">Already Drafted</span>
-            <button v-else class="btn btn-primary" :disabled="!canDraft" @click="handleDraft">
-              {{ canDraft ? (actionLabel ?? 'Draft') : 'Not Your Turn' }}
-            </button>
-          </template>
-        </div>
-      </div>
-    </div>
+      <v-divider />
 
-    <!-- Ability tooltip rendered at body level to avoid overflow clipping -->
-    <Transition name="tooltip-fade">
-      <div
-        v-if="tooltip"
-        class="ability-tooltip"
-        :style="{ left: `${tooltip.x}px`, top: `${tooltip.y}px` }"
-      >
-        {{ tooltip.text }}
-      </div>
-    </Transition>
-  </Teleport>
+      <v-card-actions class="detail-actions">
+        <v-btn class="btn-secondary" @click="closeModal">Close</v-btn>
+        <template v-if="props.showDraftAction">
+          <span v-if="isPicked" class="already-drafted">Already Drafted</span>
+          <v-btn v-else class="btn-primary" :disabled="!canDraft" @click="handleDraft">
+            {{ canDraft ? (actionLabel ?? 'Draft') : 'Not Your Turn' }}
+          </v-btn>
+        </template>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <style scoped>
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(3px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-}
-
-.modal {
+.detail-card {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
-  border-radius: 14px;
-  width: 100%;
-  max-width: 540px;
   max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
 }
 
-/* ── Header ── */
-.modal-header {
+.detail-header {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 1.1rem 1.25rem;
-  border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0;
+  min-height: 120px;
+  padding: 1rem 1.25rem;
 }
 
-.modal-sprite {
+.modal-sprite,
+.mega-sprite {
   width: 96px;
   height: 96px;
   image-rendering: pixelated;
@@ -599,201 +554,125 @@ function switchTab(tab: 'base' | string) {
 }
 
 .modal-title {
-  flex: 1;
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .modal-id {
-  font-size: 0.72rem;
   color: var(--text-muted);
+  font-size: 0.72rem;
 }
 
-.modal-title h2 {
+.modal-name {
+  color: var(--text);
   font-size: 1.3rem;
   font-weight: 800;
-  color: var(--text);
-  margin: 0;
+  line-height: 1.2;
 }
 
 .modal-types {
   display: flex;
-  gap: 5px;
   flex-wrap: wrap;
+  gap: 5px;
 }
 
-.type-badge {
-  font-size: 0.65rem;
-  color: #fff;
-  padding: 2px 7px;
+.type-badge,
+.category-badge {
   border-radius: 4px;
-  text-transform: capitalize;
+  color: #fff;
+  font-size: 0.65rem;
   font-weight: 700;
+  padding: 2px 7px;
+  text-transform: capitalize;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+}
+
+.category-badge {
+  display: inline-block;
+  min-width: 44px;
+  text-align: center;
 }
 
 .modal-pts {
+  color: var(--primary);
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--primary);
 }
 
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  transition: color 0.15s;
-  align-self: flex-start;
-}
-
-.close-btn:hover {
-  color: var(--text);
-}
-
-/* ── Body ── */
-.modal-body {
-  flex: 1;
-  overflow: hidden;
-  padding: 1.1rem 1.25rem;
+.detail-body {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  min-height: 0;
 }
 
-.loading-state,
-.error-state {
+.state-message {
   color: var(--text-muted);
-  font-size: 0.9rem;
-  text-align: center;
   padding: 2rem 0;
+  text-align: center;
 }
 
 .error-state {
   color: #f87171;
 }
 
-/* ── Detail sections ── */
 .detail-section h3 {
+  color: var(--text-muted);
   font-size: 0.72rem;
   font-weight: 700;
-  text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: var(--text-muted);
   margin-bottom: 0.6rem;
+  text-transform: uppercase;
 }
 
-.move-count {
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-/* Base stats */
 .stats-grid {
-  display: grid;
-  grid-template-columns: 5rem 2.5rem 1fr;
   align-items: center;
+  display: grid;
   gap: 4px 8px;
+  grid-template-columns: 5rem 2.5rem 1fr;
 }
 
 .stat-label {
-  font-size: 0.75rem;
   color: var(--text-muted);
+  font-size: 0.75rem;
   font-weight: 600;
   text-align: right;
 }
 
 .stat-value {
+  color: var(--text);
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--text);
   text-align: right;
 }
 
 .stat-bar-track {
-  height: 8px;
   background: var(--input-bg);
   border-radius: 4px;
+  height: 8px;
   overflow: hidden;
 }
 
 .stat-bar-fill {
-  height: 100%;
   border-radius: 4px;
-  transition: width 0.4s ease;
+  height: 100%;
 }
 
-/* Abilities */
 .abilities {
   display: flex;
-  gap: 6px;
   flex-wrap: wrap;
+  gap: 6px;
 }
 
-.ability-chip {
-  position: relative;
-  font-size: 0.78rem;
-  font-weight: 600;
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  padding: 3px 10px;
-  border-radius: 20px;
-  cursor: help;
-}
-
-.ability-tooltip {
-  position: fixed;
-  transform: translate(-50%, calc(-100% - 8px));
-  background: rgba(0, 0, 0, 0.92);
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 400;
-  line-height: 1.45;
-  white-space: normal;
-  width: 220px;
-  padding: 7px 11px;
-  border-radius: 7px;
-  pointer-events: none;
-  z-index: 9999;
-  text-align: center;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-}
-
-.tooltip-fade-enter-active,
-.tooltip-fade-leave-active {
-  transition: opacity 0.15s;
-}
-.tooltip-fade-enter-from,
-.tooltip-fade-leave-to {
-  opacity: 0;
-}
-
-.ability-chip.hidden {
-  border-style: dashed;
-  color: var(--text-muted);
-}
-
-.ability-chip em {
-  font-style: italic;
-  font-weight: 400;
-  margin-left: 3px;
-  color: var(--text-muted);
-}
-
-/* Moves */
 .moves-header {
-  display: flex;
   align-items: center;
-  justify-content: space-between;
+  display: flex;
   gap: 0.75rem;
+  justify-content: space-between;
   margin-bottom: 0.6rem;
 }
 
@@ -801,194 +680,82 @@ function switchTab(tab: 'base' | string) {
   margin-bottom: 0;
 }
 
-.move-search {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.6rem;
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  border-radius: 6px;
-  width: 130px;
+.move-count {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
-.move-search:focus {
-  outline: none;
-  border-color: var(--primary);
+.move-search {
+  max-width: 180px;
 }
 
 .moves-table {
+  background: var(--bg);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
 }
 
-.moves-table-rows {
-  max-height: 220px;
-  overflow-y: auto;
-}
-
-.moves-table-header,
-.moves-table-row {
-  display: grid;
-  grid-template-columns: 64px 1fr 52px 36px 36px;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.3rem 0.6rem;
-  font-size: 0.75rem;
-}
-
-.moves-table-header {
-  background: var(--input-bg);
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
+.moves-table :deep(th) {
+  background: var(--input-bg) !important;
+  color: var(--text-muted) !important;
+  font-size: 0.68rem;
+  font-weight: 800 !important;
   letter-spacing: 0.06em;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border-color);
+  text-transform: uppercase;
 }
 
-.moves-table-row {
-  border-bottom: 1px solid var(--border-color);
+.moves-table :deep(td) {
   color: var(--text);
-}
-
-.moves-table-row:last-child {
-  border-bottom: none;
-}
-
-.moves-table-row:nth-child(even) {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.category-badge {
-  font-size: 0.6rem;
-  color: #fff;
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-weight: 700;
-  text-align: center;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-  white-space: nowrap;
-}
-
-.move-name {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.col-right {
-  text-align: right;
-}
-
-.stat-val {
-  color: var(--text-muted);
-  font-weight: 600;
+  font-size: 0.78rem;
 }
 
 .no-moves {
+  color: var(--text-muted);
   padding: 0.75rem;
   text-align: center;
-  color: var(--text-muted);
-  font-style: italic;
 }
 
-/* ── Footer ── */
-.modal-footer {
-  display: flex;
+.mega-header {
   align-items: center;
+  display: flex;
+  gap: 1rem;
+}
+
+.detail-actions {
   justify-content: flex-end;
-  gap: 0.75rem;
   padding: 0.85rem 1.25rem;
-  border-top: 1px solid var(--border-color);
-  flex-shrink: 0;
-}
-
-.btn {
-  font-size: 0.85rem;
-  font-weight: 700;
-  padding: 0.45rem 1.1rem;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: var(--input-bg);
-  color: var(--text);
-  border: 1px solid var(--border-color);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  border-color: var(--text-muted);
-}
-
-.btn-primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn-primary:hover:not(:disabled) {
-  opacity: 0.85;
 }
 
 .already-drafted {
-  font-size: 0.82rem;
   color: var(--text-muted);
+  font-size: 0.82rem;
   font-style: italic;
 }
 
-/* ── Tabs ── */
-.modal-tabs {
-  display: flex;
-  border-bottom: 1px solid var(--border-color);
-  padding: 0 1.25rem;
-  flex-shrink: 0;
-  background: var(--card-bg);
-}
+@media (max-width: 640px) {
+  .detail-header {
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
 
-.modal-tab {
-  padding: 0.45rem 1rem;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    color 0.15s,
-    border-color 0.15s;
-  margin-bottom: -1px;
-}
+  .modal-sprite {
+    height: 72px;
+    width: 72px;
+  }
 
-.modal-tab:hover {
-  color: var(--text);
-}
+  .stats-grid {
+    grid-template-columns: 4rem 2.5rem 1fr;
+  }
 
-.modal-tab--active {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
-}
+  .moves-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
 
-/* ── Mega tab content ── */
-.mega-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-shrink: 0;
-}
-
-.mega-sprite {
-  width: 96px;
-  height: 96px;
-  image-rendering: pixelated;
-  flex-shrink: 0;
+  .move-search {
+    max-width: none;
+  }
 }
 </style>
