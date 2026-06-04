@@ -494,7 +494,7 @@ onUnmounted(() => unsubscribe(handleLeagueState))
               <p class="subtitle">
                 Your proposal was sent to {{ getPlayerName(submittedTrade.targetPlayerId) }}.
               </p>
-              <button class="btn btn-primary" @click="router.push('/team')">Back to My Team</button>
+              <button class="btn btn-primary" @click="router.push('/league?tab=team')">Back to My Team</button>
             </article>
 
             <template v-else>

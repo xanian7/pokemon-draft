@@ -70,7 +70,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
   <v-app>
     <v-layout>
       <TopBar />
-      <LeftNav />
+      <!-- <LeftNav /> -->
       <v-main scrollable>
         <RouterView />
       </v-main>

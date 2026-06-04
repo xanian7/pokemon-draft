@@ -95,7 +95,7 @@ async function register() {
       }
     }
 
-    router.push('/')
+    router.push('/league')
   } catch {
     error.value = 'Could not connect to server.'
   } finally {

@@ -63,10 +63,10 @@ async function enterAsAdmin() {
   if (!created.value) return
   if (isGoogleUser.value) {
     const err = await authStore.enterLeague(created.value.code)
-    if (!err) router.push('/league/setup')
+    if (!err) router.push('/league?tab=setup')
   } else {
     const err = await authStore.join(created.value.code, adminPin.value)
-    if (!err) router.push('/league/setup')
+    if (!err) router.push('/league?tab=setup')
   }
 }
 </script>

@@ -9,7 +9,7 @@ const authStore = useAuthStore()
 
 onMounted(() => {
   if (authStore.isAuthenticated) {
-    router.push('/')
+    router.push('/league')
   } else if (authStore.isSignedIn) {
     // Discord-signed-in but no active league session → let them pick a league
     router.push('/my-leagues')

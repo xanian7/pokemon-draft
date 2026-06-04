@@ -47,6 +47,10 @@ const avatarInitials = computed(() => {
               <v-btn variant="text" width="100%">
                 <router-link to="/my-leagues">Return to My Leagues</router-link>
               </v-btn>
+              <v-divider></v-divider>
+              <v-btn variant="text" width="100%" @click="authStore.signOut()">
+                Logout
+              </v-btn>
             </div>
           </v-card-text>
         </v-card>

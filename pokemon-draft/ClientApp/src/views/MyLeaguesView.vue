@@ -42,7 +42,7 @@ async function enterLeague(code: string) {
   if (err) {
     error.value = err
   } else {
-    router.push('/')
+    router.push('/league')
   }
 }
 </script>

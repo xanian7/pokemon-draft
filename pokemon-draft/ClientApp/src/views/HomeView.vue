@@ -68,7 +68,7 @@ const setupSteps = computed(() => [
     label: 'Add players',
     done: hasPlayers.value,
     detail: hasPlayers.value ? `${league.value.players.length} players` : 'Minimum 2 required',
-    action: () => router.push('/league/setup'),
+    action: () => router.push('/league?tab=setup'),
   },
   {
     label: 'Assign point values',
@@ -76,7 +76,7 @@ const setupSteps = computed(() => [
     detail: hasPointValues.value
       ? `${Object.keys(league.value.pointValues).length} Pokémon valued`
       : 'None set yet',
-    action: () => router.push('/pokemon'),
+    action: () => router.push('/league?tab=pokemon'),
   },
   {
     label: 'Start the draft',
@@ -87,7 +87,7 @@ const setupSteps = computed(() => [
         : draftStatus.value === 'complete'
           ? 'Draft complete'
           : 'Ready when you are',
-    action: () => router.push('/draft'),
+    action: () => router.push('/league?tab=draft'),
   },
 ])
 
@@ -269,7 +269,7 @@ const outlookStatusLabel = (status: string) => {
           Commissioner dashboard · Welcome back, <strong>{{ authStore.playerName }}</strong>
         </p>
       </div>
-      <button class="btn btn-primary" @click="router.push('/draft')">
+      <button class="btn btn-primary" @click="router.push('/league?tab=draft')">
         <AppIcon :path="mdiTrophy" :size="18" />
         Draft Board
       </button>
@@ -302,7 +302,7 @@ const outlookStatusLabel = (status: string) => {
       <div v-if="draftReady" class="ready-banner">
         <AppIcon :path="mdiPlayCircle" :size="20" />
         Everything is set — head to the Draft Board to start!
-        <button class="btn btn-primary btn-sm" @click="router.push('/draft')">Start Draft</button>
+        <button class="btn btn-primary btn-sm" @click="router.push('/league?tab=draft')">Start Draft</button>
       </div>
     </section>
 
@@ -350,10 +350,10 @@ const outlookStatusLabel = (status: string) => {
     <section class="section">
       <h2 class="section-heading">Quick Actions</h2>
       <div class="action-row">
-        <button class="btn btn-secondary" @click="router.push('/league/setup')">
+        <button class="btn btn-secondary" @click="router.push('/league?tab=setup')">
           <AppIcon :path="mdiCog" :size="16" /> Configure League
         </button>
-        <button class="btn btn-secondary" @click="router.push('/pokemon')">
+        <button class="btn btn-secondary" @click="router.push('/league?tab=pokemon')">
           <AppIcon :path="mdiClipboardList" :size="16" /> Point Values
         </button>
         <button class="btn btn-secondary" @click="router.push('/roster')">
@@ -375,7 +375,7 @@ const outlookStatusLabel = (status: string) => {
       <button
         v-if="draftStatus === 'active'"
         :class="['btn', isMyTurn ? 'btn-primary pulse' : 'btn-secondary']"
-        @click="router.push('/draft')"
+        @click="router.push('/league?tab=draft')"
       >
         <AppIcon :path="mdiTrophy" :size="18" />
         {{ isMyTurn ? 'Your Turn!' : 'Draft Board' }}
@@ -417,7 +417,7 @@ const outlookStatusLabel = (status: string) => {
               </div>
               <span class="matchup-opp">vs. {{ myNextMatchup.opponentName }}</span>
             </div>
-            <button class="btn btn-ghost btn-sm" @click="router.push('/schedule')">
+            <button class="btn btn-ghost btn-sm" @click="router.push('/league?tab=schedule')">
               View Schedule <AppIcon :path="mdiArrowRight" :size="14" />
             </button>
           </div>
@@ -429,7 +429,7 @@ const outlookStatusLabel = (status: string) => {
       <div class="hub-card hub-standings" v-if="topStandings.length">
         <div class="hub-card-header">
           <div class="hub-card-label">Standings</div>
-          <button class="btn btn-ghost btn-xs" @click="router.push('/schedule')">
+          <button class="btn btn-ghost btn-xs" @click="router.push('/league?tab=schedule')">
             Full table →
           </button>
         </div>
@@ -466,7 +466,7 @@ const outlookStatusLabel = (status: string) => {
       <div class="hub-card hub-outlook" v-if="outlookPreview.length">
         <div class="hub-card-header">
           <div class="hub-card-label">Playoff Outlook</div>
-          <button class="btn btn-ghost btn-xs" @click="router.push('/playoffs')">
+          <button class="btn btn-ghost btn-xs" @click="router.push('/league?tab=playoffs')">
             Full view →
           </button>
         </div>
@@ -499,23 +499,23 @@ const outlookStatusLabel = (status: string) => {
       <div class="hub-card hub-quicknav">
         <div class="hub-card-label">Quick Nav</div>
         <div class="quicknav-grid">
-          <button class="qnav-btn" @click="router.push('/team')">
+          <button class="qnav-btn" @click="router.push('/league?tab=team')">
             <AppIcon :path="mdiTrophy" :size="22" />
             My Team
           </button>
-          <button class="qnav-btn" @click="router.push('/teams')">
+          <button class="qnav-btn" @click="router.push('/league?tab=teams')">
             <AppIcon :path="mdiAccountMultiple" :size="22" />
             All Teams
           </button>
-          <button class="qnav-btn" @click="router.push('/schedule')">
+          <button class="qnav-btn" @click="router.push('/league?tab=schedule')">
             <AppIcon :path="mdiCalendarCheck" :size="22" />
             Schedule
           </button>
-          <button class="qnav-btn" @click="router.push('/playoffs')">
+          <button class="qnav-btn" @click="router.push('/league?tab=playoffs')">
             <AppIcon :path="mdiChartLine" :size="22" />
             Playoffs
           </button>
-          <button class="qnav-btn" @click="router.push('/pokemon')">
+          <button class="qnav-btn" @click="router.push('/league?tab=pokemon')">
             <AppIcon :path="mdiPokeball" :size="22" />
             Pokémon
           </button>
@@ -530,7 +530,7 @@ const outlookStatusLabel = (status: string) => {
             <span class="points-badge" :class="{ over: myPoints > pointLimit }">
               {{ myPoints }} / {{ pointLimit }} pts
             </span>
-            <button class="btn btn-ghost btn-xs" @click="router.push('/team')">
+            <button class="btn btn-ghost btn-xs" @click="router.push('/league?tab=team')">
               Full roster →
             </button>
           </div>
@@ -584,7 +584,7 @@ const outlookStatusLabel = (status: string) => {
           <button
             v-if="draftStatus === 'active'"
             class="btn btn-primary btn-sm"
-            @click="router.push('/draft')"
+            @click="router.push('/league?tab=draft')"
           >
             Go to Draft
           </button>

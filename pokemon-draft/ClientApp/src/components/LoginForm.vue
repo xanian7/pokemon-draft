@@ -65,7 +65,7 @@ async function joinLeague() {
     }
     const err = await authStore.enterLeague(code)
     if (err) { joinError.value = err; return }
-    router.push('/')
+    router.push('/league')
   } catch {
     joinError.value = 'Could not connect to server.'
   } finally {
@@ -111,7 +111,7 @@ async function createLeague() {
 async function enterCreatedLeague() {
   if (!createdLeague.value) return
   const err = await authStore.enterLeague(createdLeague.value.code)
-  if (!err) router.push('/league/setup')
+  if (!err) router.push('/league?tab=setup')
 }
 
 const isSignedIn = computed(() => authStore.isSignedIn)

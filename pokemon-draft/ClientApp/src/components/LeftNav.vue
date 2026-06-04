@@ -7,33 +7,33 @@ const authStore = useAuthStore()
 
 const pageData = reactive({
   navigationButtons: [
-    { label: 'Home', icon: 'mdi-home', route: '/', requiresAuth: true, adminOnly: false },
-    { label: 'My Team', icon: 'mdi-account', route: '/team', requiresAuth: true, adminOnly: false },
+    { label: 'Home', icon: 'mdi-home', route: '/league?tab=home', requiresAuth: true, adminOnly: false },
+    { label: 'My Team', icon: 'mdi-account', route: '/league?tab=team', requiresAuth: true, adminOnly: false },
     {
       label: 'All Teams',
       icon: 'mdi-account-group',
-      route: '/teams',
+      route: '/league?tab=teams',
       requiresAuth: true,
       adminOnly: false,
     },
     {
       label: 'Schedule',
       icon: 'mdi-calendar',
-      route: '/schedule',
+      route: '/league?tab=schedule',
       requiresAuth: true,
       adminOnly: false,
     },
     {
       label: 'Playoffs',
       icon: 'mdi-trophy',
-      route: '/playoffs',
+      route: '/league?tab=playoffs',
       requiresAuth: true,
       adminOnly: false,
     },
     {
       label: 'Draft Board',
       icon: 'mdi-view-dashboard-variant',
-      route: '/draft',
+      route: '/league?tab=draft',
       requiresAuth: true,
       adminOnly: false,
     },
@@ -41,14 +41,14 @@ const pageData = reactive({
     {
       label: 'League Setup',
       icon: 'mdi-cog',
-      route: '/league/setup',
+      route: '/league?tab=setup',
       requiresAuth: true,
       adminOnly: true,
     },
     {
       label: 'Point Values',
       icon: 'mdi-chart-bar',
-      route: '/pokemon',
+      route: '/league?tab=pokemon',
       requiresAuth: true,
       adminOnly: true,
     },

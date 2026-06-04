@@ -245,8 +245,8 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
 }
 
 .wrapper-card {
-  max-height: 92dvh;
-  height: 92dvh;
+  max-height: 89dvh;
+  height: 89dvh;
   display: flex;
   flex-direction: column;
   padding: 8px;

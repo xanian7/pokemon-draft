@@ -156,7 +156,7 @@ async function movePlayer(from: number, to: number) {
 
 async function startDraft() {
   const res = await fetch(`${API_BASE}/leagues/${leagueCode.value}/draft/start`, { method: 'POST' })
-  if (res.ok) router.push('/draft')
+  if (res.ok) router.push('/league?tab=draft')
 }
 
 async function resetDraft() {
@@ -307,7 +307,7 @@ const snakePreview = computed(() => {
           <AppIcon :path="mdiTrophy" :size="18" />
           Start Draft
         </button>
-        <button class="btn-secondary" @click="router.push('/pokemon')">
+        <button class="btn-secondary" @click="router.push('/league?tab=pokemon')">
           <AppIcon :path="mdiClipboardList" :size="18" />
           Manage Point Values
         </button>

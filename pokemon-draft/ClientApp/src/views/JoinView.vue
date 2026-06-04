@@ -28,7 +28,7 @@ const lookupPending = ref(false)
 
 // If already authenticated in a league, go straight to home
 if (authStore.isAuthenticated) {
-  router.replace('/')
+  router.replace('/league')
 }
 
 // Live league name lookup – debounced
@@ -87,7 +87,7 @@ async function join() {
   if (err) {
     error.value = err
   } else {
-    router.push('/')
+    router.push('/league')
   }
 }
 

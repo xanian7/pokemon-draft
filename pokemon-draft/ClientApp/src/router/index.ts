@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -7,7 +6,7 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: HomeView,
+      component: () => import('../views/LeagueView.vue'),
     },
     {
       path: '/join',
@@ -32,27 +31,32 @@ const router = createRouter({
     {
       path: '/league/setup',
       name: 'league-setup',
-      component: () => import('../views/LeagueSetupView.vue'),
+      component: () => import('../views/LeagueView.vue'),
+    },
+    {
+      path: '/league',
+      name: 'league',
+      component: () => import('../views/LeagueView.vue'),
     },
     {
       path: '/pokemon',
       name: 'pokemon',
-      component: () => import('../views/PokemonView.vue'),
+      component: () => import('../views/LeagueView.vue'),
     },
     {
       path: '/draft',
       name: 'draft',
-      component: () => import('../views/DraftView.vue'),
+      component: () => import('../views/LeagueView.vue'),
     },
     {
       path: '/team',
       name: 'team',
-      component: () => import('../views/MyTeamView.vue'),
+      component: () => import('../views/LeagueView.vue'),
     },
     {
       path: '/schedule',
       name: 'schedule',
-      component: () => import('../views/ScheduleView.vue'),
+      component: () => import('../views/LeagueView.vue'),
     },
     {
       path: '/settings',
@@ -62,12 +66,12 @@ const router = createRouter({
     {
       path: '/teams',
       name: 'teams',
-      component: () => import('../views/TeamsView.vue'),
+      component: () => import('../views/LeagueView.vue'),
     },
     {
       path: '/playoffs',
       name: 'playoffs',
-      component: () => import('../views/PlayoffsView.vue'),
+      component: () => import('../views/LeagueView.vue'),
     },
     {
       path: '/auth/discord/callback',
