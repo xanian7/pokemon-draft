@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using PokemonDraft.Data;
 using PokemonDraft.DTOs;
 using PokemonDraft.Models;
+using System.Text.Json;
 
 namespace PokemonDraft.Services;
 
@@ -439,7 +440,8 @@ public class LeagueService(DraftDbContext db) : ILeagueService
                 matchup.Player2Wins,
                 player1MatchPoints,
                 player2MatchPoints,
-                matchup.ReplayUrl);
+                GetReplayUrls(matchup.ReplayUrl).FirstOrDefault(),
+                GetReplayUrls(matchup.ReplayUrl));
         }
 
         var completedMatchups = league.Matchups.Where(m => m.Player1Wins.HasValue && m.Player2Wins.HasValue).ToList();
@@ -611,7 +613,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     }
 
     /// <inheritdoc/>
-    public (bool success, string? error) ReportMatchup(string leagueCode, int matchupId, string playerId, string pin, int player1Wins, int player2Wins, string? replayUrl)
+    public (bool success, string? error) ReportMatchup(string leagueCode, int matchupId, string playerId, string pin, int player1Wins, int player2Wins, string? replayUrl, List<string>? replayUrls)
     {
         var league = LoadLeagueWithSchedule(leagueCode);
         if (league is null) return (false, "League not found.");
@@ -638,12 +640,12 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (player1Wins == 2 && player2Wins == 2)
             return (false, "Both players cannot have 2 wins.");
 
-        var (normalizedReplayUrl, replayError) = NormalizeReplayUrl(replayUrl);
+        var (normalizedReplayUrls, replayError) = NormalizeReplayUrls(replayUrl, replayUrls);
         if (replayError is not null) return (false, replayError);
 
         matchup.Player1Wins = player1Wins;
         matchup.Player2Wins = player2Wins;
-        matchup.ReplayUrl = normalizedReplayUrl;
+        matchup.ReplayUrl = SerializeReplayUrls(normalizedReplayUrls);
         matchup.ReportedByPlayerId = playerId;
         matchup.ReportedAt = DateTime.UtcNow;
         db.SaveChanges();
@@ -651,7 +653,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     }
 
     /// <inheritdoc/>
-    public (bool success, string? error) EditMatchup(string leagueCode, int matchupId, string adminPin, int player1Wins, int player2Wins, string? replayUrl)
+    public (bool success, string? error) EditMatchup(string leagueCode, int matchupId, string adminPin, int player1Wins, int player2Wins, string? replayUrl, List<string>? replayUrls)
     {
         var league = LoadLeagueWithSchedule(leagueCode);
         if (league is null) return (false, "League not found.");
@@ -671,29 +673,63 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (player1Wins == 2 && player2Wins == 2)
             return (false, "Both players cannot have 2 wins.");
 
-        var (normalizedReplayUrl, replayError) = NormalizeReplayUrl(replayUrl);
+        var (normalizedReplayUrls, replayError) = NormalizeReplayUrls(replayUrl, replayUrls);
         if (replayError is not null) return (false, replayError);
 
         matchup.Player1Wins = player1Wins;
         matchup.Player2Wins = player2Wins;
-        matchup.ReplayUrl = normalizedReplayUrl;
+        matchup.ReplayUrl = SerializeReplayUrls(normalizedReplayUrls);
         matchup.ReportedAt = DateTime.UtcNow;
         db.SaveChanges();
         return (true, null);
     }
 
-    private static (string? replayUrl, string? error) NormalizeReplayUrl(string? replayUrl)
+    private static List<string> GetReplayUrls(string? replayUrl)
     {
         var trimmed = replayUrl?.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed)) return (null, null);
+        if (string.IsNullOrWhiteSpace(trimmed)) return [];
 
-        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) ||
-            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        if (trimmed.StartsWith("["))
         {
-            return (null, "Replay link must be a valid http or https URL.");
+            try
+            {
+                return JsonSerializer.Deserialize<List<string>>(trimmed) ?? [];
+            }
+            catch
+            {
+                return [trimmed];
+            }
         }
 
-        return (trimmed, null);
+        return [trimmed];
+    }
+
+    private static string? SerializeReplayUrls(List<string> replayUrls)
+    {
+        if (replayUrls.Count == 0) return null;
+        if (replayUrls.Count == 1) return replayUrls[0];
+        return JsonSerializer.Serialize(replayUrls);
+    }
+
+    private static (List<string> replayUrls, string? error) NormalizeReplayUrls(string? replayUrl, List<string>? replayUrls)
+    {
+        var candidates = (replayUrls is { Count: > 0 } ? replayUrls : [replayUrl ?? string.Empty])
+            .Select(url => url.Trim())
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .ToList();
+
+        if (candidates.Count > 3) return ([], "A match report can include at most 3 replay links.");
+
+        foreach (var url in candidates)
+        {
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            {
+                return ([], "Replay links must be valid http or https URLs.");
+            }
+        }
+
+        return (candidates, null);
     }
 
     /// <inheritdoc/>

@@ -26,8 +26,8 @@ public record RespondTradeRequest(string PlayerId, string Pin);
 
 public record RosterChangeRequest(string PlayerId, string Pin, int PokemonId);
 
-public record ReportMatchupRequest(string PlayerId, string Pin, int Player1Wins, int Player2Wins, string? ReplayUrl = null);
-public record EditMatchupRequest(string AdminPin, int Player1Wins, int Player2Wins, string? ReplayUrl = null);
+public record ReportMatchupRequest(string PlayerId, string Pin, int Player1Wins, int Player2Wins, string? ReplayUrl = null, List<string>? ReplayUrls = null);
+public record EditMatchupRequest(string AdminPin, int Player1Wins, int Player2Wins, string? ReplayUrl = null, List<string>? ReplayUrls = null);
 
 // --- Auth ---
 
@@ -98,7 +98,8 @@ public record MatchupResponse(
     string Player2Id, string Player2Name, string Player2TeamName, string Player2TeamImageUrl,
     int? Player1Wins, int? Player2Wins,
     int? Player1MatchPoints, int? Player2MatchPoints,
-    string? ReplayUrl);
+    string? ReplayUrl,
+    List<string> ReplayUrls);
 
 public record StandingRow(
     string PlayerId, string PlayerName, string TeamName, string TeamImageUrl,

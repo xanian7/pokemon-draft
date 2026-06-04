@@ -21,7 +21,7 @@ const openWeeks = ref<number[]>([])
 const activeMatchup = ref<MatchupResponse | null>(null)
 const reportP1Wins = ref(2)
 const reportP2Wins = ref(0)
-const reportReplayUrl = ref('')
+const reportReplayUrls = ref(['', '', ''])
 const reportError = ref('')
 const reportLoading = ref(false)
 const isEditing = ref(false)
@@ -109,7 +109,7 @@ function openReport(matchup: MatchupResponse) {
   activeMatchup.value = matchup
   reportP1Wins.value = 2
   reportP2Wins.value = 0
-  reportReplayUrl.value = ''
+  reportReplayUrls.value = ['', '', '']
   reportError.value = ''
   isEditing.value = false
 }
@@ -118,7 +118,7 @@ function openEdit(matchup: MatchupResponse) {
   activeMatchup.value = matchup
   reportP1Wins.value = matchup.player1Wins ?? 2
   reportP2Wins.value = matchup.player2Wins ?? 0
-  reportReplayUrl.value = matchup.replayUrl ?? ''
+  reportReplayUrls.value = paddedReplayUrls(getMatchupReplayUrls(matchup))
   reportError.value = ''
   isEditing.value = true
 }
@@ -143,15 +143,17 @@ function validateReport() {
     return 'Both players cannot have 2 wins.'
   }
 
-  const trimmedReplay = reportReplayUrl.value.trim()
-  if (trimmedReplay) {
+  const replayUrls = normalizedReportReplayUrls()
+  if (replayUrls.length > 3) return 'A match report can include at most 3 replay links.'
+
+  for (const replayUrl of replayUrls) {
     try {
-      const url = new URL(trimmedReplay)
+      const url = new URL(replayUrl)
       if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-        return 'Replay link must be a valid http or https URL.'
+        return 'Replay links must be valid http or https URLs.'
       }
     } catch {
-      return 'Replay link must be a valid URL.'
+      return 'Replay links must be valid URLs.'
     }
   }
 
@@ -176,13 +178,15 @@ async function submitReport() {
       ? `${API_BASE}/api/leagues/${authStore.leagueCode}/schedule/${matchup.id}/edit`
       : `${API_BASE}/api/leagues/${authStore.leagueCode}/schedule/${matchup.id}/report`
 
-    const replayUrl = reportReplayUrl.value.trim() || null
+    const replayUrls = normalizedReportReplayUrls()
+    const replayUrl = replayUrls[0] ?? null
     const body = isEditing.value
       ? {
           adminPin: authStore.pin,
           player1Wins: reportP1Wins.value,
           player2Wins: reportP2Wins.value,
           replayUrl,
+          replayUrls,
         }
       : {
           playerId: authStore.playerId,
@@ -190,6 +194,7 @@ async function submitReport() {
           player1Wins: reportP1Wins.value,
           player2Wins: reportP2Wins.value,
           replayUrl,
+          replayUrls,
         }
 
     const res = await fetch(url, {
@@ -254,6 +259,19 @@ function replayHost(replayUrl: string) {
   } catch {
     return 'Replay'
   }
+}
+
+function normalizedReportReplayUrls() {
+  return reportReplayUrls.value.map((url) => url.trim()).filter(Boolean).slice(0, 3)
+}
+
+function paddedReplayUrls(replayUrls: string[]) {
+  return [...replayUrls, '', '', ''].slice(0, 3)
+}
+
+function getMatchupReplayUrls(matchup: MatchupResponse) {
+  if (matchup.replayUrls?.length) return matchup.replayUrls.slice(0, 3)
+  return matchup.replayUrl ? [matchup.replayUrl] : []
 }
 </script>
 
@@ -347,16 +365,39 @@ function replayHost(replayUrl: string) {
                     </template>
 
                     <template #item.replay="{ item }">
-                      <v-btn
-                        v-if="item.replayUrl"
-                        :href="item.replayUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        size="small"
-                        variant="tonal"
-                      >
-                        {{ replayHost(item.replayUrl) }}
-                      </v-btn>
+                      <div v-if="getMatchupReplayUrls(item).length === 1" class="replay-links">
+                        <v-btn
+                          v-for="replayUrl in getMatchupReplayUrls(item)"
+                          :key="replayUrl"
+                          :href="replayUrl"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          size="small"
+                          variant="tonal"
+                        >
+                          {{ replayHost(replayUrl) }}
+                        </v-btn>
+                      </div>
+                      <v-menu v-else-if="getMatchupReplayUrls(item).length > 1">
+                        <template #activator="{ props }">
+                          <v-btn v-bind="props" size="small" variant="tonal">
+                            {{ getMatchupReplayUrls(item).length }} replays
+                          </v-btn>
+                        </template>
+                        <v-list density="compact">
+                          <v-list-item
+                            v-for="(replayUrl, index) in getMatchupReplayUrls(item)"
+                            :key="replayUrl"
+                            :href="replayUrl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <v-list-item-title>
+                              Game {{ index + 1 }} - {{ replayHost(replayUrl) }}
+                            </v-list-item-title>
+                          </v-list-item>
+                        </v-list>
+                      </v-menu>
                       <span v-else class="muted">-</span>
                     </template>
 
@@ -431,16 +472,20 @@ function replayHost(replayUrl: string) {
             />
           </div>
 
-          <v-text-field
-            v-model="reportReplayUrl"
-            class="replay-input"
-            label="Replay link"
-            placeholder="https://replay.pokemonshowdown.com/..."
-            variant="outlined"
-            density="compact"
-            clearable
-            hide-details
-          />
+          <div class="replay-inputs">
+            <v-text-field
+              v-for="(_, index) in reportReplayUrls"
+              :key="index"
+              v-model="reportReplayUrls[index]"
+              class="replay-input"
+              :label="`Replay link ${index + 1}`"
+              placeholder="https://replay.pokemonshowdown.com/..."
+              variant="outlined"
+              density="compact"
+              clearable
+              hide-details
+            />
+          </div>
 
           <v-alert v-if="reportError" type="error" variant="tonal" density="compact">
             {{ reportError }}
@@ -575,6 +620,11 @@ h1 {
   gap: 6px;
 }
 
+.replay-links {
+  display: flex;
+  justify-content: center;
+}
+
 .standings-card {
   border: 1px solid var(--border-color);
   position: sticky;
@@ -620,7 +670,9 @@ h1 {
   grid-column: 1;
 }
 
-.replay-input {
+.replay-inputs {
+  display: grid;
+  gap: 10px;
   margin-bottom: 12px;
 }
 

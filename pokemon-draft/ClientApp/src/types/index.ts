@@ -56,6 +56,7 @@ export interface MatchupResponse {
   player1MatchPoints: number | null
   player2MatchPoints: number | null
   replayUrl: string | null
+  replayUrls: string[]
 }
 
 export interface StandingRow {
