@@ -6,15 +6,16 @@ import { useAuthStore } from '@/stores/auth'
 import { useRegulationFilter } from '@/composables/useRegulationFilter'
 import PokemonCard from './PokemonCard.vue'
 import PokemonDetailModal from './PokemonDetailModal.vue'
-import SearchBox from './SearchBox.vue'
 import AppIcon from './AppIcon.vue'
 import type { Pokemon } from '@/types'
 import { mdiViewGrid, mdiViewColumn } from '@mdi/js'
 import { formatPokemonName } from '@/utils/format'
+import { useDisplay } from 'vuetify'
 
 const pokemonStore = usePokemonStore()
 const draftStore = useDraftStore()
 const authStore = useAuthStore()
+const { xs } = useDisplay()
 
 // ── Filter state ─────────────────────────────────────────────────────────────
 const searchQuery = ref('')
@@ -187,6 +188,7 @@ async function handleDraft(pokemonId: number) {
                 :is-disabled="canDraft && !draftStore.playerCanAffordPokemon(authStore.playerId ?? '', pokemon.id)"
                 disabled-label="Over budget"
                 mode="draft"
+                :show-sprite="!xs"
                 :point-value="pokemonStore.getPointValue(pokemon.id)"
                 @click="selectPokemon(pokemon)"
               />
@@ -204,6 +206,7 @@ async function handleDraft(pokemonId: number) {
                 :is-disabled="canDraft && !draftStore.playerCanAffordPokemon(authStore.playerId ?? '', pokemon.id)"
                 disabled-label="Over budget"
                 mode="draft"
+                :show-sprite="!xs"
                 :point-value="pokemonStore.getPointValue(pokemon.id)"
                 @click="selectPokemon(pokemon)"
               />
@@ -408,5 +411,69 @@ async function handleDraft(pokemonId: number) {
 
 .type-filter :deep(.v-field-label) {
   left: 12px;
+}
+
+@media (max-width: 720px) {
+  .pokemon-grid-shell {
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .grid-container {
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 6px;
+  }
+
+  .pokemon-grid-header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--card-bg);
+    padding-bottom: 6px;
+  }
+
+  .filter-bar {
+    align-items: stretch;
+  }
+
+  .type-filter {
+    flex: 1 1 160px;
+    max-width: none;
+  }
+
+  .view-toggle {
+    margin-left: 0;
+  }
+
+  .grid-view-container {
+    border-left: 0;
+    border-right: 0;
+    height: auto;
+    margin-top: 6px;
+    overflow: visible;
+    padding: 6px 0;
+  }
+
+  .pokemon-grid {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 0.35rem;
+  }
+
+  .tier-view {
+    min-width: 0;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+
+  .tier-col {
+    width: 104px;
+  }
 }
 </style>

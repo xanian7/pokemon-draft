@@ -115,22 +115,46 @@ const leagueTitle = computed(() => authStore.leagueName || 'League')
   display: flex;
   flex-direction: column;
   gap: 0;
+  height: calc(100dvh - var(--v-layout-top, 64px) - 64px);
+  min-height: 0;
+  overflow: hidden;
   padding: 0;
 }
 
 .league-tabs {
   border-bottom: 1px solid var(--border-color);
+  flex: 0 0 auto;
   padding-bottom: 0;
+  z-index: 20;
 }
 
 .league-tab-panel {
+  flex: 1 1 auto;
   min-height: 0;
-  max-height: calc(100vh - 108px);
   overflow: auto;
   padding-top: 16px;
 }
 
 .league-tab-panel :deep(> .v-container) {
   padding-top: 0;
+}
+
+@media (max-width: 720px) {
+  .league-view {
+    height: calc(100dvh - var(--v-layout-top, 64px) - 64px);
+  }
+
+  .league-tabs :deep(.v-tab) {
+    min-width: 56px;
+    padding-inline: 10px;
+  }
+
+  .league-tabs :deep(.v-tab__content) {
+    font-size: 0.72rem;
+  }
+
+  .league-tab-panel {
+    -webkit-overflow-scrolling: touch;
+  }
 }
 </style>

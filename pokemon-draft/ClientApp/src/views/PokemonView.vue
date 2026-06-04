@@ -17,9 +17,11 @@ import {
   mdiViewGrid,
   mdiViewColumn,
 } from '@mdi/js'
+import { useDisplay } from 'vuetify'
 
 const pokemonStore = usePokemonStore()
 const authStore = useAuthStore()
+const { xs } = useDisplay()
 
 const searchQuery = ref('')
 const selectedRegulation = ref('national')
@@ -261,6 +263,7 @@ async function saveToServer() {
               :pokemon="pokemon"
               :point-value="pokemon.pointValue"
               mode="draft"
+              :show-sprite="!xs"
               @click="openDetail(pokemon)"
             />
             <input
@@ -284,6 +287,7 @@ async function saveToServer() {
           :pokemon="pokemon"
           :point-value="pokemon.pointValue"
           mode="draft"
+          :show-sprite="!xs"
           @click="openDetail(pokemon)"
         />
         <input
@@ -521,5 +525,41 @@ select {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+@media (max-width: 720px) {
+  .pokemon-view {
+    min-height: 0;
+  }
+
+  .view-header,
+  .filter-bar {
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .filter-bar > * {
+    min-width: 0;
+  }
+
+  .pokemon-grid {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    overflow-y: visible;
+    padding: 0.5rem 0;
+  }
+
+  .tier-view {
+    overflow-y: visible;
+    padding: 0.5rem 0;
+  }
+
+  .pokemon-entry {
+    gap: 0.25rem;
+  }
+
+  .point-input {
+    height: 32px;
+    font-size: 0.8rem;
+  }
 }
 </style>

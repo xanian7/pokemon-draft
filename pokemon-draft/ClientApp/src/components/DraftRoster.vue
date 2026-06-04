@@ -188,4 +188,27 @@ function toggleTeam(playerId: string) {
 .team-outline > .v-card {
   flex: 0 0 auto;
 }
+
+@media (max-width: 720px) {
+  .roster-shell {
+    display: block;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .team-outline {
+    display: block;
+    height: auto;
+    max-height: none;
+    min-height: 220px;
+    overflow: visible;
+    padding: 6px;
+  }
+
+  .pokemon-grid {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  }
+}
 </style>

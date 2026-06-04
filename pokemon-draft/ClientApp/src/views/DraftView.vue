@@ -277,4 +277,41 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
   min-height: 0;
   display: flex;
 }
+
+@media (max-width: 720px) {
+  .wrapper-card {
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 6px;
+  }
+
+  .upcoming-picks {
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    padding: 4px 0;
+  }
+
+  .upcoming-pick-card {
+    flex-basis: 168px;
+  }
+
+  .current-upcoming-pick-card {
+    flex-basis: 220px;
+  }
+
+  .draft-main-row {
+    display: block;
+    min-height: auto;
+  }
+
+  .draft-grid-col {
+    display: block;
+    min-height: auto;
+  }
+}
 </style>

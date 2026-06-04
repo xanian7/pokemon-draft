@@ -12,6 +12,7 @@ const props = defineProps<{
   disabledLabel?: string
   isCurrentPicker?: boolean
   mode?: 'browse' | 'draft' | 'team'
+  showSprite?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -32,6 +33,7 @@ const emit = defineEmits<{
     @click="emit('click')"
   >
     <img
+      v-if="showSprite !== false"
       :src="pokemon.spriteUrl"
       :alt="formatPokemonName(pokemon.name)"
       class="sprite"
@@ -216,5 +218,43 @@ const emit = defineEmits<{
 
 .mode-draft[data-tooltip]:hover::after {
   opacity: 1;
+}
+
+@media (max-width: 720px) {
+  .pokemon-card {
+    border-radius: 6px;
+    min-height: 82px;
+    padding: 0.45rem 0.35rem;
+  }
+
+  .pokemon-card:hover:not(.is-picked, .is-disabled) {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .pokemon-id {
+    font-size: 0.6rem;
+  }
+
+  .pokemon-name {
+    font-size: 0.74rem;
+  }
+
+  .types {
+    gap: 2px;
+  }
+
+  .type-badge {
+    font-size: 0.55rem;
+    padding: 1px 4px;
+  }
+
+  .point-value {
+    font-size: 0.66rem;
+  }
+
+  .mode-draft[data-tooltip]::after {
+    display: none;
+  }
 }
 </style>
