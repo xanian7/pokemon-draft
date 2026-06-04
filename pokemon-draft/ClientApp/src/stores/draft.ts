@@ -38,6 +38,8 @@ export const useDraftStore = defineStore('draft', () => {
 
   const players = computed<ServerPlayerResponse[]>(() => serverState.value?.players ?? [])
   const leagueName = computed<string>(() => serverState.value?.name ?? '')
+  const pointLimit = computed<number>(() => serverState.value?.pointLimit ?? 0)
+  const pointValues = computed<Record<number, number>>(() => serverState.value?.pointValues ?? {})
   const regulationSet = computed<string>(() => serverState.value?.regulationSet ?? 'national')
   const rounds = computed<number>(() => serverState.value?.rounds ?? 0)
 
@@ -47,6 +49,25 @@ export const useDraftStore = defineStore('draft', () => {
 
   function playerCanDraft(playerId: string): boolean {
     return status.value === 'active' && !isDraftComplete.value && currentPickerId.value === playerId
+  }
+
+  function getPokemonPointValue(pokemonId: number): number {
+    return pointValues.value[pokemonId] ?? 0
+  }
+
+  function getPlayerPointTotal(playerId: string): number {
+    return getPlayerPicks(playerId).reduce(
+      (sum, pick) => sum + getPokemonPointValue(pick.pokemonId),
+      0,
+    )
+  }
+
+  function getPlayerPointsRemaining(playerId: string): number {
+    return pointLimit.value - getPlayerPointTotal(playerId)
+  }
+
+  function playerCanAffordPokemon(playerId: string, pokemonId: number): boolean {
+    return getPokemonPointValue(pokemonId) <= getPlayerPointsRemaining(playerId)
   }
 
   /** Posts a draft pick to the API. Returns null on success or an error message. */
@@ -95,10 +116,16 @@ export const useDraftStore = defineStore('draft', () => {
     pickedPokemonIds,
     players,
     leagueName,
+    pointLimit,
+    pointValues,
     regulationSet,
     rounds,
     currentPicker,
     playerCanDraft,
+    getPokemonPointValue,
+    getPlayerPointTotal,
+    getPlayerPointsRemaining,
+    playerCanAffordPokemon,
     makePick,
     getPlayerPicks,
   }

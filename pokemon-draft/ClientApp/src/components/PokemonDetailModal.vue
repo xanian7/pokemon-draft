@@ -10,6 +10,7 @@ const props = withDefaults(
     canDraft: boolean
     isPicked: boolean
     actionLabel?: string
+    draftDisabledReason?: string
     showDraftAction?: boolean
   }>(),
   {
@@ -522,7 +523,7 @@ onMounted(loadModalData)
         <template v-if="props.showDraftAction">
           <span v-if="isPicked" class="already-drafted">Already Drafted</span>
           <v-btn v-else class="btn-primary" :disabled="!canDraft" @click="handleDraft">
-            {{ canDraft ? (actionLabel ?? 'Draft') : 'Not Your Turn' }}
+            {{ canDraft ? (actionLabel ?? 'Draft') : (draftDisabledReason ?? 'Not Your Turn') }}
           </v-btn>
         </template>
       </v-card-actions>

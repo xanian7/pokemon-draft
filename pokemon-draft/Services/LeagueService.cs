@@ -286,6 +286,17 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (league.Picks.Any(p => p.PokemonId == pokemonId))
             return (false, "That Pokémon has already been drafted.", false);
 
+        var pointValues = league.PointValues.ToDictionary(pv => pv.PokemonId, pv => pv.Value);
+        var currentPointTotal = league.Picks
+            .Where(p => p.PlayerId == playerId)
+            .Sum(p => pointValues.GetValueOrDefault(p.PokemonId, 0));
+        var requestedPointValue = pointValues.GetValueOrDefault(pokemonId, 0);
+        if (currentPointTotal + requestedPointValue > league.PointLimit)
+        {
+            var remainingPoints = Math.Max(0, league.PointLimit - currentPointTotal);
+            return (false, $"That Pokémon costs {requestedPointValue} points, but you only have {remainingPoints} points remaining.", false);
+        }
+
         var totalPicks = orderedPlayers.Count * league.Rounds;
         var round = league.CurrentPickNumber / orderedPlayers.Count;
         var justCompleted = false;
@@ -813,7 +824,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             .FirstOrDefault(l => l.Code == normalizedCode);
     }
 
-    // League + Players + Picks — for draft picks and post-draft roster changes.
+    // League + Players + Picks + PointValues — for draft picks and post-draft roster changes.
     private League? LoadLeagueWithDraft(string code)
     {
         var normalizedCode = NormalizeLeagueCode(code);
@@ -821,10 +832,12 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             .AsSplitQuery()
             .Include(l => l.Players)
             .Include(l => l.Picks)
+            .Include(l => l.PointValues)
             .FirstOrDefault(l => l.Code == normalizedCode);
         if (league is null) return null;
         league.Players = league.Players.OrderBy(p => p.SortOrder).ToList();
         league.Picks = league.Picks.OrderBy(p => p.PickNumber).ToList();
+        league.PointValues = league.PointValues.OrderBy(p => p.PokemonId).ToList();
         return league;
     }
 
@@ -961,6 +974,15 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         var playerPicks = league.Picks.Where(p => p.PlayerId == playerId).ToList();
         if (playerPicks.Count >= league.Rounds)
             return (false, "Your roster is full.");
+
+        var pointValues = league.PointValues.ToDictionary(pv => pv.PokemonId, pv => pv.Value);
+        var currentPointTotal = playerPicks.Sum(p => pointValues.GetValueOrDefault(p.PokemonId, 0));
+        var requestedPointValue = pointValues.GetValueOrDefault(pokemonId, 0);
+        if (currentPointTotal + requestedPointValue > league.PointLimit)
+        {
+            var remainingPoints = Math.Max(0, league.PointLimit - currentPointTotal);
+            return (false, $"That Pokémon costs {requestedPointValue} points, but you only have {remainingPoints} points remaining.");
+        }
 
         var nextPickNumber = league.Picks.Count > 0 ? league.Picks.Max(p => p.PickNumber) + 1 : 0;
         league.Picks.Add(new DraftPick

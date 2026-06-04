@@ -8,6 +8,8 @@ const props = defineProps<{
   pokemon: Pokemon
   pointValue?: number
   isPicked?: boolean
+  isDisabled?: boolean
+  disabledLabel?: string
   isCurrentPicker?: boolean
   mode?: 'browse' | 'draft' | 'team'
 }>()
@@ -22,6 +24,7 @@ const emit = defineEmits<{
     class="pokemon-card"
     :class="{
       'is-picked': isPicked,
+      'is-disabled': isDisabled,
       'mode-draft': mode === 'draft',
       'mode-team': mode === 'team',
     }"
@@ -55,6 +58,9 @@ const emit = defineEmits<{
       <AppIcon :path="mdiCheck" :size="14" />
       Drafted
     </div>
+    <div v-else-if="isDisabled" class="picked-overlay">
+      {{ disabledLabel ?? 'Unavailable' }}
+    </div>
   </div>
 </template>
 
@@ -78,7 +84,7 @@ const emit = defineEmits<{
   max-height: fit-content;
 }
 
-.pokemon-card:hover:not(.is-picked) {
+.pokemon-card:hover:not(.is-picked, .is-disabled) {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   border-color: var(--primary);
@@ -87,6 +93,11 @@ const emit = defineEmits<{
 
 .pokemon-card.is-picked {
   opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pokemon-card.is-disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
