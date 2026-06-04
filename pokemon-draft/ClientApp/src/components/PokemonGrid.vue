@@ -301,6 +301,7 @@ async function handleDraft(pokemonId: number) {
   gap: 0.4rem;
   width: 100%;
   align-content: start;
+  overflow: hidden;
 }
 
 /* Tier view */
