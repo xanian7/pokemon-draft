@@ -66,6 +66,10 @@ export const useDraftStore = defineStore('draft', () => {
     return pointLimit.value - getPlayerPointTotal(playerId)
   }
 
+  function isPlayerAtPointLimit(playerId: string): boolean {
+    return getPlayerPointTotal(playerId) >= pointLimit.value
+  }
+
   function playerCanAffordPokemon(playerId: string, pokemonId: number): boolean {
     return getPokemonPointValue(pokemonId) <= getPlayerPointsRemaining(playerId)
   }
@@ -125,6 +129,7 @@ export const useDraftStore = defineStore('draft', () => {
     getPokemonPointValue,
     getPlayerPointTotal,
     getPlayerPointsRemaining,
+    isPlayerAtPointLimit,
     playerCanAffordPokemon,
     makePick,
     getPlayerPicks,

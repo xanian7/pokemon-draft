@@ -48,14 +48,18 @@ const upcomingPicks = computed(() => {
   const n = players.length
   if (n === 0) return []
   const remaining = draftStore.totalPicks - draftStore.currentPickNumber
-  return Array.from({ length: remaining }, (_, i) => {
+  const picks = []
+
+  for (let i = 0; i < remaining; i++) {
     const pickNumber = draftStore.currentPickNumber + i
     const round = Math.floor(pickNumber / n)
     const posInRound = pickNumber % n
     const idx = round % 2 === 0 ? posInRound : n - 1 - posInRound
     const player = players[idx]
+    if (!player || draftStore.isPlayerAtPointLimit(player.id)) continue
+
     const displayName = player?.teamName || player?.name || '?'
-    return {
+    picks.push({
       playerId: player?.id,
       playerName: displayName,
       teamImageUrl: player?.teamImageUrl || null,
@@ -66,11 +70,13 @@ const upcomingPicks = computed(() => {
         .slice(0, 2)
         .toUpperCase(),
       isMe: player?.id === authStore.playerId,
-      isCurrent: i === 0,
+      isCurrent: picks.length === 0,
       pickNumber: pickNumber + 1,
       round: round + 1,
-    }
-  })
+    })
+  }
+
+  return picks
 })
 
 const picksByRound = computed(() => {

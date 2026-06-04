@@ -244,6 +244,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         RandomizePlayerOrder(league);
         league.DraftStatus = DraftStatus.Active;
         league.CurrentPickNumber = 0;
+        AdvanceToNextEligiblePick(league);
         db.SaveChanges();
         return (true, null);
     }
@@ -279,6 +280,13 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (player is null || !VerifyPin(player, pin))
             return (false, "Invalid player or PIN.", false);
 
+        AdvanceToNextEligiblePick(league);
+        if (league.DraftStatus == DraftStatus.Complete)
+        {
+            db.SaveChanges();
+            return (false, "Draft is complete.", true);
+        }
+
         var expectedPickerId = GetPlayerIdAtPick(league, league.CurrentPickNumber);
         if (expectedPickerId != playerId)
             return (false, "It is not your turn.", false);
@@ -311,11 +319,8 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         });
 
         league.CurrentPickNumber++;
-        if (league.CurrentPickNumber >= totalPicks)
-        {
-            league.DraftStatus = DraftStatus.Complete;
-            justCompleted = true;
-        }
+        AdvanceToNextEligiblePick(league);
+        justCompleted = league.DraftStatus == DraftStatus.Complete;
 
         db.SaveChanges();
         return (true, null, justCompleted);
@@ -330,9 +335,11 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         string? currentPickerId = null;
         string? currentPickerName = null;
 
-        if (league.DraftStatus == DraftStatus.Active && league.CurrentPickNumber < totalPicks)
+        var currentPickNumber = FindNextEligiblePickNumber(league, league.CurrentPickNumber);
+
+        if (league.DraftStatus == DraftStatus.Active && currentPickNumber < totalPicks)
         {
-            currentPickerId = GetPlayerIdAtPick(league, league.CurrentPickNumber);
+            currentPickerId = GetPlayerIdAtPick(league, currentPickNumber);
             currentPickerName = players.FirstOrDefault(p => p.Id == currentPickerId)?.Name;
         }
 
@@ -347,7 +354,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             PointValues: league.PointValues.ToDictionary(pv => pv.PokemonId, pv => pv.Value),
             Draft: new DraftStateResponse(
                 Status: league.DraftStatus.ToString(),
-                CurrentPickNumber: league.CurrentPickNumber,
+                CurrentPickNumber: currentPickNumber,
                 TotalPicks: totalPicks,
                 CurrentPickerId: currentPickerId,
                 CurrentPickerName: currentPickerName,
@@ -918,6 +925,42 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         var posInRound = pickNumber % n;
         var idx = round % 2 == 0 ? posInRound : n - 1 - posInRound;
         return players[idx].Id;
+    }
+
+    private static bool IsPlayerAtPointLimit(League league, string playerId)
+    {
+        var pointValues = league.PointValues.ToDictionary(pv => pv.PokemonId, pv => pv.Value);
+        var pointTotal = league.Picks
+            .Where(p => p.PlayerId == playerId)
+            .Sum(p => pointValues.GetValueOrDefault(p.PokemonId, 0));
+
+        return pointTotal >= league.PointLimit;
+    }
+
+    private static int FindNextEligiblePickNumber(League league, int startPickNumber)
+    {
+        var players = GetOrderedPlayers(league);
+        var totalPicks = players.Count * league.Rounds;
+        var pickNumber = startPickNumber;
+
+        while (pickNumber < totalPicks)
+        {
+            var playerId = GetPlayerIdAtPick(league, pickNumber);
+            if (!IsPlayerAtPointLimit(league, playerId)) break;
+            pickNumber++;
+        }
+
+        return pickNumber;
+    }
+
+    private static void AdvanceToNextEligiblePick(League league)
+    {
+        var players = GetOrderedPlayers(league);
+        var totalPicks = players.Count * league.Rounds;
+        league.CurrentPickNumber = FindNextEligiblePickNumber(league, league.CurrentPickNumber);
+
+        if (league.CurrentPickNumber >= totalPicks)
+            league.DraftStatus = DraftStatus.Complete;
     }
 
     private static void ReindexPlayers(List<Player> players)
