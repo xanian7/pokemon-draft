@@ -60,7 +60,7 @@ onMounted(async () => {
     <div v-if="errorMsg" class="error-card">
       <p class="error-title">Login failed</p>
       <p class="error-msg">{{ errorMsg }}</p>
-      <RouterLink to="/join" class="btn btn-primary">Back to Login</RouterLink>
+      <RouterLink to="/login" class="btn btn-primary">Back to Login</RouterLink>
     </div>
     <div v-else class="loading-wrap">
       <PokeballLoader />

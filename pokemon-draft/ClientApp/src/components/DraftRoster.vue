@@ -4,7 +4,6 @@ import { useAuthStore } from '@/stores/auth'
 import { useDraftStore } from '@/stores/draft'
 import { usePokemonStore } from '@/stores/pokemon'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
-import { formatPokemonName } from '@/utils/format'
 import type { Pokemon } from '@/types'
 import PokemonCard from '@/components/PokemonCard.vue'
 
@@ -74,7 +73,7 @@ function toggleTeam(playerId: string) {
       <v-card color="var(--primary)">
         <v-card-title class="text-subtitle-1">
           <v-row>
-            <v-col> My Team: {{ myPlayer?.teamName || myPlayer?.name || 'My Team' }} </v-col>
+            <v-col> My Team </v-col>
             <v-spacer />
             <v-col class="text-subtitle-1"> {{ myPoints }} pts </v-col>
           </v-row>

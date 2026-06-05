@@ -78,7 +78,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     public (PlayerCreatedResponse? result, string? error) AddPlayer(string leagueCode, AddPlayerRequest req)
     {
         if (string.IsNullOrWhiteSpace(req.Name) || string.IsNullOrWhiteSpace(req.Pin))
-            return (null, "Name and PIN are required.");
+            return (null, "User is not logged in.");
 
         var league = LoadLeagueWithPlayers(leagueCode);
         if (league is null) return (null, null);
@@ -102,7 +102,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     {
         bool isGoogleUser = req.UserId.HasValue;
         if (!isGoogleUser && string.IsNullOrWhiteSpace(req.Pin))
-            return (null, "Name and PIN are required.");
+            return (null, "User is not logged in.");
         if (string.IsNullOrWhiteSpace(req.Name))
             return (null, "Name is required.");
 

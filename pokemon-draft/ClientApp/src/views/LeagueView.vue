@@ -87,7 +87,6 @@ watch(activeTab, (tab) => {
   canonicalizeLeagueRoute(tab)
 })
 
-const leagueTitle = computed(() => authStore.leagueName || 'League')
 </script>
 
 <template>
@@ -132,7 +131,7 @@ const leagueTitle = computed(() => authStore.leagueName || 'League')
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding-top: 16px;
+  padding-top:0px;
 }
 
 .league-tab-panel :deep(> .v-container) {

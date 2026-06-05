@@ -94,14 +94,7 @@ if (app.Environment.IsDevelopment())
 
     var vite = new System.Diagnostics.Process
     {
-        StartInfo = new System.Diagnostics.ProcessStartInfo
-        {
-            FileName = isWindows ? "cmd.exe" : "npm",
-            Arguments = isWindows ? "/c npm run dev" : "run dev",
-            WorkingDirectory = clientAppDir,
-            UseShellExecute = isWindows,
-            WindowStyle = isWindows ? System.Diagnostics.ProcessWindowStyle.Normal : System.Diagnostics.ProcessWindowStyle.Hidden,
-        }
+        StartInfo = CreateViteStartInfo(clientAppDir, isWindows),
     };
     vite.Start();
     app.Lifetime.ApplicationStopping.Register(() =>
@@ -165,13 +158,43 @@ app.Run();
 
 static void StopProcessOnPort(int port)
 {
-    if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
-    {
-        return;
-    }
-
     try
     {
+        if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+        {
+            using var lsof = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "lsof",
+                Arguments = $"-ti tcp:{port} -sTCP:LISTEN",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true,
+            });
+            if (lsof is null) return;
+
+            var output = lsof.StandardOutput.ReadToEnd();
+            lsof.WaitForExit(3000);
+
+            foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (!int.TryParse(line, out var pid)) continue;
+                try
+                {
+                    using var kill = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "kill",
+                        Arguments = $"-TERM {pid}",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                    });
+                    kill?.WaitForExit(3000);
+                }
+                catch { }
+            }
+
+            return;
+        }
+
         using var powershell = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
         {
             FileName = "powershell.exe",
@@ -182,4 +205,28 @@ static void StopProcessOnPort(int port)
         powershell?.WaitForExit(3000);
     }
     catch { }
+}
+
+static System.Diagnostics.ProcessStartInfo CreateViteStartInfo(string clientAppDir, bool isWindows)
+{
+    if (isWindows)
+    {
+        return new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            Arguments = "/c npm run dev",
+            WorkingDirectory = clientAppDir,
+            UseShellExecute = true,
+            WindowStyle = System.Diagnostics.ProcessWindowStyle.Normal,
+        };
+    }
+
+    return new System.Diagnostics.ProcessStartInfo
+    {
+        FileName = "/bin/zsh",
+        Arguments = "-lc \"npm run dev\"",
+        WorkingDirectory = clientAppDir,
+        UseShellExecute = false,
+        CreateNoWindow = true,
+    };
 }

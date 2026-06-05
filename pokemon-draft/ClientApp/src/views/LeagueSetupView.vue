@@ -98,7 +98,7 @@ async function addPlayer() {
   const name = newPlayerName.value.trim()
   const pin = newPlayerPin.value.trim()
   if (!name || !pin) {
-    addError.value = 'Name and PIN required.'
+    addError.value = 'You are not logged in.'
     return
   }
 

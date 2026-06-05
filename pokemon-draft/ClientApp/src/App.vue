@@ -53,7 +53,7 @@ async function logout() {
   menuOpen.value = false
   await disconnect()
   authStore.signOut()
-  router.push('/join')
+  router.push('/login')
 }
 
 function handleOutsideClick(e: MouseEvent) {

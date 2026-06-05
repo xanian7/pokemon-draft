@@ -27,7 +27,7 @@ const error = ref('')
 
 onMounted(async () => {
   if (!authStore.isSignedIn) {
-    router.replace('/join')
+    router.replace('/login')
     return
   }
   leagues.value = await authStore.fetchMyLeagues()
