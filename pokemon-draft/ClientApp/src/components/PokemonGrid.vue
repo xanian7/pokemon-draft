@@ -167,9 +167,8 @@ async function handleDraft(pokemonId: number) {
             </button>
           </div>
         </div>
+        <v-divider></v-divider>
       </div>
-
-      <v-divider></v-divider>
 
       <!-- ── Tier view ──────────────────────────────────────────────────────── -->
       <div class="grid-view-container">
@@ -436,7 +435,7 @@ async function handleDraft(pokemonId: number) {
     top: 0;
     z-index: 5;
     background: var(--card-bg);
-    padding-bottom: 6px;
+    padding-bottom: 0px;
   }
 
   .filter-bar {
