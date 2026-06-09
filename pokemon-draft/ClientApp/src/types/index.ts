@@ -15,6 +15,8 @@ export interface LeaguePlayer {
   teamImageUrl: string
   timeZone: string
   availability: string
+  isCommissioner?: boolean
+  isCoCommissioner?: boolean
 }
 
 export interface DraftPick {
@@ -109,6 +111,8 @@ export interface ServerPlayerResponse {
   timeZone: string
   availability: string
   discordId?: string
+  isCommissioner: boolean
+  isCoCommissioner: boolean
 }
 
 export interface ServerDraftPick {

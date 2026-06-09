@@ -47,6 +47,17 @@ public class PlayerController(ILeagueService leagueService, IHubContext<DraftHub
         return Ok();
     }
 
+    [HttpPatch("{playerId}/co-commissioner")]
+    public async Task<IActionResult> SetCoCommissioner(
+        string code, string playerId, SetCoCommissionerRequest req)
+    {
+        var (success, error) = LeagueService.SetCoCommissioner(
+            code, playerId, req.CommissionerPin, req.IsCoCommissioner);
+        if (!success) return error is null ? NotFound() : BadRequest(error);
+        await BroadcastLeague(code);
+        return Ok();
+    }
+
     [HttpPatch("{playerId}/profile")]
     public async Task<IActionResult> UpdatePlayerProfile(string code, string playerId, UpdatePlayerProfileRequest req)
     {

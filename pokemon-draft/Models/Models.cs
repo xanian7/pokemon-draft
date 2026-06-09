@@ -44,6 +44,7 @@ public class Player
     public string TeamImageUrl { get; set; } = string.Empty;
     public string TimeZone { get; set; } = string.Empty;
     public string Availability { get; set; } = string.Empty;
+    public bool IsCoCommissioner { get; set; }
     public string Pin { get; set; } = string.Empty;
     public Guid? UserId { get; set; }
     public AppUser? User { get; set; }

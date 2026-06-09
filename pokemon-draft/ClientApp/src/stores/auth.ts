@@ -8,6 +8,7 @@ interface Session {
   playerId: string
   playerName: string
   isAdmin: boolean
+  isCommissioner: boolean
   pin: string
   teamName: string
   teamImageUrl: string
@@ -28,6 +29,7 @@ export interface MyLeague {
   teamName: string
   teamImageUrl: string
   isCommissioner: boolean
+  isCoCommissioner: boolean
 }
 
 export interface AuthUser {
@@ -86,7 +88,11 @@ export const useAuthStore = defineStore('auth', () => {
     const stored = sessionStorage.getItem(SESSION_KEY)
     if (stored) {
       try {
-        session.value = JSON.parse(stored)
+        const parsed = JSON.parse(stored) as Session
+        session.value = {
+          ...parsed,
+          isCommissioner: parsed.isCommissioner ?? parsed.isAdmin,
+        }
       } catch {
         session.value = null
       }
@@ -150,6 +156,7 @@ export const useAuthStore = defineStore('auth', () => {
       playerId: string
       playerName: string
       isAdmin: boolean
+      isCommissioner: boolean
       leagueName: string
       teamName: string
       teamImageUrl: string
@@ -166,6 +173,7 @@ export const useAuthStore = defineStore('auth', () => {
       playerId: data.playerId,
       playerName: data.playerName,
       isAdmin: data.isAdmin,
+      isCommissioner: data.isCommissioner,
       pin: data.sessionToken,
       teamName: data.teamName ?? '',
       teamImageUrl: data.teamImageUrl ?? '',
@@ -192,6 +200,7 @@ export const useAuthStore = defineStore('auth', () => {
       playerId: string
       playerName: string
       isAdmin: boolean
+      isCommissioner: boolean
       leagueName: string
       teamName: string
       teamImageUrl: string
@@ -207,6 +216,7 @@ export const useAuthStore = defineStore('auth', () => {
       playerId: data.playerId,
       playerName: data.playerName,
       isAdmin: data.isAdmin,
+      isCommissioner: data.isCommissioner,
       pin: trimmedPin,
       teamName: data.teamName ?? '',
       teamImageUrl: data.teamImageUrl ?? '',
@@ -226,6 +236,7 @@ export const useAuthStore = defineStore('auth', () => {
   const playerId = computed(() => session.value?.playerId ?? null)
   const playerName = computed(() => session.value?.playerName ?? null)
   const isAdmin = computed(() => session.value?.isAdmin ?? false)
+  const isCommissioner = computed(() => session.value?.isCommissioner ?? false)
   const pin = computed(() => session.value?.pin ?? '')
   const teamName = computed(() => session.value?.teamName ?? '')
   const teamImageUrl = computed(() => session.value?.teamImageUrl ?? '')
@@ -269,6 +280,7 @@ export const useAuthStore = defineStore('auth', () => {
     playerId,
     playerName,
     isAdmin,
+    isCommissioner,
     pin,
     teamName,
     teamImageUrl,

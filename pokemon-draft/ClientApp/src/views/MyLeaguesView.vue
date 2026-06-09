@@ -6,6 +6,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
 import { mdiPokeball, mdiTrophy, mdiPlusCircle, mdiLogin } from '@mdi/js'
 import LoginForm from '@/components/LoginForm.vue'
+import { enqueueSnackbar } from '@/services/snackbar'
 
 interface MyLeague {
   code: string
@@ -15,6 +16,7 @@ interface MyLeague {
   teamName: string
   teamImageUrl: string
   isCommissioner: boolean
+  isCoCommissioner: boolean
 }
 
 const router = useRouter()
@@ -23,7 +25,6 @@ const authStore = useAuthStore()
 const leagues = ref<MyLeague[]>([])
 const isLoading = ref(true)
 const enteringCode = ref<string | null>(null)
-const error = ref('')
 
 onMounted(async () => {
   if (!authStore.isSignedIn) {
@@ -36,11 +37,10 @@ onMounted(async () => {
 
 async function enterLeague(code: string) {
   enteringCode.value = code
-  error.value = ''
   const err = await authStore.enterLeague(code)
   enteringCode.value = null
   if (err) {
-    error.value = err
+    enqueueSnackbar(err, 'error')
   } else {
     router.push('/league')
   }
@@ -54,7 +54,6 @@ async function enterLeague(code: string) {
     </div>
 
     <template v-else>
-      <div v-if="error" class="error-msg" style="margin-bottom: 1rem">{{ error }}</div>
       <v-row>
         <v-col cols="2"></v-col>
         <v-col cols="12" md="2" class="d-flex justify-end">
@@ -66,6 +65,7 @@ async function enterLeague(code: string) {
             :headers="[
               { title: 'League Name', value: 'name' },
               { title: 'Your Team', value: 'team' },
+              { title: 'Role', value: 'role', sortable: false },
               { title: 'Actions', value: 'actions', sortable: false },
             ]"
             class="rounded-lg"
@@ -79,9 +79,18 @@ async function enterLeague(code: string) {
                 </div>
               </div>
             </template>
+            <template #item.role="{ item }">
+              <v-chip v-if="item.isCommissioner" color="primary" size="small">
+                Commissioner
+              </v-chip>
+              <v-chip v-else-if="item.isCoCommissioner" color="secondary" size="small">
+                Co-Commissioner
+              </v-chip>
+              <span v-else>Player</span>
+            </template>
             <template #item.actions="{ item }">
               <v-btn
-                :color="item.isCommissioner ? 'primary' : 'secondary'"
+                :color="item.isCommissioner || item.isCoCommissioner ? 'primary' : 'secondary'"
                 @click="enterLeague(item.code)"
                 :loading="enteringCode === item.code"
                 class="enter-btn"

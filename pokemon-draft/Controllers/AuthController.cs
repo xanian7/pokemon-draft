@@ -125,7 +125,8 @@ public class AuthController(
             p.Name,
             p.TeamName,
             p.TeamImageUrl,
-            p.League.CommissionerPlayerId == p.Id
+            p.League.CommissionerPlayerId == p.Id,
+            p.IsCoCommissioner
         )).ToList();
 
         return Ok(result);
@@ -187,9 +188,10 @@ public class AuthController(
 
         await db.SaveChangesAsync();
 
-        bool isAdmin = player.League.CommissionerPlayerId == player.Id;
+        bool isCommissioner = player.League.CommissionerPlayerId == player.Id;
+        bool isAdmin = isCommissioner || player.IsCoCommissioner;
         return Ok(new JoinResponse(
-            player.Id, player.Name, isAdmin,
+            player.Id, player.Name, isAdmin, isCommissioner,
             player.LeagueCode, player.TeamName, player.TeamImageUrl,
             player.TimeZone, player.Availability, player.League.Name,
             newToken

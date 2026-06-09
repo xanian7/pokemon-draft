@@ -10,6 +10,8 @@ public record AddPlayerRequest(string Name, string Pin);
 
 public record MovePlayerRequest(int FromIndex, int ToIndex);
 
+public record SetCoCommissionerRequest(string CommissionerPin, bool IsCoCommissioner);
+
 public record SetPointValuesRequest(Dictionary<int, int> Values);
 
 public record MakePickRequest(string PlayerId, string Pin, int PokemonId);
@@ -49,7 +51,16 @@ public record GoogleAuthRequest(string IdToken);
 public record AuthUserResponse(Guid Id, string Email, string Name, string PictureUrl);
 public record AuthTokenResponse(string Token, AuthUserResponse User);
 
-public record MyLeagueResponse(string Code, string Name, string PlayerId, string PlayerName, string TeamName, string TeamImageUrl, bool IsCommissioner);
+public record MyLeagueResponse(
+    string Code,
+    string Name,
+    string PlayerId,
+    string PlayerName,
+    string TeamName,
+    string TeamImageUrl,
+    bool IsCommissioner,
+    bool IsCoCommissioner
+);
 public record LinkPlayerRequest(string LeagueCode, string Pin);
 public record EnterLeagueRequest(string LeagueCode);
 
@@ -72,6 +83,7 @@ public record JoinResponse(
     string PlayerId,
     string PlayerName,
     bool IsAdmin,
+    bool IsCommissioner,
     string LeagueCode,
     string TeamName,
     string TeamImageUrl,
@@ -100,7 +112,9 @@ public record PlayerResponse(
     string TeamImageUrl,
     string TimeZone,
     string Availability,
-    string? DiscordId
+    string? DiscordId,
+    bool IsCommissioner,
+    bool IsCoCommissioner
 );
 
 public record DraftStateResponse(

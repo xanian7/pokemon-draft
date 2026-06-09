@@ -7,6 +7,7 @@ import { useSignalR, API_BASE } from '@/services/signalr'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
 import { useDraftStore } from '@/stores/draft'
+import { enqueueSnackbar } from '@/services/snackbar'
 import {
   mdiCog,
   mdiCheck,
@@ -15,6 +16,7 @@ import {
   mdiAlert,
   mdiArrowUp,
   mdiArrowDown,
+  mdiShieldAccount,
 } from '@mdi/js'
 
 const router = useRouter()
@@ -33,7 +35,14 @@ const pointLimit = ref(100)
 const rounds = ref(6)
 const playoffSpots = ref(4)
 const regulationSet = ref('national')
-const players = ref<{ id: string; name: string }[]>([])
+const players = ref<
+  Array<{
+    id: string
+    name: string
+    isCommissioner: boolean
+    isCoCommissioner: boolean
+  }>
+>([])
 const leagueCode = computed(() => authStore.leagueCode ?? '')
 
 const newPlayerName = ref('')
@@ -42,6 +51,7 @@ const addError = ref('')
 const showResetWarning = ref(false)
 const isSaving = ref(false)
 const selfPin = ref('')
+const roleSavingPlayerId = ref<string | null>(null)
 
 function applyState(state: any) {
   leagueName.value = state.name
@@ -49,7 +59,13 @@ function applyState(state: any) {
   rounds.value = state.rounds
   playoffSpots.value = state.playoffSpots ?? 4
   regulationSet.value = state.regulationSet ?? 'national'
-  players.value = state.players
+  players.value = state.players.map((player: (typeof players.value)[number]) => ({
+    ...player,
+    isCommissioner:
+      player.isCommissioner ??
+      (authStore.isCommissioner && player.id === authStore.playerId),
+    isCoCommissioner: player.isCoCommissioner ?? false,
+  }))
 }
 
 onMounted(async () => {
@@ -154,6 +170,41 @@ async function movePlayer(from: number, to: number) {
   })
 }
 
+async function toggleCoCommissioner(player: (typeof players.value)[number]) {
+  roleSavingPlayerId.value = player.id
+  try {
+    const res = await fetch(
+      `${API_BASE}/leagues/${leagueCode.value}/players/${player.id}/co-commissioner`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          commissionerPin: authStore.pin,
+          isCoCommissioner: !player.isCoCommissioner,
+        }),
+      },
+    )
+
+    if (!res.ok) {
+      const message = await res.text()
+      enqueueSnackbar(message || 'Unable to update commissioner access.', 'error')
+      return
+    }
+
+    player.isCoCommissioner = !player.isCoCommissioner
+    enqueueSnackbar(
+      player.isCoCommissioner
+        ? `${player.name} is now a co-commissioner.`
+        : `${player.name} is no longer a co-commissioner.`,
+      'success',
+    )
+  } catch {
+    enqueueSnackbar('Could not connect to the server.', 'error')
+  } finally {
+    roleSavingPlayerId.value = null
+  }
+}
+
 async function startDraft() {
   const res = await fetch(`${API_BASE}/leagues/${leagueCode.value}/draft/start`, { method: 'POST' })
   if (res.ok) router.push('/league?tab=draft')
@@ -250,6 +301,10 @@ const snakePreview = computed(() => {
         Add players and assign each a unique PIN. They'll use it to log in at
         <strong>/join</strong>.
       </p>
+      <p v-if="authStore.isCommissioner" class="hint">
+        Co-commissioners can edit league settings, manage point values, control the draft, and
+        edit reported matchup results.
+      </p>
 
       <div class="add-player">
         <input
@@ -274,6 +329,12 @@ const snakePreview = computed(() => {
         <li v-for="(player, index) in players" :key="player.id" class="player-item">
           <span class="player-order">{{ index + 1 }}</span>
           <span class="player-name">{{ player.name }}</span>
+          <span v-if="player.isCommissioner" class="role-badge commissioner">
+            Commissioner
+          </span>
+          <span v-else-if="player.isCoCommissioner" class="role-badge">
+            Co-Commissioner
+          </span>
           <button class="btn-icon" @click="movePlayer(index, index - 1)" :disabled="index === 0">
             <AppIcon :path="mdiArrowUp" :size="18" />
           </button>
@@ -284,7 +345,22 @@ const snakePreview = computed(() => {
           >
             <AppIcon :path="mdiArrowDown" :size="18" />
           </button>
-          <button class="btn btn-danger" @click="removePlayer(player.id)">Remove</button>
+          <button
+            v-if="authStore.isCommissioner && !player.isCommissioner"
+            class="btn btn-role"
+            :disabled="roleSavingPlayerId === player.id"
+            @click="toggleCoCommissioner(player)"
+          >
+            <AppIcon :path="mdiShieldAccount" :size="18" />
+            {{ player.isCoCommissioner ? 'Remove Co-Commissioner' : 'Make Co-Commissioner' }}
+          </button>
+          <button
+            v-if="!player.isCommissioner"
+            class="btn btn-danger"
+            @click="removePlayer(player.id)"
+          >
+            Remove
+          </button>
         </li>
       </ul>
     </section>
@@ -535,6 +611,28 @@ input[type='number'] {
   font-weight: 600;
 }
 
+.role-badge {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid rgb(var(--v-theme-primary));
+  border-radius: 999px;
+  color: rgb(var(--v-theme-primary));
+  font-size: 0.68rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.role-badge.commissioner {
+  background: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-on-primary));
+}
+
+.btn-role {
+  border: 1px solid rgb(var(--v-theme-primary));
+  background: transparent;
+  color: rgb(var(--v-theme-primary));
+  white-space: nowrap;
+}
+
 .pick-schedule {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -597,6 +695,22 @@ input[type='number'] {
 .btn-icon:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+@media (max-width: 720px) {
+  .player-item {
+    flex-wrap: wrap;
+  }
+
+  .player-name {
+    min-width: calc(100% - 3rem);
+  }
+
+  .btn-role {
+    order: 2;
+    flex: 1 1 100%;
+    justify-content: center;
+  }
 }
 
 .confirm-reset {

@@ -41,6 +41,10 @@ public interface ILeagueService
     /// <returns>Success flag and optional error. A null error with false success means not found (404).</returns>
     (bool success, string? error) MovePlayer(string leagueCode, int fromIndex, int toIndex);
 
+    /// <summary>Grants or revokes co-commissioner access. Only the original commissioner may do this.</summary>
+    (bool success, string? error) SetCoCommissioner(
+        string leagueCode, string playerId, string commissionerPin, bool isCoCommissioner);
+
     // ── Point values ───────────────────────────────────────────────────────────
 
     /// <summary>Sets point values for one or more Pokémon. Values ≤ 0 remove the entry.</summary>

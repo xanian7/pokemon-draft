@@ -149,6 +149,8 @@ public class LeagueService(DraftDbContext db) : ILeagueService
 
         var player = league.Players.FirstOrDefault(p => p.Id == playerId);
         if (player is null) return (false, null);
+        if (player.Id == league.CommissionerPlayerId)
+            return (false, "The league commissioner cannot be removed.");
 
         db.Players.Remove(player);
         ReindexPlayers(league.Players.Where(p => p.Id != playerId).OrderBy(p => p.SortOrder).ToList());
@@ -221,7 +223,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             var name = commissioner?.Name ?? "Commissioner";
             var playerId = commissioner?.Id ?? "admin";
             return new JoinResponse(
-                playerId, name, true, league.Code,
+                playerId, name, true, true, league.Code,
                 commissioner?.TeamName ?? string.Empty,
                 commissioner?.TeamImageUrl ?? string.Empty,
                 commissioner?.TimeZone ?? string.Empty,
@@ -234,9 +236,28 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (player is null) return null;
 
         return new JoinResponse(
-            player.Id, player.Name, false, league.Code,
+            player.Id, player.Name, player.IsCoCommissioner, false, league.Code,
             player.TeamName, player.TeamImageUrl, player.TimeZone, player.Availability,
             league.Name);
+    }
+
+    /// <inheritdoc/>
+    public (bool success, string? error) SetCoCommissioner(
+        string leagueCode, string playerId, string commissionerPin, bool isCoCommissioner)
+    {
+        var league = LoadLeagueWithPlayers(leagueCode);
+        if (league is null) return (false, null);
+        if (!VerifyAdminPin(league, commissionerPin))
+            return (false, "Only the league commissioner can manage co-commissioners.");
+        if (playerId == league.CommissionerPlayerId)
+            return (false, "The league commissioner already has full access.");
+
+        var player = league.Players.FirstOrDefault(p => p.Id == playerId);
+        if (player is null) return (false, "Player not found.");
+
+        player.IsCoCommissioner = isCoCommissioner;
+        db.SaveChanges();
+        return (true, null);
     }
 
     /// <inheritdoc/>
@@ -361,7 +382,8 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             RegulationSet: league.RegulationSet,
             Players: players.Select(p => new PlayerResponse(
                 p.Id, p.Name, p.TeamName, p.TeamImageUrl,
-                p.TimeZone, p.Availability, p.User?.DiscordId)).ToList(),
+                p.TimeZone, p.Availability, p.User?.DiscordId,
+                p.Id == league.CommissionerPlayerId, p.IsCoCommissioner)).ToList(),
             PointValues: league.PointValues.ToDictionary(pv => pv.PokemonId, pv => pv.Value),
             Draft: new DraftStateResponse(
                 Status: league.DraftStatus.ToString(),
@@ -687,7 +709,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         var league = LoadLeagueWithSchedule(leagueCode);
         if (league is null) return (false, "League not found.");
 
-        if (!VerifyAdminPin(league, adminPin))
+        if (!VerifyLeagueAdminCredential(league, adminPin))
             return (false, "Invalid admin PIN.");
 
         var matchup = league.Matchups.FirstOrDefault(m => m.Id == matchupId);
@@ -1226,6 +1248,10 @@ public class LeagueService(DraftDbContext db) : ILeagueService
 
     private static bool VerifyAdminPin(League league, string input) =>
         BC.Verify(input, league.AdminPin);
+
+    private static bool VerifyLeagueAdminCredential(League league, string input) =>
+        VerifyAdminPin(league, input) ||
+        league.Players.Any(player => player.IsCoCommissioner && VerifyPin(player, input));
 
     private string GenerateCode()
     {
