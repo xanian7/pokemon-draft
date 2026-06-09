@@ -119,7 +119,6 @@ const emit = defineEmits<{
 .sprite {
   width: 72px;
   height: 72px;
-  image-rendering: pixelated;
 }
 
 .mode-team .sprite {

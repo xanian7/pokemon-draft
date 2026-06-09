@@ -698,7 +698,6 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 }
 
 .hero-sprite {
-  image-rendering: pixelated;
   transition: transform 0.15s ease;
 }
 

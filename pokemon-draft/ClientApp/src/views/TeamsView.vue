@@ -451,7 +451,6 @@ h1 {
   width: 60px;
   height: 60px;
   object-fit: contain;
-  image-rendering: pixelated;
 }
 .pick-name {
   font-size: 0.7rem;

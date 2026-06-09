@@ -1055,7 +1055,6 @@ h3 {
 .transaction-pokemon img {
   width: 42px;
   height: 42px;
-  image-rendering: pixelated;
 }
 
 .transaction-pokemon div {
@@ -1140,7 +1139,6 @@ h3 {
 
 .pokemon-sprite,
 .mini-sprite {
-  image-rendering: pixelated;
   flex-shrink: 0;
 }
 

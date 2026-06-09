@@ -981,7 +981,6 @@ h1 {
 .team-pokemon img {
   width: 64px;
   height: 64px;
-  image-rendering: pixelated;
 }
 
 .team-pokemon-name {

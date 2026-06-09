@@ -550,8 +550,11 @@ onMounted(loadModalData)
 .mega-sprite {
   width: 96px;
   height: 96px;
-  image-rendering: pixelated;
   flex-shrink: 0;
+}
+
+.mega-sprite {
+  image-rendering: pixelated;
 }
 
 .modal-title {

@@ -9,7 +9,7 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
 {
     private const string CacheKey = "all-pokemon";
     private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(24);
-    private const string GraphQlEndpoint = "https://beta.pokeapi.co/graphql/v1beta";
+    private const string GraphQlEndpoint = "https://graphql.pokeapi.co/v1beta2";
 
     private static readonly string[] CosmeticFormPrefixes =
         ["pikachu-", "minior-", "squawkabilly-", "koraidon-", "miraidon-"];
@@ -19,9 +19,9 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
 
     private const string GraphQlQuery = """
         query {
-          pokemon_v2_pokemon(
+          pokemon(
             where: {
-              pokemon_v2_pokemonforms: {
+              pokemonforms: {
                 is_battle_only: { _eq: false }
                 is_mega: { _eq: false }
               }
@@ -31,16 +31,22 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
             id
             name
             is_default
-            pokemon_v2_pokemonspecy {
+            pokemonspecy {
               id
             }
-            pokemon_v2_pokemontypes {
-              pokemon_v2_type {
+            pokemontypes {
+              type {
                 name
               }
             }
-            pokemon_v2_pokemonstats {
+            pokemonstats {
               base_stat
+            }
+            pokemonsprites {
+              latest: sprites(path: "versions.generation-ix.scarlet-violet.front_default")
+              home: sprites(path: "other.home.front_default")
+              artwork: sprites(path: "other.official-artwork.front_default")
+              default: sprites(path: "front_default")
             }
           }
         }
@@ -66,7 +72,7 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
                 Id: p.Id,
                 SpeciesId: p.Species?.Id ?? p.Id,
                 Name: p.Name,
-                SpriteUrl: $"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{p.Id}.png",
+                SpriteUrl: GetSpriteUrl(p),
                 Types: p.Types.Select(t => t.Type.Name).ToList(),
                 Bst: p.Stats.Sum(s => s.BaseStat)
             ))
@@ -86,22 +92,22 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
 
     private const string GraphQlDetailQuery = """
         query PokemonDetail($id: Int!) {
-          pokemon_v2_pokemon_by_pk(id: $id) {
-            pokemon_v2_pokemonstats {
+          pokemon(where: { id: { _eq: $id } }, limit: 1) {
+            pokemonstats {
               base_stat
-              pokemon_v2_stat { name }
+              stat { name }
             }
-            pokemon_v2_pokemonabilities {
+            pokemonabilities {
               is_hidden
-              pokemon_v2_ability { name }
+              ability { name }
             }
-            pokemon_v2_pokemonmoves(distinct_on: move_id) {
-              pokemon_v2_move {
+            pokemonmoves(distinct_on: move_id) {
+              move {
                 name
                 power
                 pp
-                pokemon_v2_type { name }
-                pokemon_v2_movedamageclass { name }
+                type { name }
+                movedamageclass { name }
               }
             }
           }
@@ -123,7 +129,7 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
         var apiResponse = JsonSerializer.Deserialize<DetailApiResponse>(json)
             ?? throw new InvalidOperationException("Failed to deserialize Pokémon detail response.");
 
-        var raw = apiResponse.Data.Pokemon;
+        var raw = apiResponse.Data.Pokemon.FirstOrDefault();
         if (raw is null) return null;
 
         var detail = new PokemonDetailResponse(
@@ -155,6 +161,16 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
         return CosmeticFormPrefixes.Any(name.StartsWith);
     }
 
+    private static string GetSpriteUrl(PokeApiPokemon pokemon)
+    {
+        var sprites = pokemon.Sprites.FirstOrDefault();
+        return sprites?.Latest
+            ?? sprites?.Home
+            ?? sprites?.Artwork
+            ?? sprites?.Default
+            ?? $"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{pokemon.Id}.png";
+    }
+
     // ---- Internal deserialization models ----
 
     private sealed class PokeApiResponse
@@ -165,7 +181,7 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
 
     private sealed class PokeApiData
     {
-        [JsonPropertyName("pokemon_v2_pokemon")]
+        [JsonPropertyName("pokemon")]
         public List<PokeApiPokemon> Pokemon { get; set; } = [];
     }
 
@@ -180,14 +196,17 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
         [JsonPropertyName("is_default")]
         public bool IsDefault { get; set; }
 
-        [JsonPropertyName("pokemon_v2_pokemonspecy")]
+        [JsonPropertyName("pokemonspecy")]
         public PokeApiSpecies? Species { get; set; }
 
-        [JsonPropertyName("pokemon_v2_pokemontypes")]
+        [JsonPropertyName("pokemontypes")]
         public List<PokeApiTypeEntry> Types { get; set; } = [];
 
-        [JsonPropertyName("pokemon_v2_pokemonstats")]
+        [JsonPropertyName("pokemonstats")]
         public List<PokeApiStatEntry> Stats { get; set; } = [];
+
+        [JsonPropertyName("pokemonsprites")]
+        public List<PokeApiSprites> Sprites { get; set; } = [];
     }
 
     private sealed class PokeApiSpecies
@@ -198,8 +217,23 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
 
     private sealed class PokeApiTypeEntry
     {
-        [JsonPropertyName("pokemon_v2_type")]
+        [JsonPropertyName("type")]
         public PokeApiType Type { get; set; } = new();
+    }
+
+    private sealed class PokeApiSprites
+    {
+        [JsonPropertyName("latest")]
+        public string? Latest { get; set; }
+
+        [JsonPropertyName("home")]
+        public string? Home { get; set; }
+
+        [JsonPropertyName("artwork")]
+        public string? Artwork { get; set; }
+
+        [JsonPropertyName("default")]
+        public string? Default { get; set; }
     }
 
     private sealed class PokeApiType
@@ -224,19 +258,19 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
 
     private sealed class DetailApiData
     {
-        [JsonPropertyName("pokemon_v2_pokemon_by_pk")]
-        public DetailApiPokemon? Pokemon { get; set; }
+        [JsonPropertyName("pokemon")]
+        public List<DetailApiPokemon> Pokemon { get; set; } = [];
     }
 
     private sealed class DetailApiPokemon
     {
-        [JsonPropertyName("pokemon_v2_pokemonstats")]
+        [JsonPropertyName("pokemonstats")]
         public List<DetailApiStat> Stats { get; set; } = [];
 
-        [JsonPropertyName("pokemon_v2_pokemonabilities")]
+        [JsonPropertyName("pokemonabilities")]
         public List<DetailApiAbility> Abilities { get; set; } = [];
 
-        [JsonPropertyName("pokemon_v2_pokemonmoves")]
+        [JsonPropertyName("pokemonmoves")]
         public List<DetailApiMoveEntry> Moves { get; set; } = [];
     }
 
@@ -245,7 +279,7 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
         [JsonPropertyName("base_stat")]
         public int BaseStat { get; set; }
 
-        [JsonPropertyName("pokemon_v2_stat")]
+        [JsonPropertyName("stat")]
         public DetailApiNamedNode Stat { get; set; } = new();
     }
 
@@ -254,13 +288,13 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
         [JsonPropertyName("is_hidden")]
         public bool IsHidden { get; set; }
 
-        [JsonPropertyName("pokemon_v2_ability")]
+        [JsonPropertyName("ability")]
         public DetailApiNamedNode Ability { get; set; } = new();
     }
 
     private sealed class DetailApiMoveEntry
     {
-        [JsonPropertyName("pokemon_v2_move")]
+        [JsonPropertyName("move")]
         public DetailApiMove Move { get; set; } = new();
     }
 
@@ -275,10 +309,10 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
         [JsonPropertyName("pp")]
         public int? Pp { get; set; }
 
-        [JsonPropertyName("pokemon_v2_type")]
+        [JsonPropertyName("type")]
         public DetailApiNamedNode? Type { get; set; }
 
-        [JsonPropertyName("pokemon_v2_movedamageclass")]
+        [JsonPropertyName("movedamageclass")]
         public DetailApiNamedNode? DamageClass { get; set; }
     }
 
