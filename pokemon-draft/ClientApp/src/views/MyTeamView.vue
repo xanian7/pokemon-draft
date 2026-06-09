@@ -264,7 +264,8 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 </script>
 
 <template>
-  <v-container fluid class="team-page pa-3 pa-md-6">
+  <v-container fluid class="team-page">
+    <v-card class="team-wrapper">
     <v-card v-if="isLoading" class="state-card" variant="outlined">
       <v-card-text class="d-flex justify-center pa-10">
         <PokeballLoader variant="page" label="Loading your team…" />
@@ -272,7 +273,7 @@ onUnmounted(() => unsubscribe(handleLeagueState))
     </v-card>
 
     <template v-else-if="league">
-      <v-card class="hero-card mb-4" variant="outlined">
+      <v-card class="hero-card mb-2" variant="outlined">
         <v-card-text class="hero-content">
           <v-avatar size="72" color="primary" class="hero-avatar">
             <v-img
@@ -355,7 +356,7 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 
       <v-row v-else align="start">
         <v-col cols="12" lg="8">
-          <v-card variant="outlined" class="mb-4">
+          <v-card variant="outlined" class="mb-2">
             <v-card-title class="section-title">
               <div>
                 <div class="text-overline text-medium-emphasis">{{ authStore.playerName }}</div>
@@ -619,6 +620,7 @@ onUnmounted(() => unsubscribe(handleLeagueState))
         </v-col>
       </v-row>
     </template>
+    </v-card>
   </v-container>
 
   <PokemonDetailModal
@@ -633,22 +635,51 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 
 <style scoped>
 .team-page {
-  max-width: 1600px;
-  margin: 0 auto;
+  padding: 0;
+}
+
+.team-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 85dvh;
+  max-height: 85dvh;
+  overflow: auto;
+  padding: 8px;
+}
+
+.team-wrapper :deep(.v-card),
+.team-wrapper :deep(.v-expansion-panel) {
+  border-color: var(--border-color);
+  border-radius: 6px;
+}
+
+.team-wrapper > :deep(.v-row) {
+  margin: -4px;
+}
+
+.team-wrapper > :deep(.v-row) > .v-col {
+  padding: 4px;
+}
+
+.team-wrapper :deep(.v-card-text) {
+  padding: 8px;
+}
+
+.team-wrapper :deep(.v-expansion-panel-text__wrapper) {
+  padding: 8px;
 }
 
 .hero-card {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--primary) 14%, transparent), transparent 55%),
-    var(--card-bg);
+  background: var(--card-bg);
 }
 
 .hero-content {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 12px;
   flex-wrap: wrap;
-  padding: 1.5rem !important;
+  padding: 12px !important;
 }
 
 .hero-avatar {
@@ -677,7 +708,7 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 
 .hero-stats {
   display: flex;
-  gap: 1.5rem;
+  gap: 12px;
 }
 
 .stat {
@@ -706,7 +737,7 @@ onUnmounted(() => unsubscribe(handleLeagueState))
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 0.75rem;
+  gap: 8px;
 }
 
 .section-title,
@@ -714,23 +745,23 @@ onUnmounted(() => unsubscribe(handleLeagueState))
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 8px;
   flex-wrap: wrap;
-  padding: 1rem 1.25rem;
+  padding: 8px 12px;
 }
 
 .roster-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 0.9rem;
+  gap: 6px;
 }
 
 .team-summary {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding-right: 0.75rem;
+  gap: 8px;
+  padding-right: 8px;
 }
 
 .team-name {
@@ -763,21 +794,21 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 .activity-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 6px;
 }
 
 .trade-title {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.75rem;
+  gap: 8px;
   font-size: 0.95rem;
 }
 
 .trade-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 8px;
 }
 
 .trade-columns strong,
@@ -800,7 +831,23 @@ onUnmounted(() => unsubscribe(handleLeagueState))
   }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 720px) {
+  .team-wrapper {
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 6px;
+  }
+
+  .team-wrapper :deep(.v-card) {
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+  }
+
   .hero-stats {
     width: 100%;
     justify-content: space-between;

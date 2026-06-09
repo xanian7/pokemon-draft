@@ -741,7 +741,16 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 
 <style scoped>
 .roster-view {
-  padding: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 85dvh;
+  max-height: 85dvh;
+  overflow: hidden;
+  padding: 8px;
 }
 
 .hero-card,
@@ -750,20 +759,16 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 .state-card {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
-  border-radius: 0;
+  border-radius: 6px;
 }
 
-/* Hero — slim top bar */
 .hero-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.6rem 1.25rem;
+  padding: 8px;
   flex-shrink: 0;
-  border-left: none;
-  border-right: none;
-  border-top: none;
 }
 
 .hero-left {
@@ -778,41 +783,57 @@ onUnmounted(() => unsubscribe(handleLeagueState))
   margin: 0;
 }
 
-/* Toolbar */
 .toolbar-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 8px;
   flex-wrap: wrap;
-  padding: 0.5rem 1rem;
+  padding: 6px 8px;
   flex-shrink: 0;
-  border-left: none;
-  border-right: none;
 }
 
-/* Page body — fills remaining height */
 .page-body {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  padding: 0.75rem;
-  gap: 0.5rem;
+  padding: 0;
+  gap: 8px;
 }
 
-/* Panels used inside page-body */
+.page-body :deep(.v-card) {
+  border-color: var(--border-color);
+  border-radius: 6px;
+}
+
+.page-body :deep(.v-card-text) {
+  padding: 8px;
+}
+
+.page-body :deep(.v-card-actions) {
+  padding: 6px 8px 8px;
+}
+
+.trade-layout :deep(.v-row) {
+  margin: -4px;
+}
+
+.trade-layout :deep(.v-col) {
+  padding: 4px;
+}
+
 .panel-card {
-  border-radius: 12px;
-  padding: 1rem;
+  border-radius: 6px;
+  padding: 8px;
 }
 
 /* State cards (loading / error / warning) */
 .state-card {
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin: 1rem;
+  border-radius: 6px;
+  padding: 12px;
+  margin: 0;
 }
 
 .state-card h1 {
@@ -932,7 +953,7 @@ h3 {
 .add-drop-layout {
   display: grid;
   grid-template-columns: minmax(340px, 390px) 1fr;
-  gap: 0.75rem;
+  gap: 8px;
   align-items: stretch;
   flex: 1;
   min-height: 0;
@@ -955,7 +976,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin: 0.75rem 0 0.25rem;
+  margin: 8px 0 4px;
   font-size: 0.82rem;
 }
 
@@ -985,8 +1006,8 @@ h3 {
 .team-list {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  margin-top: 0.75rem;
+  gap: 6px;
+  margin-top: 8px;
   overflow-y: auto;
   flex: 1;
   padding-right: 0.15rem;
@@ -994,15 +1015,15 @@ h3 {
 
 .transaction-preview {
   display: grid;
-  gap: 0.6rem;
-  margin-top: 0.75rem;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .transaction-slot {
   border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 0.65rem;
-  background: var(--input-bg);
+  border-radius: 6px;
+  padding: 8px;
+  background: var(--bg);
 }
 
 .transaction-slot.required {
@@ -1058,10 +1079,10 @@ h3 {
 
 .team-row,
 .free-agent-row {
-  background: var(--input-bg);
+  background: var(--bg);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 0.9rem;
+  border-radius: 6px;
+  padding: 8px;
 }
 
 .team-row {
@@ -1078,8 +1099,8 @@ h3 {
 
 .transaction-footer {
   border-top: 1px solid var(--border-color);
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
+  margin-top: 8px;
+  padding-top: 8px;
 }
 
 .result-row,
@@ -1145,7 +1166,7 @@ h3 {
 .trade-layout {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 8px;
   flex: 1;
   overflow-y: auto;
   padding-right: 0.15rem;
@@ -1170,6 +1191,26 @@ h3 {
 }
 
 @media (max-width: 720px) {
+  .roster-view {
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 6px;
+  }
+
+  .hero-card,
+  .toolbar-card,
+  .panel-card,
+  .state-card,
+  .trade-layout :deep(.v-card) {
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+  }
+
   .page-body {
     flex: none;
     min-height: auto;
@@ -1195,10 +1236,6 @@ h3 {
 }
 
 @media (max-width: 640px) {
-  .page-body {
-    padding: 0.5rem;
-  }
-
   .team-row {
     align-items: flex-start;
     flex-direction: column;
