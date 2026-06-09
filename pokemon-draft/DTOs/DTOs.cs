@@ -26,6 +26,13 @@ public record RespondTradeRequest(string PlayerId, string Pin);
 
 public record RosterChangeRequest(string PlayerId, string Pin, int PokemonId);
 
+public record RosterTransactionRequest(
+    string PlayerId,
+    string Pin,
+    int? AddPokemonId,
+    int? DropPokemonId
+);
+
 public record ReportMatchupRequest(string PlayerId, string Pin, int Player1Wins, int Player2Wins, string? ReplayUrl = null, List<string>? ReplayUrls = null);
 public record EditMatchupRequest(string AdminPin, int Player1Wins, int Player2Wins, string? ReplayUrl = null, List<string>? ReplayUrls = null);
 

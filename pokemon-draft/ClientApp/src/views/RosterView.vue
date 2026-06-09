@@ -4,14 +4,13 @@ import { RouterLink, useRouter } from 'vue-router'
 import { API_BASE, useSignalR } from '@/services/signalr'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
-import { useRegulationFilter } from '@/composables/useRegulationFilter'
 import type { DraftPick, LeaguePlayer, Pokemon, Trade } from '@/types'
 import { formatPokemonName } from '@/utils/format'
 import AppIcon from '@/components/AppIcon.vue'
-import PokemonCard from '@/components/PokemonCard.vue'
-import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
+import PokemonGrid from '@/components/PokemonGrid.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
-import { mdiAccountGroup, mdiMagnify } from '@mdi/js'
+import { enqueueSnackbar } from '@/services/snackbar'
+import { mdiAccountGroup } from '@mdi/js'
 
 interface LeagueState {
   code: string
@@ -50,14 +49,10 @@ const currentPlayerId = computed(() => authStore.playerId ?? '')
 
 const league = ref<LeagueState | null>(null)
 const isLoading = ref(true)
-const loadError = ref('')
-const actionError = ref('')
-const actionSuccess = ref('')
 const activeTab = ref<'add-drop' | 'trade'>('add-drop')
-const addSearch = ref('')
-const selectedType = ref('')
-const detailPokemon = ref<Pokemon | null>(null)
 const isSubmitting = ref(false)
+const addPokemonId = ref<number | null>(null)
+const dropPokemonId = ref<number | null>(null)
 
 const targetPlayerId = ref('')
 const offeringPokemonIds = ref<number[]>([])
@@ -91,13 +86,12 @@ async function loadPage() {
   if (!leagueCode.value) return
 
   isLoading.value = true
-  loadError.value = ''
 
   try {
     await Promise.all([pokemonStore.fetchAllPokemon(), fetchLeagueState()])
   } catch (error) {
     console.error(error)
-    loadError.value = 'Unable to load roster management.'
+    enqueueSnackbar('Unable to load roster management.', 'error')
   } finally {
     isLoading.value = false
   }
@@ -105,6 +99,11 @@ async function loadPage() {
 
 function getPlayerName(playerId: string) {
   return league.value?.players.find((player) => player.id === playerId)?.name ?? 'Unknown Player'
+}
+
+function getPokemonName(pokemonId: number) {
+  const pokemon = pokemonStore.getPokemonById(pokemonId)
+  return pokemon ? formatPokemonName(pokemon.name) : `#${pokemonId}`
 }
 
 function getTeamEntries(playerId: string) {
@@ -133,23 +132,47 @@ const targetTeam = computed(() => getTeamEntries(targetPlayerId.value))
 const rosteredPokemonIds = computed(
   () => new Set((league.value?.draft.picks ?? []).map((pick) => pick.pokemonId)),
 )
-
-const leagueRegulationId = computed(() => league.value?.regulationSet ?? 'national')
-const { isLegalPokemon } = useRegulationFilter(leagueRegulationId)
-
-const availablePokemon = computed(() => {
-  const query = addSearch.value.trim().toLowerCase()
-  const type = selectedType.value
-
-  return pokemonStore.allPokemon.filter((pokemon) => {
-    if (!isLegalPokemon(pokemon)) return false
-    if (rosteredPokemonIds.value.has(pokemon.id)) return false
-    if (type && !pokemon.types.includes(type)) return false
-    if (!query) return true
-
-    const formatted = formatPokemonName(pokemon.name).toLowerCase()
-    return pokemon.name.includes(query) || formatted.includes(query) || String(pokemon.id) === query
-  })
+const selectedAddPokemon = computed(() =>
+  addPokemonId.value === null ? null : pokemonStore.getPokemonById(addPokemonId.value),
+)
+const selectedDrop = computed(
+  () => myTeam.value.find((entry) => entry.pokemonId === dropPokemonId.value) ?? null,
+)
+const resultingPointTotal = computed(
+  () =>
+    myPointTotal.value -
+    (selectedDrop.value?.points ?? 0) +
+    (addPokemonId.value === null ? 0 : getPointValue(addPokemonId.value)),
+)
+const resultingRosterCount = computed(
+  () => myTeam.value.length - (dropPokemonId.value === null ? 0 : 1) + (addPokemonId.value === null ? 0 : 1),
+)
+const transactionNeedsDrop = computed(() => {
+  if (!league.value || addPokemonId.value === null) return false
+  return (
+    myTeam.value.length >= league.value.rounds ||
+    myPointTotal.value + getPointValue(addPokemonId.value) > league.value.pointLimit
+  )
+})
+const transactionIsValid = computed(() => {
+  if (!league.value || (addPokemonId.value === null && dropPokemonId.value === null)) return false
+  return (
+    resultingPointTotal.value <= league.value.pointLimit &&
+    resultingRosterCount.value <= league.value.rounds
+  )
+})
+const transactionSummary = computed(() => {
+  if (!league.value) return ''
+  if (addPokemonId.value === null && dropPokemonId.value === null) {
+    return 'Select a free agent to add, a roster Pokémon to drop, or both.'
+  }
+  if (resultingRosterCount.value > league.value.rounds) {
+    return 'Your roster would be over its slot limit. Select a Pokémon to drop.'
+  }
+  if (resultingPointTotal.value > league.value.pointLimit) {
+    return `Free ${resultingPointTotal.value - league.value.pointLimit} more points to complete this transaction.`
+  }
+  return 'This roster transaction is ready to submit.'
 })
 
 const selectedOffer = computed(() =>
@@ -163,112 +186,88 @@ watch(targetPlayerId, () => {
   offeringPokemonIds.value = []
   requestingPokemonIds.value = []
   submittedTrade.value = null
-  actionError.value = ''
-  actionSuccess.value = ''
 })
-
-function resetMessages() {
-  actionError.value = ''
-  actionSuccess.value = ''
-}
 
 async function refreshRoster() {
   await fetchLeagueState()
 }
 
-async function dropPokemon(pokemonId: number) {
-  if (!leagueCode.value || !currentPlayerId.value) return
-  const pokemonName = formatPokemonName(
-    pokemonStore.getPokemonById(pokemonId)?.name ?? `#${pokemonId}`,
+function canSelectFreeAgent(pokemon: Pokemon) {
+  if (!league.value || pokemonStore.getPointValue(pokemon.id) > league.value.pointLimit) return false
+  const canAddDirectly =
+    myTeam.value.length < league.value.rounds &&
+    myPointTotal.value + getPointValue(pokemon.id) <= league.value.pointLimit
+  if (canAddDirectly) return true
+
+  return myTeam.value.some(
+    (entry) =>
+      myPointTotal.value - entry.points + getPointValue(pokemon.id) <= league.value!.pointLimit,
   )
-  if (!window.confirm(`Drop ${pokemonName} from your roster?`)) return
-
-  resetMessages()
-  isSubmitting.value = true
-
-  try {
-    const res = await fetch(`${API_BASE}/leagues/${leagueCode.value}/roster/drop`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        playerId: currentPlayerId.value,
-        pin: authStore.pin,
-        pokemonId,
-      }),
-    })
-
-    if (!res.ok) {
-      const text = await res.text()
-      throw new Error(text || 'Failed to drop Pokémon.')
-    }
-
-    actionSuccess.value = `${pokemonName} was dropped from your roster.`
-    await refreshRoster()
-  } catch (error) {
-    actionError.value = error instanceof Error ? error.message : 'Failed to drop Pokémon.'
-  } finally {
-    isSubmitting.value = false
-  }
 }
 
-async function addPokemon(pokemonId: number) {
-  if (!league.value || !leagueCode.value || !currentPlayerId.value) return
+function freeAgentDisabledReason(pokemon: Pokemon) {
+  if (getPointValue(pokemon.id) > (league.value?.pointLimit ?? 0)) {
+    return 'Costs more than the roster limit'
+  }
+  return 'No valid one-for-one roster transaction'
+}
 
-  const nextTotal = myPointTotal.value + getPointValue(pokemonId)
-  if (nextTotal > league.value.pointLimit) {
-    actionError.value = 'Adding that Pokémon would put you over the point limit.'
-    actionSuccess.value = ''
+function stageAdd(pokemon: Pokemon) {
+  addPokemonId.value = pokemon.id
+  if (
+    dropPokemonId.value !== null &&
+    resultingPointTotal.value <= (league.value?.pointLimit ?? 0) &&
+    resultingRosterCount.value <= (league.value?.rounds ?? 0)
+  ) {
     return
   }
+  if (!transactionNeedsDrop.value) dropPokemonId.value = null
+}
 
-  resetMessages()
+function toggleDrop(pokemonId: number) {
+  dropPokemonId.value = dropPokemonId.value === pokemonId ? null : pokemonId
+}
+
+function clearRosterTransaction() {
+  addPokemonId.value = null
+  dropPokemonId.value = null
+}
+
+async function submitRosterTransaction() {
+  if (!leagueCode.value || !currentPlayerId.value || !transactionIsValid.value) return
   isSubmitting.value = true
 
   try {
-    const res = await fetch(`${API_BASE}/leagues/${leagueCode.value}/roster/add`, {
+    const res = await fetch(`${API_BASE}/leagues/${leagueCode.value}/roster/transaction`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         playerId: currentPlayerId.value,
         pin: authStore.pin,
-        pokemonId,
+        addPokemonId: addPokemonId.value,
+        dropPokemonId: dropPokemonId.value,
       }),
     })
+    if (!res.ok) throw new Error((await res.text()) || 'Roster transaction failed.')
 
-    if (!res.ok) {
-      const text = await res.text()
-      throw new Error(text || 'Failed to add Pokémon.')
-    }
-
-    actionSuccess.value = `${formatPokemonName(pokemonStore.getPokemonById(pokemonId)?.name ?? `#${pokemonId}`)} was added to your roster.`
+    enqueueSnackbar('Roster transaction completed.', 'success')
+    clearRosterTransaction()
     await refreshRoster()
   } catch (error) {
-    actionError.value = error instanceof Error ? error.message : 'Failed to add Pokémon.'
+    enqueueSnackbar(
+      error instanceof Error ? error.message : 'Roster transaction failed.',
+      'error',
+    )
   } finally {
     isSubmitting.value = false
   }
-}
-
-function openDetail(pokemon: Pokemon) {
-  detailPokemon.value = pokemon
-}
-
-function closeDetail() {
-  detailPokemon.value = null
-}
-
-async function addPokemonFromModal(pokemonId: number) {
-  closeDetail()
-  await addPokemon(pokemonId)
 }
 
 async function submitTrade() {
   if (!leagueCode.value || !currentPlayerId.value || !targetPlayerId.value) return
 
-  resetMessages()
-
   if (!offeringPokemonIds.value.length || !requestingPokemonIds.value.length) {
-    actionError.value = 'Select at least one Pokémon on both sides before proposing a trade.'
+    enqueueSnackbar('Select at least one Pokémon on both sides before proposing a trade.', 'error')
     return
   }
 
@@ -293,12 +292,15 @@ async function submitTrade() {
     }
 
     submittedTrade.value = (await res.json()) as Trade
-    actionSuccess.value = 'Trade proposal sent successfully.'
+    enqueueSnackbar('Trade proposal sent successfully.', 'success')
     offeringPokemonIds.value = []
     requestingPokemonIds.value = []
     await refreshRoster()
   } catch (error) {
-    actionError.value = error instanceof Error ? error.message : 'Failed to propose trade.'
+    enqueueSnackbar(
+      error instanceof Error ? error.message : 'Failed to propose trade.',
+      'error',
+    )
   } finally {
     isSubmitting.value = false
   }
@@ -323,12 +325,6 @@ onUnmounted(() => unsubscribe(handleLeagueState))
       <PokeballLoader variant="page" label="Loading roster tools…" />
     </section>
 
-    <section v-else-if="loadError" class="state-card error-card">
-      <h1>Couldn’t load Team Management</h1>
-      <p>{{ loadError }}</p>
-      <button class="btn btn-primary" @click="loadPage">Try Again</button>
-    </section>
-
     <template v-else-if="league">
       <section class="hero-card">
         <div class="hero-left">
@@ -351,36 +347,32 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 
       <template v-else>
         <div class="page-body">
-          <section class="toolbar-card">
-            <div class="tab-list">
-              <button
-                class="tab-btn"
-                :class="{ active: activeTab === 'add-drop' }"
-                @click="activeTab = 'add-drop'"
-              >
+          <v-card class="toolbar-card" variant="outlined">
+            <v-btn-toggle
+              v-model="activeTab"
+              color="primary"
+              density="comfortable"
+              mandatory
+              divided
+            >
+              <v-btn value="add-drop" prepend-icon="mdi-swap-horizontal">
                 Add / Drop
-              </button>
-              <button
-                class="tab-btn"
-                :class="{ active: activeTab === 'trade' }"
-                @click="activeTab = 'trade'"
-              >
+              </v-btn>
+              <v-btn value="trade" prepend-icon="mdi-account-switch">
                 Propose Trade
-              </button>
-            </div>
-            <div class="points-pill">{{ myPointTotal }} / {{ league.pointLimit }} pts</div>
-          </section>
-
-          <p v-if="actionError" class="message error-message">{{ actionError }}</p>
-          <p v-if="actionSuccess" class="message success-message">{{ actionSuccess }}</p>
+              </v-btn>
+            </v-btn-toggle>
+            <v-chip color="primary" variant="tonal">
+              {{ myPointTotal }} / {{ league.pointLimit }} pts
+            </v-chip>
+          </v-card>
 
           <section v-if="activeTab === 'add-drop'" class="add-drop-layout">
-            <!-- Left: team sidebar -->
             <aside class="team-sidebar panel-card">
               <div class="section-header">
                 <div class="sidebar-heading">
                   <AppIcon :path="mdiAccountGroup" :size="16" />
-                  <h2>Your Roster</h2>
+                  <h2>Build Transaction</h2>
                 </div>
                 <span class="section-meta">{{ myTeam.length }} Pokémon</span>
               </div>
@@ -404,8 +396,49 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                 </div>
               </div>
 
+              <div class="transaction-preview">
+                <div class="transaction-slot">
+                  <span class="transaction-label">Add</span>
+                  <div v-if="selectedAddPokemon" class="transaction-pokemon">
+                    <img :src="selectedAddPokemon.spriteUrl" :alt="selectedAddPokemon.name" />
+                    <div>
+                      <strong>{{ formatPokemonName(selectedAddPokemon.name) }}</strong>
+                      <span>{{ getPointValue(selectedAddPokemon.id) }} pts</span>
+                    </div>
+                    <v-btn icon="mdi-close" size="x-small" variant="text" @click="addPokemonId = null" />
+                  </div>
+                  <span v-else class="empty-text">Choose a free agent from the grid.</span>
+                </div>
+
+                <div class="transaction-slot" :class="{ required: transactionNeedsDrop }">
+                  <span class="transaction-label">
+                    Drop
+                    <small v-if="transactionNeedsDrop">Required</small>
+                  </span>
+                  <div v-if="selectedDrop" class="transaction-pokemon">
+                    <img
+                      v-if="selectedDrop.pokemon"
+                      :src="selectedDrop.pokemon.spriteUrl"
+                      :alt="selectedDrop.pokemon.name"
+                    />
+                    <div>
+                      <strong>{{ getPokemonName(selectedDrop.pokemonId) }}</strong>
+                      <span>{{ selectedDrop.points }} pts</span>
+                    </div>
+                    <v-btn icon="mdi-close" size="x-small" variant="text" @click="dropPokemonId = null" />
+                  </div>
+                  <span v-else class="empty-text">Optional unless points or roster space require it.</span>
+                </div>
+              </div>
+
               <div v-if="myTeam.length" class="team-list">
-                <article v-for="entry in myTeam" :key="entry.pokemonId" class="team-row">
+                <button
+                  v-for="entry in myTeam"
+                  :key="entry.pokemonId"
+                  class="team-row"
+                  :class="{ selected: dropPokemonId === entry.pokemonId }"
+                  @click="toggleDrop(entry.pokemonId)"
+                >
                   <div class="pokemon-info">
                     <img
                       v-if="entry.pokemon?.spriteUrl"
@@ -429,220 +462,274 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                       <p>{{ entry.points }} pts</p>
                     </div>
                   </div>
-                  <button
-                    class="btn btn-danger"
-                    :disabled="isSubmitting"
-                    @click="dropPokemon(entry.pokemonId)"
+                  <v-chip
+                    :color="dropPokemonId === entry.pokemonId ? 'error' : undefined"
+                    size="small"
+                    variant="tonal"
                   >
-                    Drop
-                  </button>
-                </article>
+                    {{ dropPokemonId === entry.pokemonId ? 'Dropping' : 'Select drop' }}
+                  </v-chip>
+                </button>
               </div>
               <p v-else class="empty-text">Your roster is currently empty.</p>
+
+              <div class="transaction-footer">
+                <div class="result-row">
+                  <span>Result</span>
+                  <strong
+                    :class="{
+                      invalid:
+                        resultingPointTotal > league.pointLimit ||
+                        resultingRosterCount > league.rounds,
+                    }"
+                  >
+                    {{ resultingPointTotal }} / {{ league.pointLimit }} pts ·
+                    {{ resultingRosterCount }} / {{ league.rounds }} Pokémon
+                  </strong>
+                </div>
+                <p class="transaction-guidance">{{ transactionSummary }}</p>
+                <div class="transaction-actions">
+                  <v-btn variant="text" :disabled="isSubmitting" @click="clearRosterTransaction">
+                    Clear
+                  </v-btn>
+                  <v-btn
+                    color="primary"
+                    :disabled="!transactionIsValid"
+                    :loading="isSubmitting"
+                    @click="submitRosterTransaction"
+                  >
+                    Submit Transaction
+                  </v-btn>
+                </div>
+              </div>
             </aside>
 
-            <!-- Right: available Pokémon grid -->
-            <div class="available-panel panel-card">
-              <div class="available-header">
-                <div class="sidebar-heading">
-                  <AppIcon :path="mdiMagnify" :size="16" />
-                  <h2>Free Agents</h2>
-                </div>
-                <span class="section-meta">{{ availablePokemon.length }} available</span>
-              </div>
-
-              <div class="available-filters">
-                <input
-                  v-model="addSearch"
-                  type="text"
-                  class="filter-input"
-                  placeholder="Search by name…"
-                />
-                <select v-model="selectedType" class="filter-select">
-                  <option value="">All Types</option>
-                  <option v-for="type in pokemonStore.allTypes" :key="type" :value="type">
-                    {{ type.charAt(0).toUpperCase() + type.slice(1) }}
-                  </option>
-                </select>
-              </div>
-
-              <div v-if="availablePokemon.length === 0" class="empty-text" style="padding: 1rem 0">
-                No available Pokémon match your filters.
-              </div>
-              <div v-else class="available-grid">
-                <PokemonCard
-                  v-for="pokemon in availablePokemon"
-                  :key="pokemon.id"
-                  :pokemon="pokemon"
-                  :point-value="getPointValue(pokemon.id)"
-                  mode="draft"
-                  @click="openDetail(pokemon)"
-                />
-              </div>
-            </div>
+            <PokemonGrid
+              mode="select"
+              :regulation-set="league.regulationSet"
+              :picked-pokemon-ids="rosteredPokemonIds"
+              :hide-picked-default="true"
+              action-label="Stage Add"
+              :can-select="canSelectFreeAgent"
+              :disabled-reason="freeAgentDisabledReason"
+              @select="stageAdd"
+            />
           </section>
 
           <section v-else class="trade-layout">
-            <article v-if="submittedTrade" class="panel-card success-card">
-              <div class="section-header">
+            <v-card v-if="submittedTrade" variant="outlined" color="success">
+              <v-card-title class="section-header">
                 <div>
-                  <p class="eyebrow">Trade sent</p>
-                  <h2>Proposal delivered</h2>
+                  <div class="text-overline text-medium-emphasis">Trade sent</div>
+                  <span>Proposal delivered</span>
                 </div>
-                <span class="status-pill pending">Trade #{{ submittedTrade.id }}</span>
-              </div>
-              <p class="subtitle">
+                <v-chip color="warning" size="small" variant="tonal">
+                  Trade #{{ submittedTrade.id }}
+                </v-chip>
+              </v-card-title>
+              <v-card-text>
                 Your proposal was sent to {{ getPlayerName(submittedTrade.targetPlayerId) }}.
-              </p>
-              <button class="btn btn-primary" @click="router.push('/league?tab=team')">Back to My Team</button>
-            </article>
+              </v-card-text>
+              <v-card-actions>
+                <v-btn
+                  color="primary"
+                  variant="flat"
+                  prepend-icon="mdi-arrow-left"
+                  @click="router.push('/league?tab=team')"
+                >
+                  Back to My Team
+                </v-btn>
+              </v-card-actions>
+            </v-card>
 
             <template v-else>
-              <article class="panel-card">
-                <div class="section-header">
+              <v-card variant="outlined">
+                <v-card-title class="section-header">
                   <div>
-                    <p class="eyebrow">Step 1</p>
-                    <h2>Select target player</h2>
+                    <div class="text-overline text-medium-emphasis">Step 1</div>
+                    <span>Select target player</span>
                   </div>
-                </div>
+                </v-card-title>
+                <v-card-text>
+                  <v-select
+                    v-model="targetPlayerId"
+                    :items="otherPlayers"
+                    item-title="name"
+                    item-value="id"
+                    label="Choose a manager"
+                    prepend-inner-icon="mdi-account-search"
+                    variant="outlined"
+                    hide-details
+                  />
+                </v-card-text>
+              </v-card>
 
-                <select v-model="targetPlayerId" class="select-input">
-                  <option value="">Choose a manager…</option>
-                  <option v-for="player in otherPlayers" :key="player.id" :value="player.id">
-                    {{ player.name }}
-                  </option>
-                </select>
-              </article>
-
-              <article v-if="targetPlayerId" class="panel-card">
-                <div class="section-header">
+              <v-card v-if="targetPlayerId" variant="outlined">
+                <v-card-title class="section-header">
                   <div>
-                    <p class="eyebrow">Steps 2 & 3</p>
-                    <h2>Build the trade</h2>
+                    <div class="text-overline text-medium-emphasis">Steps 2 & 3</div>
+                    <span>Build the trade</span>
                   </div>
-                </div>
+                </v-card-title>
+                <v-card-text>
+                  <v-row>
+                    <v-col cols="12" md="6">
+                      <v-card variant="tonal">
+                        <v-card-title class="trade-roster-title">
+                          <span>Your team</span>
+                          <v-chip size="small" variant="tonal">
+                            {{ offeringPokemonIds.length }} selected
+                          </v-chip>
+                        </v-card-title>
+                        <v-card-subtitle>Select what you’re offering</v-card-subtitle>
+                        <v-list bg-color="transparent">
+                          <v-list-item
+                            v-for="entry in myTeam"
+                            :key="`offer-${entry.pokemonId}`"
+                            @click="
+                              offeringPokemonIds.includes(entry.pokemonId)
+                                ? (offeringPokemonIds = offeringPokemonIds.filter(
+                                    (id) => id !== entry.pokemonId,
+                                  ))
+                                : offeringPokemonIds.push(entry.pokemonId)
+                            "
+                          >
+                            <template #prepend>
+                              <v-checkbox-btn
+                                v-model="offeringPokemonIds"
+                                :value="entry.pokemonId"
+                                @click.stop
+                              />
+                              <v-avatar size="44">
+                                <v-img
+                                  v-if="entry.pokemon?.spriteUrl"
+                                  :src="entry.pokemon.spriteUrl"
+                                  :alt="getPokemonName(entry.pokemonId)"
+                                />
+                              </v-avatar>
+                            </template>
+                            <v-list-item-title>{{ getPokemonName(entry.pokemonId) }}</v-list-item-title>
+                            <template #append>
+                              <v-chip size="small" color="primary" variant="tonal">
+                                {{ entry.points }} pts
+                              </v-chip>
+                            </template>
+                          </v-list-item>
+                        </v-list>
+                      </v-card>
+                    </v-col>
 
-                <div class="trade-team-grid">
-                  <section>
-                    <div class="trade-team-header">
-                      <h3>Your team</h3>
-                      <span>Select what you’re offering</span>
-                    </div>
-                    <label
-                      v-for="entry in myTeam"
-                      :key="`offer-${entry.pokemonId}`"
-                      class="checkbox-row"
-                    >
-                      <input
-                        v-model="offeringPokemonIds"
-                        type="checkbox"
-                        :value="entry.pokemonId"
-                      />
-                      <img
-                        v-if="entry.pokemon?.spriteUrl"
-                        :src="entry.pokemon.spriteUrl"
-                        :alt="
-                          entry.pokemon
-                            ? formatPokemonName(entry.pokemon.name)
-                            : `#${entry.pokemonId}`
-                        "
-                        class="mini-sprite"
-                      />
-                      <div class="checkbox-copy">
-                        <strong>{{
-                          entry.pokemon
-                            ? formatPokemonName(entry.pokemon.name)
-                            : `#${entry.pokemonId}`
-                        }}</strong>
-                        <span>{{ entry.points }} pts</span>
-                      </div>
-                    </label>
-                  </section>
+                    <v-col cols="12" md="6">
+                      <v-card variant="tonal">
+                        <v-card-title class="trade-roster-title">
+                          <span>{{ getPlayerName(targetPlayerId) }}’s team</span>
+                          <v-chip size="small" variant="tonal">
+                            {{ requestingPokemonIds.length }} selected
+                          </v-chip>
+                        </v-card-title>
+                        <v-card-subtitle>Select what you’re requesting</v-card-subtitle>
+                        <v-list bg-color="transparent">
+                          <v-list-item
+                            v-for="entry in targetTeam"
+                            :key="`request-${entry.pokemonId}`"
+                            @click="
+                              requestingPokemonIds.includes(entry.pokemonId)
+                                ? (requestingPokemonIds = requestingPokemonIds.filter(
+                                    (id) => id !== entry.pokemonId,
+                                  ))
+                                : requestingPokemonIds.push(entry.pokemonId)
+                            "
+                          >
+                            <template #prepend>
+                              <v-checkbox-btn
+                                v-model="requestingPokemonIds"
+                                :value="entry.pokemonId"
+                                @click.stop
+                              />
+                              <v-avatar size="44">
+                                <v-img
+                                  v-if="entry.pokemon?.spriteUrl"
+                                  :src="entry.pokemon.spriteUrl"
+                                  :alt="getPokemonName(entry.pokemonId)"
+                                />
+                              </v-avatar>
+                            </template>
+                            <v-list-item-title>{{ getPokemonName(entry.pokemonId) }}</v-list-item-title>
+                            <template #append>
+                              <v-chip size="small" color="primary" variant="tonal">
+                                {{ entry.points }} pts
+                              </v-chip>
+                            </template>
+                          </v-list-item>
+                        </v-list>
+                      </v-card>
+                    </v-col>
+                  </v-row>
+                </v-card-text>
+              </v-card>
 
-                  <section>
-                    <div class="trade-team-header">
-                      <h3>{{ getPlayerName(targetPlayerId) }}’s team</h3>
-                      <span>Select what you’re requesting</span>
-                    </div>
-                    <label
-                      v-for="entry in targetTeam"
-                      :key="`request-${entry.pokemonId}`"
-                      class="checkbox-row"
-                    >
-                      <input
-                        v-model="requestingPokemonIds"
-                        type="checkbox"
-                        :value="entry.pokemonId"
-                      />
-                      <img
-                        v-if="entry.pokemon?.spriteUrl"
-                        :src="entry.pokemon.spriteUrl"
-                        :alt="
-                          entry.pokemon
-                            ? formatPokemonName(entry.pokemon.name)
-                            : `#${entry.pokemonId}`
-                        "
-                        class="mini-sprite"
-                      />
-                      <div class="checkbox-copy">
-                        <strong>{{
-                          entry.pokemon
-                            ? formatPokemonName(entry.pokemon.name)
-                            : `#${entry.pokemonId}`
-                        }}</strong>
-                        <span>{{ entry.points }} pts</span>
-                      </div>
-                    </label>
-                  </section>
-                </div>
-              </article>
-
-              <article v-if="targetPlayerId" class="panel-card">
-                <div class="section-header">
+              <v-card v-if="targetPlayerId" variant="outlined">
+                <v-card-title class="section-header">
                   <div>
-                    <p class="eyebrow">Step 4</p>
-                    <h2>Preview and submit</h2>
+                    <div class="text-overline text-medium-emphasis">Step 4</div>
+                    <span>Preview and submit</span>
                   </div>
-                </div>
-
-                <div class="preview-grid">
-                  <div class="preview-card">
-                    <h3>You offer</h3>
-                    <ul>
-                      <li v-for="entry in selectedOffer" :key="`preview-offer-${entry.pokemonId}`">
-                        {{
-                          entry.pokemon
-                            ? formatPokemonName(entry.pokemon.name)
-                            : `#${entry.pokemonId}`
-                        }}
-                        <span>{{ entry.points }} pts</span>
-                      </li>
-                    </ul>
-                    <p v-if="!selectedOffer.length" class="empty-text">Nothing selected yet.</p>
-                  </div>
-                  <div class="preview-card">
-                    <h3>You request</h3>
-                    <ul>
-                      <li
-                        v-for="entry in selectedRequest"
-                        :key="`preview-request-${entry.pokemonId}`"
-                      >
-                        {{
-                          entry.pokemon
-                            ? formatPokemonName(entry.pokemon.name)
-                            : `#${entry.pokemonId}`
-                        }}
-                        <span>{{ entry.points }} pts</span>
-                      </li>
-                    </ul>
-                    <p v-if="!selectedRequest.length" class="empty-text">Nothing selected yet.</p>
-                  </div>
-                </div>
-
-                <button class="btn btn-primary" :disabled="isSubmitting" @click="submitTrade">
-                  Submit Trade
-                </button>
-              </article>
+                </v-card-title>
+                <v-card-text>
+                  <v-row>
+                    <v-col cols="12" md="6">
+                      <v-card variant="tonal">
+                        <v-card-title class="text-subtitle-1">You offer</v-card-title>
+                        <v-list v-if="selectedOffer.length" bg-color="transparent" density="compact">
+                          <v-list-item
+                            v-for="entry in selectedOffer"
+                            :key="`preview-offer-${entry.pokemonId}`"
+                            :title="getPokemonName(entry.pokemonId)"
+                          >
+                            <template #append>
+                              <v-chip size="x-small" variant="tonal">{{ entry.points }} pts</v-chip>
+                            </template>
+                          </v-list-item>
+                        </v-list>
+                        <v-card-text v-else class="text-medium-emphasis">
+                          Nothing selected yet.
+                        </v-card-text>
+                      </v-card>
+                    </v-col>
+                    <v-col cols="12" md="6">
+                      <v-card variant="tonal">
+                        <v-card-title class="text-subtitle-1">You request</v-card-title>
+                        <v-list v-if="selectedRequest.length" bg-color="transparent" density="compact">
+                          <v-list-item
+                            v-for="entry in selectedRequest"
+                            :key="`preview-request-${entry.pokemonId}`"
+                            :title="getPokemonName(entry.pokemonId)"
+                          >
+                            <template #append>
+                              <v-chip size="x-small" variant="tonal">{{ entry.points }} pts</v-chip>
+                            </template>
+                          </v-list-item>
+                        </v-list>
+                        <v-card-text v-else class="text-medium-emphasis">
+                          Nothing selected yet.
+                        </v-card-text>
+                      </v-card>
+                    </v-col>
+                  </v-row>
+                </v-card-text>
+                <v-card-actions class="justify-end">
+                  <v-btn
+                    color="primary"
+                    variant="flat"
+                    prepend-icon="mdi-send"
+                    :disabled="!selectedOffer.length || !selectedRequest.length"
+                    :loading="isSubmitting"
+                    @click="submitTrade"
+                  >
+                    Submit Trade
+                  </v-btn>
+                </v-card-actions>
+              </v-card>
             </template>
           </section>
         </div>
@@ -650,18 +737,6 @@ onUnmounted(() => unsubscribe(handleLeagueState))
     </template>
   </main>
 
-  <PokemonDetailModal
-    v-if="detailPokemon && league"
-    :pokemon="detailPokemon"
-    :point-value="getPointValue(detailPokemon.id)"
-    :can-draft="
-      myPointTotal + getPointValue(detailPokemon.id) <= league.pointLimit && !isSubmitting
-    "
-    :is-picked="false"
-    action-label="Add to Roster"
-    @close="closeDetail"
-    @draft="addPokemonFromModal"
-  />
 </template>
 
 <style scoped>
@@ -756,20 +831,15 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 
 .section-header,
 .hero-actions,
-.trade-team-header,
 .team-row,
-.pokemon-info,
-.checkbox-row,
-.preview-card li {
+.pokemon-info {
   display: flex;
   align-items: center;
 }
 
 .section-header,
 .hero-actions,
-.trade-team-header,
-.team-row,
-.preview-card li {
+.team-row {
   justify-content: space-between;
 }
 
@@ -779,10 +849,8 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 }
 
 .hero-actions,
-.trade-team-header,
 .team-row,
-.pokemon-info,
-.checkbox-row {
+.pokemon-info {
   gap: 0.85rem;
 }
 
@@ -796,26 +864,20 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 
 h1,
 h2,
-h3,
-.checkbox-copy strong {
+h3 {
   color: var(--text);
 }
 
 .subtitle,
 .section-meta,
 .message,
-.trade-team-header span,
-.checkbox-copy span,
-.preview-card li span,
 .pokemon-info p,
 .empty-text {
   color: var(--text-muted);
 }
 
 .connection-badge,
-.points-pill,
-.status-pill,
-.tab-btn {
+.points-pill {
   border-radius: 999px;
   font-size: 0.85rem;
   font-weight: 700;
@@ -848,28 +910,7 @@ h3,
   border-color: rgba(248, 113, 113, 0.45);
 }
 
-.tab-list {
-  display: flex;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-
-.tab-btn {
-  border: 1px solid var(--border-color);
-  background: var(--input-bg);
-  color: var(--text-muted);
-  padding: 0.7rem 1rem;
-  cursor: pointer;
-}
-
-.tab-btn.active {
-  background: var(--secondary);
-  border-color: var(--secondary);
-  color: white;
-}
-
-.points-pill,
-.status-pill.pending {
+.points-pill {
   background: rgba(59, 76, 202, 0.14);
   color: #a5b4fc;
   padding: 0.45rem 0.8rem;
@@ -890,7 +931,7 @@ h3,
 /* ── Add/Drop split layout ───────────────────────────────────────────────── */
 .add-drop-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: minmax(340px, 390px) 1fr;
   gap: 0.75rem;
   align-items: stretch;
   flex: 1;
@@ -951,61 +992,120 @@ h3,
   padding-right: 0.15rem;
 }
 
-.available-panel {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
+.transaction-preview {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
 }
 
-.available-header {
+.transaction-slot {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 0.65rem;
+  background: var(--input-bg);
+}
+
+.transaction-slot.required {
+  border-color: rgba(245, 158, 11, 0.7);
+}
+
+.transaction-label {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
 }
 
-.available-filters {
+.transaction-label small {
+  color: #fbbf24;
+}
+
+.transaction-pokemon {
   display: flex;
-  gap: 0.5rem;
-  margin: 0.75rem 0 0.5rem;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
 }
 
-.filter-input {
+.transaction-pokemon img {
+  width: 42px;
+  height: 42px;
+  image-rendering: pixelated;
+}
+
+.transaction-pokemon div {
+  display: flex;
+  flex-direction: column;
   flex: 1;
-  min-width: 140px;
+  min-width: 0;
 }
 
-.filter-input,
-.filter-select {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  border-radius: 8px;
-  padding: 0.35rem 0.6rem;
-  font-size: 0.82rem;
+.transaction-pokemon strong,
+.transaction-pokemon span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.available-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 0.45rem;
-  overflow-y: auto;
-  flex: 1;
-  padding-top: 4px;
+.transaction-pokemon span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
 }
 
 .team-row,
-.free-agent-row,
-.checkbox-row,
-.preview-card,
-.success-card {
+.free-agent-row {
   background: var(--input-bg);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 0.9rem;
+}
+
+.team-row {
+  width: 100%;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.team-row.selected {
+  border-color: #f87171;
+  background: color-mix(in srgb, #f87171 10%, var(--input-bg));
+}
+
+.transaction-footer {
+  border-top: 1px solid var(--border-color);
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+}
+
+.result-row,
+.transaction-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.result-row {
+  font-size: 0.82rem;
+}
+
+.result-row strong.invalid {
+  color: #f87171;
+}
+
+.transaction-guidance {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin: 0.45rem 0 0.65rem;
+}
+
+.transaction-actions {
+  justify-content: flex-end;
 }
 
 .pokemon-info {
@@ -1013,7 +1113,7 @@ h3,
 }
 
 .pokemon-info h3,
-.preview-card h3 {
+.trade-roster-title {
   margin-bottom: 0.25rem;
 }
 
@@ -1051,67 +1151,46 @@ h3,
   padding-right: 0.15rem;
 }
 
-.select-input {
-  width: 100%;
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  border-radius: 10px;
-  padding: 0.75rem 0.9rem;
-  margin-top: 1rem;
-}
-
-.trade-team-grid,
-.preview-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.trade-team-header {
-  margin-bottom: 0.85rem;
-}
-
-.checkbox-row {
-  cursor: pointer;
-  margin-bottom: 0.65rem;
-}
-
-.checkbox-row input {
-  accent-color: var(--primary);
-}
-
-.checkbox-copy {
+.trade-roster-title {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.preview-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.preview-card ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 @media (max-width: 900px) {
-  .add-drop-layout,
-  .trade-team-grid,
-  .preview-grid {
+  .add-drop-layout {
     grid-template-columns: 1fr;
   }
 
   .team-sidebar {
     max-height: 280px;
+  }
+}
+
+@media (max-width: 720px) {
+  .page-body {
+    flex: none;
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .add-drop-layout {
+    flex: none;
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .team-sidebar {
+    max-height: none;
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .team-list {
+    flex: none;
+    overflow: visible;
   }
 }
 

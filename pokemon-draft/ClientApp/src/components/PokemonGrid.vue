@@ -11,6 +11,28 @@ import type { Pokemon } from '@/types'
 import { mdiViewGrid, mdiViewColumn } from '@mdi/js'
 import { formatPokemonName } from '@/utils/format'
 import { useDisplay } from 'vuetify'
+import { enqueueSnackbar } from '@/services/snackbar'
+
+const props = withDefaults(
+  defineProps<{
+    mode?: 'draft' | 'select'
+    regulationSet?: string
+    pickedPokemonIds?: ReadonlySet<number>
+    hidePickedDefault?: boolean
+    actionLabel?: string
+    canSelect?: (pokemon: Pokemon) => boolean
+    disabledReason?: (pokemon: Pokemon) => string
+  }>(),
+  {
+    mode: 'draft',
+    hidePickedDefault: false,
+    actionLabel: 'Select',
+  },
+)
+
+const emit = defineEmits<{
+  select: [pokemon: Pokemon]
+}>()
 
 const pokemonStore = usePokemonStore()
 const draftStore = useDraftStore()
@@ -19,13 +41,16 @@ const { xs } = useDisplay()
 
 // ── Filter state ─────────────────────────────────────────────────────────────
 const searchQuery = ref('')
-const selectedType = ref(null)
-const hidePicked = ref(false)
+const selectedType = ref<string | null>(null)
+const hidePicked = ref(props.hidePickedDefault)
 const viewMode = ref<'grid' | 'tier'>('grid')
 
 // ── Regulation filter (respects league's regulation set automatically) ────────
 const { isLegalPokemon, regulationLoading } = useRegulationFilter(
-  computed(() => draftStore.regulationSet),
+  computed(() => props.regulationSet ?? draftStore.regulationSet),
+)
+const effectivePickedPokemonIds = computed(
+  () => props.pickedPokemonIds ?? draftStore.pickedPokemonIds,
 )
 
 // ── Filtered list ─────────────────────────────────────────────────────────────
@@ -40,7 +65,7 @@ const filteredPokemon = computed(() => {
       return false
     if (!isLegalPokemon(p)) return false
     if (selectedType.value && !p.types.includes(selectedType.value)) return false
-    if (hidePicked.value && draftStore.pickedPokemonIds.has(p.id)) return false
+    if (hidePicked.value && effectivePickedPokemonIds.value.has(p.id)) return false
     return true
   })
 })
@@ -66,7 +91,6 @@ const pointsRemaining = computed(() =>
 )
 
 const selectedPokemon = ref<Pokemon | null>(null)
-const draftError = ref<string | null>(null)
 const selectedPokemonPointValue = computed(() =>
   selectedPokemon.value ? pokemonStore.getPointValue(selectedPokemon.value.id) : 0,
 )
@@ -74,26 +98,55 @@ const selectedPokemonIsOverBudget = computed(
   () => selectedPokemonPointValue.value > pointsRemaining.value,
 )
 const selectedCanDraft = computed(() => canDraft.value && !selectedPokemonIsOverBudget.value)
-const draftDisabledReason = computed(() => {
+const selectedCanAct = computed(() => {
+  if (!selectedPokemon.value) return false
+  if (props.mode === 'select') return props.canSelect?.(selectedPokemon.value) ?? true
+  return selectedCanDraft.value
+})
+const selectedDisabledReason = computed(() => {
+  if (props.mode === 'select' && selectedPokemon.value) {
+    return props.disabledReason?.(selectedPokemon.value) ?? 'Unavailable'
+  }
   if (selectedPokemonIsOverBudget.value) return 'Over Point Limit'
   return 'Not Your Turn'
 })
 
 function selectPokemon(pokemon: Pokemon) {
-  draftError.value = null
+  if (effectivePickedPokemonIds.value.has(pokemon.id)) return
   selectedPokemon.value = pokemon
 }
 
-async function handleDraft(pokemonId: number) {
-  if (authStore.playerId && !draftStore.playerCanAffordPokemon(authStore.playerId, pokemonId)) {
-    const pointValue = pokemonStore.getPointValue(pokemonId)
-    draftError.value = `That Pokémon costs ${pointValue} points, but you only have ${pointsRemaining.value} points remaining.`
+function isPokemonDisabled(pokemon: Pokemon) {
+  if (props.mode === 'select') return !(props.canSelect?.(pokemon) ?? true)
+  return canDraft.value && !draftStore.playerCanAffordPokemon(authStore.playerId ?? '', pokemon.id)
+}
+
+function getDisabledLabel(pokemon: Pokemon) {
+  if (props.mode === 'select') return props.disabledReason?.(pokemon) ?? 'Unavailable'
+  return 'Over budget'
+}
+
+async function handleAction(pokemonId: number) {
+  if (props.mode === 'select') {
+    const pokemon = pokemonStore.getPokemonById(pokemonId)
+    if (pokemon) emit('select', pokemon)
+    selectedPokemon.value = null
     return
   }
 
-  draftError.value = await draftStore.makePick(pokemonId)
-  if (draftError.value) {
-    console.error('Draft pick failed:', draftError.value)
+  if (authStore.playerId && !draftStore.playerCanAffordPokemon(authStore.playerId, pokemonId)) {
+    const pointValue = pokemonStore.getPointValue(pokemonId)
+    enqueueSnackbar(
+      `That Pokémon costs ${pointValue} points, but you only have ${pointsRemaining.value} points remaining.`,
+      'error',
+    )
+    return
+  }
+
+  const error = await draftStore.makePick(pokemonId)
+  if (error) {
+    console.error('Draft pick failed:', error)
+    enqueueSnackbar(error, 'error')
     return
   }
   selectedPokemon.value = null
@@ -105,17 +158,6 @@ async function handleDraft(pokemonId: number) {
     <v-card class="grid-container">
       <!-- ── Filter bar ─────────────────────────────────────────────────────── -->
       <div class="pokemon-grid-header">
-        <v-alert
-          v-if="draftError"
-          type="error"
-          variant="tonal"
-          density="compact"
-          closable
-          @click:close="draftError = null"
-        >
-          {{ draftError }}
-        </v-alert>
-
         <v-row>
           <v-col>
             <v-text-field
@@ -183,9 +225,9 @@ async function handleDraft(pokemonId: number) {
                 v-for="pokemon in group.pokemon"
                 :key="pokemon.id"
                 :pokemon="pokemon"
-                :is-picked="draftStore.pickedPokemonIds.has(pokemon.id)"
-                :is-disabled="canDraft && !draftStore.playerCanAffordPokemon(authStore.playerId ?? '', pokemon.id)"
-                disabled-label="Over budget"
+                :is-picked="effectivePickedPokemonIds.has(pokemon.id)"
+                :is-disabled="isPokemonDisabled(pokemon)"
+                :disabled-label="getDisabledLabel(pokemon)"
                 mode="draft"
                 :show-sprite="!xs"
                 :point-value="pokemonStore.getPointValue(pokemon.id)"
@@ -200,15 +242,15 @@ async function handleDraft(pokemonId: number) {
           <pokemon-card
             v-for="pokemon in filteredPokemon"
             :key="pokemon.id"
-                :pokemon="pokemon"
-                :is-picked="draftStore.pickedPokemonIds.has(pokemon.id)"
-                :is-disabled="canDraft && !draftStore.playerCanAffordPokemon(authStore.playerId ?? '', pokemon.id)"
-                disabled-label="Over budget"
-                mode="draft"
-                :show-sprite="!xs"
-                :point-value="pokemonStore.getPointValue(pokemon.id)"
-                @click="selectPokemon(pokemon)"
-              />
+            :pokemon="pokemon"
+            :is-picked="effectivePickedPokemonIds.has(pokemon.id)"
+            :is-disabled="isPokemonDisabled(pokemon)"
+            :disabled-label="getDisabledLabel(pokemon)"
+            mode="draft"
+            :show-sprite="!xs"
+            :point-value="pokemonStore.getPointValue(pokemon.id)"
+            @click="selectPokemon(pokemon)"
+          />
         </div>
       </div>
     </v-card>
@@ -217,12 +259,13 @@ async function handleDraft(pokemonId: number) {
     <pokemon-detail-modal
       v-if="selectedPokemon"
       :pokemon="selectedPokemon"
-      :can-draft="selectedCanDraft"
-      :is-picked="draftStore.pickedPokemonIds.has(selectedPokemon.id)"
+      :can-draft="selectedCanAct"
+      :is-picked="effectivePickedPokemonIds.has(selectedPokemon.id)"
       :point-value="pokemonStore.getPointValue(selectedPokemon.id)"
-      :draft-disabled-reason="draftDisabledReason"
+      :action-label="props.mode === 'select' ? props.actionLabel : undefined"
+      :draft-disabled-reason="selectedDisabledReason"
       @close="selectedPokemon = null"
-      @draft="handleDraft"
+      @draft="handleAction"
     />
   </v-container>
 </template>

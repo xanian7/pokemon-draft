@@ -985,32 +985,21 @@ public class LeagueService(DraftDbContext db) : ILeagueService
 
     /// <inheritdoc/>
     public (bool success, string? error) DropPokemon(string leagueCode, string playerId, string pin, int pokemonId)
-    {
-        var league = LoadLeagueWithDraft(leagueCode);
-        if (league is null) return (false, "League not found.");
-
-        var player = league.Players.FirstOrDefault(p => p.Id == playerId);
-        if (player is null || !VerifyPin(player, pin))
-            return (false, "Invalid player or PIN.");
-
-        var pick = league.Picks.FirstOrDefault(p => p.PlayerId == playerId && p.PokemonId == pokemonId);
-        if (pick is null) return (false, "That Pokémon is not on your team.");
-
-        db.Picks.Remove(pick);
-        db.RosterTransactions.Add(new RosterTransaction
-        {
-            LeagueCode = league.Code,
-            PlayerId = playerId,
-            PokemonId = pokemonId,
-            Type = RosterTransactionType.Drop,
-        });
-        db.SaveChanges();
-        return (true, null);
-    }
+        => ApplyRosterTransaction(leagueCode, playerId, pin, null, pokemonId);
 
     /// <inheritdoc/>
     public (bool success, string? error) AddPokemon(string leagueCode, string playerId, string pin, int pokemonId)
+        => ApplyRosterTransaction(leagueCode, playerId, pin, pokemonId, null);
+
+    /// <inheritdoc/>
+    public (bool success, string? error) ApplyRosterTransaction(
+        string leagueCode, string playerId, string pin, int? addPokemonId, int? dropPokemonId)
     {
+        if (addPokemonId is null && dropPokemonId is null)
+            return (false, "Select a Pokémon to add or drop.");
+        if (addPokemonId == dropPokemonId)
+            return (false, "The added and dropped Pokémon must be different.");
+
         var league = LoadLeagueWithDraft(leagueCode);
         if (league is null) return (false, "League not found.");
 
@@ -1018,38 +1007,73 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (player is null || !VerifyPin(player, pin))
             return (false, "Invalid player or PIN.");
 
-        if (league.Picks.Any(p => p.PokemonId == pokemonId))
-            return (false, "That Pokémon is already on a team.");
+        if (league.DraftStatus != DraftStatus.Complete)
+            return (false, "Roster changes are only available after the draft is complete.");
 
         var playerPicks = league.Picks.Where(p => p.PlayerId == playerId).ToList();
-        if (playerPicks.Count >= league.Rounds)
-            return (false, "Your roster is full.");
+        DraftPick? droppedPick = null;
+        if (dropPokemonId is not null)
+        {
+            droppedPick = playerPicks.FirstOrDefault(p => p.PokemonId == dropPokemonId.Value);
+            if (droppedPick is null) return (false, "That Pokémon is not on your team.");
+        }
+
+        if (addPokemonId is not null && league.Picks.Any(p => p.PokemonId == addPokemonId.Value))
+            return (false, "That Pokémon is already on a team.");
 
         var pointValues = league.PointValues.ToDictionary(pv => pv.PokemonId, pv => pv.Value);
         var currentPointTotal = playerPicks.Sum(p => pointValues.GetValueOrDefault(p.PokemonId, 0));
-        var requestedPointValue = pointValues.GetValueOrDefault(pokemonId, 0);
-        if (currentPointTotal + requestedPointValue > league.PointLimit)
+        var droppedPointValue = dropPokemonId is null
+            ? 0
+            : pointValues.GetValueOrDefault(dropPokemonId.Value, 0);
+        var addedPointValue = addPokemonId is null
+            ? 0
+            : pointValues.GetValueOrDefault(addPokemonId.Value, 0);
+        var resultingPointTotal = currentPointTotal - droppedPointValue + addedPointValue;
+        var resultingRosterCount = playerPicks.Count - (droppedPick is null ? 0 : 1) + (addPokemonId is null ? 0 : 1);
+
+        if (resultingRosterCount > league.Rounds)
+            return (false, "Your roster is full. Select a Pokémon to drop as part of this transaction.");
+        if (resultingPointTotal > league.PointLimit)
         {
-            var remainingPoints = Math.Max(0, league.PointLimit - currentPointTotal);
-            return (false, $"That Pokémon costs {requestedPointValue} points, but you only have {remainingPoints} points remaining.");
+            var pointsToFree = resultingPointTotal - league.PointLimit;
+            return (false, $"This transaction is {pointsToFree} points over the roster limit.");
         }
 
-        var nextPickNumber = league.Picks.Count > 0 ? league.Picks.Max(p => p.PickNumber) + 1 : 0;
-        league.Picks.Add(new DraftPick
+        var timestamp = DateTime.UtcNow;
+        if (droppedPick is not null)
         {
-            LeagueCode = league.Code,
-            PickNumber = nextPickNumber,
-            Round = playerPicks.Count,
-            PlayerId = playerId,
-            PokemonId = pokemonId,
-        });
-        db.RosterTransactions.Add(new RosterTransaction
+            db.Picks.Remove(droppedPick);
+            db.RosterTransactions.Add(new RosterTransaction
+            {
+                LeagueCode = league.Code,
+                PlayerId = playerId,
+                PokemonId = droppedPick.PokemonId,
+                Type = RosterTransactionType.Drop,
+                CreatedAt = timestamp,
+            });
+        }
+
+        if (addPokemonId is not null)
         {
-            LeagueCode = league.Code,
-            PlayerId = playerId,
-            PokemonId = pokemonId,
-            Type = RosterTransactionType.Add,
-        });
+            var nextPickNumber = league.Picks.Count > 0 ? league.Picks.Max(p => p.PickNumber) + 1 : 0;
+            league.Picks.Add(new DraftPick
+            {
+                LeagueCode = league.Code,
+                PickNumber = nextPickNumber,
+                Round = resultingRosterCount - 1,
+                PlayerId = playerId,
+                PokemonId = addPokemonId.Value,
+            });
+            db.RosterTransactions.Add(new RosterTransaction
+            {
+                LeagueCode = league.Code,
+                PlayerId = playerId,
+                PokemonId = addPokemonId.Value,
+                Type = RosterTransactionType.Add,
+                CreatedAt = timestamp,
+            });
+        }
 
         db.SaveChanges();
         return (true, null);
