@@ -38,6 +38,14 @@ export interface Trade {
   items: Array<{ fromPlayerId: string; pokemonId: number }>
 }
 
+export interface RosterTransaction {
+  id: number
+  playerId: string
+  pokemonId: number
+  type: 'Add' | 'Drop'
+  createdAt: string
+}
+
 export type DraftStatus = 'setup' | 'active' | 'complete'
 
 export interface MatchupResponse {

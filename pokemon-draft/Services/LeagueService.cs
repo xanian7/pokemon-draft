@@ -997,6 +997,13 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         if (pick is null) return (false, "That Pokémon is not on your team.");
 
         db.Picks.Remove(pick);
+        db.RosterTransactions.Add(new RosterTransaction
+        {
+            LeagueCode = league.Code,
+            PlayerId = playerId,
+            PokemonId = pokemonId,
+            Type = RosterTransactionType.Drop,
+        });
         db.SaveChanges();
         return (true, null);
     }
@@ -1036,9 +1043,33 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             PlayerId = playerId,
             PokemonId = pokemonId,
         });
+        db.RosterTransactions.Add(new RosterTransaction
+        {
+            LeagueCode = league.Code,
+            PlayerId = playerId,
+            PokemonId = pokemonId,
+            Type = RosterTransactionType.Add,
+        });
 
         db.SaveChanges();
         return (true, null);
+    }
+
+    /// <inheritdoc/>
+    public List<RosterTransactionResponse> GetRosterTransactions(string leagueCode)
+    {
+        var normalizedCode = NormalizeLeagueCode(leagueCode);
+        return db.RosterTransactions
+            .AsNoTracking()
+            .Where(transaction => transaction.LeagueCode == normalizedCode)
+            .OrderByDescending(transaction => transaction.CreatedAt)
+            .Select(transaction => new RosterTransactionResponse(
+                transaction.Id,
+                transaction.PlayerId,
+                transaction.PokemonId,
+                transaction.Type.ToString(),
+                transaction.CreatedAt))
+            .ToList();
     }
 
     // ── Trades ─────────────────────────────────────────────────────────────────

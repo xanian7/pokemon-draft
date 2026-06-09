@@ -10,6 +10,7 @@ import { mdiPokeball, mdiLogout, mdiCog, mdiTrophy } from '@mdi/js'
 import LeftNav from '@/components/LeftNav.vue'
 import TopBar from './components/TopBar.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
+import SnackbarQueue from '@/components/SnackbarQueue.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -75,6 +76,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
         <RouterView />
       </v-main>
       <ConnectionBanner />
+      <SnackbarQueue />
       <v-overlay
         :model-value="isApiLoading"
         class="api-loading-overlay"

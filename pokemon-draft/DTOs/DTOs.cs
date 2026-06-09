@@ -92,6 +92,14 @@ public record TradeResponse(
 
 public record TradeItemResponse(string FromPlayerId, int PokemonId);
 
+public record RosterTransactionResponse(
+    int Id,
+    string PlayerId,
+    int PokemonId,
+    string Type,
+    DateTime CreatedAt
+);
+
 public record MatchupResponse(
     int Id, int Week,
     string Player1Id, string Player1Name, string Player1TeamName, string Player1TeamImageUrl,

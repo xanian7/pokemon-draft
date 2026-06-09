@@ -85,6 +85,9 @@ public interface ILeagueService
     /// <summary>Adds a free-agent Pokémon to a player's roster (post-draft roster management).</summary>
     (bool success, string? error) AddPokemon(string leagueCode, string playerId, string pin, int pokemonId);
 
+    /// <summary>Returns all add/drop transactions for a league ordered by most-recent first.</summary>
+    List<RosterTransactionResponse> GetRosterTransactions(string leagueCode);
+
     // ── Trades ─────────────────────────────────────────────────────────────────
 
     /// <summary>Returns all trades for a league ordered by most-recent first.</summary>

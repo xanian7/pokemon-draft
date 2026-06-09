@@ -10,6 +10,10 @@ namespace PokemonDraft.Controllers;
 public class RosterController(ILeagueService leagueService, IHubContext<DraftHub> hub)
     : LeagueBaseController(leagueService, hub)
 {
+    [HttpGet("transactions")]
+    public IActionResult GetTransactions(string code) =>
+        Ok(LeagueService.GetRosterTransactions(code));
+
     [HttpPost("drop")]
     public async Task<IActionResult> DropPokemon(string code, RosterChangeRequest req)
     {

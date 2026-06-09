@@ -29,6 +29,7 @@ public class League
     public List<DraftPick> Picks { get; set; } = [];
     public List<PokemonPointValue> PointValues { get; set; } = [];
     public List<Trade> Trades { get; set; } = [];
+    public List<RosterTransaction> RosterTransactions { get; set; } = [];
     public List<Matchup> Matchups { get; set; } = [];
 }
 
@@ -87,6 +88,17 @@ public class TradeItem
     public int PokemonId { get; set; }
 }
 
+public class RosterTransaction
+{
+    public int Id { get; set; }
+    public string LeagueCode { get; set; } = string.Empty;
+    public League League { get; set; } = null!;
+    public string PlayerId { get; set; } = string.Empty;
+    public int PokemonId { get; set; }
+    public RosterTransactionType Type { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
 public class Matchup
 {
     public int Id { get; set; }
@@ -115,4 +127,10 @@ public enum TradeStatus
     Accepted,
     Rejected,
     Cancelled
+}
+
+public enum RosterTransactionType
+{
+    Add,
+    Drop
 }
