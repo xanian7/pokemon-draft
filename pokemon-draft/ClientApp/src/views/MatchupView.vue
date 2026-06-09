@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
 import { apiGet } from '@/services/api'
@@ -15,7 +16,6 @@ import type {
   ServerLeagueResponse,
   StandingRow,
 } from '@/types'
-import { formatPokemonName, TYPE_COLORS } from '@/utils/format'
 
 interface AvailabilityDay {
   key: string
@@ -254,23 +254,6 @@ function localTime(timeZone?: string) {
 <template>
   <v-container fluid class="matchup-page">
     <v-card class="wrapper-card">
-      <div class="matchup-header">
-        <div>
-          <div class="eyebrow">League Matchup</div>
-          <h1>Your Battle Briefing</h1>
-        </div>
-        <v-select
-          v-if="matchupOptions.length > 1"
-          v-model="selectedMatchupId"
-          :items="matchupOptions"
-          label="Matchup"
-          density="compact"
-          variant="outlined"
-          hide-details
-          class="matchup-select"
-        />
-      </div>
-
       <div v-if="isLoading" class="loading-panel">
         <PokeballLoader variant="page" label="Loading matchup..." />
       </div>
@@ -285,11 +268,34 @@ function localTime(timeZone?: string) {
       </v-alert>
 
       <div v-else class="matchup-content">
-        <v-card class="battle-card" variant="tonal">
-          <div class="week-label">Week {{ activeMatchup.week }}</div>
-          <div class="battle-row">
+        <v-card class="matchup-card" variant="outlined">
+          <v-card-title class="section-title matchup-title">
+            <div>
+              <div class="text-overline text-medium-emphasis">
+                Week {{ activeMatchup.week }}
+              </div>
+              <span>Current Matchup</span>
+            </div>
+            <div class="matchup-actions">
+              <v-chip :color="matchupStatus.color" size="small" variant="tonal">
+                {{ matchupStatus.label }}
+              </v-chip>
+              <v-select
+                v-if="matchupOptions.length > 1"
+                v-model="selectedMatchupId"
+                :items="matchupOptions"
+                label="Matchup"
+                density="compact"
+                variant="outlined"
+                hide-details
+                class="matchup-select"
+              />
+            </div>
+          </v-card-title>
+          <v-divider />
+          <v-card-text class="battle-row">
             <div class="battle-team">
-              <v-avatar size="72" color="primary">
+              <v-avatar size="64" color="primary" class="team-avatar">
                 <v-img
                   v-if="playerImage(activeMatchup, 1)"
                   :src="playerImage(activeMatchup, 1)"
@@ -302,14 +308,13 @@ function localTime(timeZone?: string) {
                 <span>{{ playerName(activeMatchup, 1) }}</span>
               </div>
             </div>
-
-            <div class="battle-status">
-              <v-chip :color="matchupStatus.color" variant="flat">{{ matchupStatus.label }}</v-chip>
-              <span class="versus">VS</span>
-            </div>
-
-            <div class="battle-team">
-              <v-avatar size="72" color="secondary">
+            <v-chip class="versus" size="small" variant="outlined">VS</v-chip>
+            <div class="battle-team battle-team-right">
+              <div class="battle-team-label">
+                <strong>{{ playerLabel(activeMatchup, 2) }}</strong>
+                <span>{{ playerName(activeMatchup, 2) }}</span>
+              </div>
+              <v-avatar size="64" color="secondary" class="team-avatar">
                 <v-img
                   v-if="playerImage(activeMatchup, 2)"
                   :src="playerImage(activeMatchup, 2)"
@@ -317,52 +322,56 @@ function localTime(timeZone?: string) {
                 />
                 <span v-else>{{ initials(playerLabel(activeMatchup, 2)) }}</span>
               </v-avatar>
-              <div class="battle-team-label">
-                <strong>{{ playerLabel(activeMatchup, 2) }}</strong>
-                <span>{{ playerName(activeMatchup, 2) }}</span>
-              </div>
             </div>
-          </div>
+          </v-card-text>
         </v-card>
 
-        <v-row dense>
+        <v-row class="details-row" dense>
           <v-col cols="12" md="6">
             <v-card class="info-card" variant="outlined">
-              <v-card-title>
-                <v-icon icon="mdi-chart-box-outline" start />
-                Opponent Snapshot
+              <v-card-title class="section-title">
+                <div>
+                  <div class="text-overline text-medium-emphasis">Season performance</div>
+                  <span>Opponent Snapshot</span>
+                </div>
+                <v-icon icon="mdi-chart-box-outline" />
               </v-card-title>
+              <v-divider />
               <v-card-text class="snapshot-grid">
-                <div class="metric">
+                <v-card class="metric" variant="tonal">
                   <span>Record</span>
                   <strong>
                     {{ opponentStanding?.wins ?? 0 }}-{{ opponentStanding?.losses ?? 0 }}
                   </strong>
-                </div>
-                <div class="metric">
+                </v-card>
+                <v-card class="metric" variant="tonal">
                   <span>Match Points</span>
                   <strong>{{ opponentStanding?.matchPoints ?? 0 }}</strong>
-                </div>
-                <div class="metric">
+                </v-card>
+                <v-card class="metric" variant="tonal">
                   <span>Games</span>
                   <strong>
                     {{ opponentStanding?.gamesWon ?? 0 }}-{{ opponentStanding?.gamesLost ?? 0 }}
                   </strong>
-                </div>
-                <div class="metric">
+                </v-card>
+                <v-card class="metric" variant="tonal">
                   <span>Roster Points</span>
                   <strong>{{ rosterPoints }} / {{ league?.pointLimit ?? 0 }}</strong>
-                </div>
+                </v-card>
               </v-card-text>
             </v-card>
           </v-col>
 
           <v-col cols="12" md="6">
             <v-card class="info-card" variant="outlined">
-              <v-card-title>
-                <v-icon icon="mdi-clock-outline" start />
-                Time &amp; Availability
+              <v-card-title class="section-title">
+                <div>
+                  <div class="text-overline text-medium-emphasis">Scheduling</div>
+                  <span>Time &amp; Availability</span>
+                </div>
+                <v-icon icon="mdi-clock-outline" />
               </v-card-title>
+              <v-divider />
               <v-card-text>
                 <div class="timezone">
                   <strong>{{ opponent?.timeZone || 'Time zone not set' }}</strong>
@@ -380,54 +389,38 @@ function localTime(timeZone?: string) {
           </v-col>
         </v-row>
 
-        <section class="roster-section">
-          <div class="section-header">
+        <v-card class="roster-section" variant="outlined">
+          <v-card-title class="section-title">
             <div>
-              <div class="eyebrow">Scouting Report</div>
-              <h2>{{ opponentLabel(activeMatchup) }}'s Pokémon</h2>
+              <div class="text-overline text-medium-emphasis">Scouting report</div>
+              <span>{{ opponentLabel(activeMatchup) }}'s Pokémon</span>
             </div>
             <div class="roster-summary">
-              <v-chip prepend-icon="mdi-pokeball" variant="outlined">
+              <v-chip prepend-icon="mdi-pokeball" size="small" variant="tonal">
                 {{ opponentRoster.length }} Pokémon
               </v-chip>
-              <v-chip prepend-icon="mdi-chart-line" variant="outlined">
+              <v-chip prepend-icon="mdi-chart-line" size="small" variant="tonal">
                 {{ averageBst }} Avg. BST
               </v-chip>
             </div>
-          </div>
-
-          <div v-if="opponentRoster.length" class="pokemon-grid">
-            <v-card
-              v-for="entry in opponentRoster"
-              :key="entry.pokemon.id"
-              class="pokemon-card"
-              variant="outlined"
-              hover
-              @click="selectedPokemon = entry.pokemon"
-            >
-              <div class="point-badge">{{ entry.points }} pts</div>
-              <v-img :src="entry.pokemon.spriteUrl" height="118" contain />
-              <v-card-title>{{ formatPokemonName(entry.pokemon.name) }}</v-card-title>
-              <v-card-text>
-                <div class="type-row">
-                  <v-chip
-                    v-for="type in entry.pokemon.types"
-                    :key="type"
-                    size="x-small"
-                    :color="TYPE_COLORS[type]"
-                    variant="flat"
-                  >
-                    {{ type }}
-                  </v-chip>
-                </div>
-                <span class="bst">BST {{ entry.pokemon.bst ?? '-' }}</span>
-              </v-card-text>
-            </v-card>
-          </div>
-          <v-alert v-else type="info" variant="tonal">
-            This opponent does not have any Pokémon on their roster yet.
-          </v-alert>
-        </section>
+          </v-card-title>
+          <v-divider />
+          <v-card-text>
+            <div v-if="opponentRoster.length" class="roster-grid">
+              <PokemonCard
+                v-for="entry in opponentRoster"
+                :key="entry.pokemon.id"
+                :pokemon="entry.pokemon"
+                :point-value="entry.points"
+                mode="team"
+                @click="selectedPokemon = entry.pokemon"
+              />
+            </div>
+            <v-alert v-else type="info" variant="tonal">
+              This opponent does not have any Pokémon on their roster yet.
+            </v-alert>
+          </v-card-text>
+        </v-card>
       </div>
     </v-card>
 
@@ -445,52 +438,68 @@ function localTime(timeZone?: string) {
 
 <style scoped>
 .matchup-page {
-  padding-top: 0;
+  padding: 0;
 }
 
 .wrapper-card {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
   height: 85dvh;
   max-height: 85dvh;
   overflow: auto;
   padding: 8px;
+}
+
+.wrapper-card :deep(.v-card) {
+  border-color: var(--border-color);
   border-radius: 6px;
 }
 
-.matchup-header,
-.section-header {
+.wrapper-card :deep(.v-card-text) {
+  padding: 8px;
+}
+
+.matchup-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
 }
 
-.matchup-header h1,
-.section-header h2 {
-  margin: 0;
-  line-height: 1.15;
+.section-title > div:first-child {
+  min-width: 0;
 }
 
-.matchup-header h1 {
-  font-size: clamp(1.45rem, 3vw, 2rem);
+.section-title span {
+  display: block;
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
 }
 
-.section-header h2 {
-  font-size: clamp(1.15rem, 2vw, 1.5rem);
+.matchup-title {
+  min-height: 58px;
 }
 
-.eyebrow {
-  color: rgb(var(--v-theme-primary));
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+.matchup-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .matchup-select {
-  flex: 0 1 340px;
+  width: min(320px, 42vw);
 }
 
 .loading-panel {
@@ -499,39 +508,29 @@ function localTime(timeZone?: string) {
   place-items: center;
 }
 
-.matchup-content {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.battle-card {
-  padding: 18px;
-  text-align: center;
-}
-
-.week-label {
-  color: rgb(var(--v-theme-primary));
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
 .battle-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 20px;
-  margin-top: 10px;
+  gap: 12px;
+  min-height: 88px;
 }
 
 .battle-team {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
+}
+
+.battle-team-right {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.team-avatar {
+  flex: 0 0 auto;
+  border: 2px solid color-mix(in srgb, var(--primary) 45%, transparent);
 }
 
 .battle-team-label {
@@ -542,143 +541,91 @@ function localTime(timeZone?: string) {
 
 .battle-team-label strong {
   overflow: hidden;
-  font-size: 1.05rem;
+  font-size: 1rem;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .battle-team-label span {
   color: var(--text-muted);
-  font-size: 0.8rem;
-}
-
-.battle-status {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
+  font-size: 0.75rem;
 }
 
 .versus {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 800;
+  min-width: 42px;
+  justify-content: center;
+}
+
+.details-row {
+  margin: -4px;
+}
+
+.details-row > .v-col {
+  padding: 4px;
 }
 
 .info-card {
   height: 100%;
 }
 
-.info-card .v-card-title {
-  font-size: 1rem;
-}
-
 .snapshot-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 6px;
 }
 
 .metric {
   display: flex;
   flex-direction: column;
-  padding: 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+  padding: 8px;
 }
 
 .metric span,
 .timezone span,
-.empty-detail,
-.bst {
+.empty-detail {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
 }
 
 .metric strong {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
 }
 
 .timezone {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .availability-list {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .availability-row {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  padding-top: 6px;
+  gap: 8px;
+  padding-top: 4px;
   border-top: 1px solid var(--border-color);
-  font-size: 0.86rem;
+  font-size: 0.82rem;
 }
 
-.roster-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.roster-summary,
-.type-row {
+.roster-summary {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.pokemon-grid {
+.roster-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
-  gap: 10px;
-}
-
-.pokemon-card {
-  position: relative;
-  cursor: pointer;
-  overflow: hidden;
-}
-
-.pokemon-card .v-card-title {
-  padding: 5px 10px 2px;
-  overflow: hidden;
-  font-size: 0.9rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pokemon-card .v-card-text {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 6px;
-  padding: 6px 10px 10px;
-}
-
-.point-badge {
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  z-index: 1;
-  padding: 3px 7px;
-  border-radius: 999px;
-  background: rgb(var(--v-theme-primary));
-  color: rgb(var(--v-theme-on-primary));
-  font-size: 0.7rem;
-  font-weight: 800;
 }
 
 @media (max-width: 720px) {
-  .matchup-page {
-    padding-inline: 0;
-  }
-
   .wrapper-card {
     height: auto;
     max-height: none;
@@ -689,61 +636,54 @@ function localTime(timeZone?: string) {
     border-radius: 0;
   }
 
-  .matchup-header,
-  .section-header {
+  .wrapper-card :deep(.v-card) {
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  .matchup-title {
     align-items: stretch;
     flex-direction: column;
-    gap: 10px;
+  }
+
+  .matchup-actions {
+    justify-content: space-between;
   }
 
   .matchup-select {
-    flex-basis: auto;
-    max-width: none;
-  }
-
-  .battle-card {
-    padding: 12px 8px;
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
   }
 
   .battle-row {
-    grid-template-columns: minmax(0, 1fr) 50px minmax(0, 1fr);
-    gap: 6px;
+    grid-template-columns: minmax(0, 1fr) 42px minmax(0, 1fr);
+    gap: 4px;
   }
 
-  .battle-team {
-    flex-direction: column;
-    gap: 5px;
-  }
-
-  .battle-team-label {
+  .battle-team,
+  .battle-team-right {
     align-items: center;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
     max-width: 100%;
+    text-align: center;
   }
 
   .battle-team-label strong {
     max-width: 100%;
-    font-size: 0.83rem;
+    font-size: 0.8rem;
   }
 
-  .battle-team .v-avatar {
-    width: 58px !important;
-    height: 58px !important;
+  .team-avatar {
+    width: 54px !important;
+    height: 54px !important;
   }
 
-  .battle-status .v-chip {
-    max-width: 72px;
-    padding-inline: 7px;
-    font-size: 0.65rem;
-  }
-
-  .pokemon-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 7px;
-  }
-
-  .pokemon-card .v-card-text {
-    align-items: flex-start;
-    flex-direction: column;
+  .roster-grid {
+    grid-template-columns: 1fr;
   }
 
   .timezone,
