@@ -11,6 +11,8 @@ interface Session {
   pin: string
   teamName: string
   teamImageUrl: string
+  timeZone: string
+  availability: string
 }
 
 interface RecentLeague {
@@ -151,6 +153,8 @@ export const useAuthStore = defineStore('auth', () => {
       leagueName: string
       teamName: string
       teamImageUrl: string
+      timeZone: string
+      availability: string
       sessionToken: string
     }>('/auth/enter-league', { leagueCode: code }, authHeaders())
     if (result.error) return result.error
@@ -165,6 +169,8 @@ export const useAuthStore = defineStore('auth', () => {
       pin: data.sessionToken,
       teamName: data.teamName ?? '',
       teamImageUrl: data.teamImageUrl ?? '',
+      timeZone: data.timeZone ?? '',
+      availability: data.availability ?? '',
     })
     persistRecentLeague({ code, name: lName })
     recentLeagues.value = loadRecentLeagues()
@@ -189,6 +195,8 @@ export const useAuthStore = defineStore('auth', () => {
       leagueName: string
       teamName: string
       teamImageUrl: string
+      timeZone: string
+      availability: string
     }>('/auth/join', { leagueCode: code, pin: trimmedPin })
     if (result.error) return result.error
     const data = result.data!
@@ -202,6 +210,8 @@ export const useAuthStore = defineStore('auth', () => {
       pin: trimmedPin,
       teamName: data.teamName ?? '',
       teamImageUrl: data.teamImageUrl ?? '',
+      timeZone: data.timeZone ?? '',
+      availability: data.availability ?? '',
     })
     persistRecentLeague({ code, name: lName })
     recentLeagues.value = loadRecentLeagues()
@@ -219,8 +229,15 @@ export const useAuthStore = defineStore('auth', () => {
   const pin = computed(() => session.value?.pin ?? '')
   const teamName = computed(() => session.value?.teamName ?? '')
   const teamImageUrl = computed(() => session.value?.teamImageUrl ?? '')
+  const timeZone = computed(() => session.value?.timeZone ?? '')
+  const availability = computed(() => session.value?.availability ?? '')
 
-  async function updateProfile(teamName: string, teamImageUrl: string): Promise<string | null> {
+  async function updateProfile(
+    teamName: string,
+    teamImageUrl: string,
+    timeZone: string,
+    availability: string,
+  ): Promise<string | null> {
     if (!session.value) return 'Not logged in.'
     const result = await apiPatch(
       `/leagues/${session.value.leagueCode}/players/${session.value.playerId}/profile`,
@@ -229,10 +246,12 @@ export const useAuthStore = defineStore('auth', () => {
         pin: session.value.pin,
         teamName: teamName || null,
         teamImageUrl: teamImageUrl || null,
+        timeZone: timeZone || null,
+        availability: availability || null,
       },
     )
     if (result.error) return result.error
-    saveSession({ ...session.value, teamName, teamImageUrl })
+    saveSession({ ...session.value, teamName, teamImageUrl, timeZone, availability })
     return null
   }
 
@@ -253,6 +272,8 @@ export const useAuthStore = defineStore('auth', () => {
     pin,
     teamName,
     teamImageUrl,
+    timeZone,
+    availability,
     authHeaders,
     saveAuthUser,
     signInWithGoogle,

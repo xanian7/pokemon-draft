@@ -190,7 +190,8 @@ public class AuthController(
         bool isAdmin = player.League.CommissionerPlayerId == player.Id;
         return Ok(new JoinResponse(
             player.Id, player.Name, isAdmin,
-            player.LeagueCode, player.TeamName, player.TeamImageUrl, player.League.Name,
+            player.LeagueCode, player.TeamName, player.TeamImageUrl,
+            player.TimeZone, player.Availability, player.League.Name,
             newToken
         ));
     }

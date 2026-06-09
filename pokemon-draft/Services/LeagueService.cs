@@ -220,14 +220,23 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             var commissioner = GetOrderedPlayers(league).FirstOrDefault(p => p.Id == league.CommissionerPlayerId);
             var name = commissioner?.Name ?? "Commissioner";
             var playerId = commissioner?.Id ?? "admin";
-            return new JoinResponse(playerId, name, true, league.Code, commissioner?.TeamName ?? string.Empty, commissioner?.TeamImageUrl ?? string.Empty, league.Name);
+            return new JoinResponse(
+                playerId, name, true, league.Code,
+                commissioner?.TeamName ?? string.Empty,
+                commissioner?.TeamImageUrl ?? string.Empty,
+                commissioner?.TimeZone ?? string.Empty,
+                commissioner?.Availability ?? string.Empty,
+                league.Name);
         }
 
         var player = GetOrderedPlayers(league)
             .FirstOrDefault(p => p.Id != league.CommissionerPlayerId && VerifyPin(p, pin));
         if (player is null) return null;
 
-        return new JoinResponse(player.Id, player.Name, false, league.Code, player.TeamName, player.TeamImageUrl, league.Name);
+        return new JoinResponse(
+            player.Id, player.Name, false, league.Code,
+            player.TeamName, player.TeamImageUrl, player.TimeZone, player.Availability,
+            league.Name);
     }
 
     /// <inheritdoc/>
@@ -350,7 +359,9 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             Rounds: league.Rounds,
             PlayoffSpots: league.PlayoffSpots,
             RegulationSet: league.RegulationSet,
-            Players: players.Select(p => new PlayerResponse(p.Id, p.Name, p.TeamName, p.TeamImageUrl, p.User?.DiscordId)).ToList(),
+            Players: players.Select(p => new PlayerResponse(
+                p.Id, p.Name, p.TeamName, p.TeamImageUrl,
+                p.TimeZone, p.Availability, p.User?.DiscordId)).ToList(),
             PointValues: league.PointValues.ToDictionary(pv => pv.PokemonId, pv => pv.Value),
             Draft: new DraftStateResponse(
                 Status: league.DraftStatus.ToString(),
@@ -751,7 +762,9 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     }
 
     /// <inheritdoc/>
-    public (bool success, string? error) UpdatePlayerProfile(string leagueCode, string playerId, string pin, string? teamName, string? teamImageUrl)
+    public (bool success, string? error) UpdatePlayerProfile(
+        string leagueCode, string playerId, string pin, string? teamName,
+        string? teamImageUrl, string? timeZone, string? availability)
     {
         var league = LoadLeagueWithPlayers(leagueCode);
         if (league is null) return (false, "League not found.");
@@ -762,6 +775,8 @@ public class LeagueService(DraftDbContext db) : ILeagueService
 
         if (teamName is not null) player.TeamName = teamName.Trim();
         if (teamImageUrl is not null) player.TeamImageUrl = teamImageUrl.Trim();
+        if (timeZone is not null) player.TimeZone = timeZone.Trim();
+        if (availability is not null) player.Availability = availability.Trim();
         db.SaveChanges();
         return (true, null);
     }

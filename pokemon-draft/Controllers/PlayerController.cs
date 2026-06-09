@@ -50,7 +50,9 @@ public class PlayerController(ILeagueService leagueService, IHubContext<DraftHub
     [HttpPatch("{playerId}/profile")]
     public async Task<IActionResult> UpdatePlayerProfile(string code, string playerId, UpdatePlayerProfileRequest req)
     {
-        var (success, error) = LeagueService.UpdatePlayerProfile(code, playerId, req.Pin, req.TeamName, req.TeamImageUrl);
+        var (success, error) = LeagueService.UpdatePlayerProfile(
+            code, playerId, req.Pin, req.TeamName, req.TeamImageUrl,
+            req.TimeZone, req.Availability);
         if (!success) return BadRequest(error);
         await BroadcastLeague(code);
         return Ok();

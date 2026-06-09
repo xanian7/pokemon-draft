@@ -1,251 +1,441 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { enqueueSnackbar } from '@/services/snackbar'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
 if (!authStore.isAuthenticated) router.replace('/join')
 
+const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
 const teamName = ref(authStore.teamName)
 const teamImageUrl = ref(authStore.teamImageUrl)
+const timeZone = ref(browserTimeZone || authStore.timeZone)
 const isSaving = ref(false)
-const saveError = ref('')
-const saveSuccess = ref(false)
 const imgError = ref(false)
 
+interface AvailabilityDay {
+  key: string
+  label: string
+  enabled: boolean
+  start: string
+  end: string
+}
+
+interface WeeklyAvailability {
+  version: 1
+  days: Array<Pick<AvailabilityDay, 'key' | 'enabled' | 'start' | 'end'>>
+}
+
+const dayDefinitions = [
+  { key: 'monday', label: 'Monday' },
+  { key: 'tuesday', label: 'Tuesday' },
+  { key: 'wednesday', label: 'Wednesday' },
+  { key: 'thursday', label: 'Thursday' },
+  { key: 'friday', label: 'Friday' },
+  { key: 'saturday', label: 'Saturday' },
+  { key: 'sunday', label: 'Sunday' },
+]
+
+function loadAvailability(): AvailabilityDay[] {
+  const defaults = dayDefinitions.map((day) => ({
+    ...day,
+    enabled: false,
+    start: '18:00',
+    end: '22:00',
+  }))
+
+  if (!authStore.availability) return defaults
+
+  try {
+    const saved = JSON.parse(authStore.availability) as Partial<WeeklyAvailability>
+    if (saved.version !== 1 || !Array.isArray(saved.days)) return defaults
+
+    return defaults.map((day) => {
+      const savedDay = saved.days?.find((item) => item.key === day.key)
+      return savedDay
+        ? {
+            ...day,
+            enabled: Boolean(savedDay.enabled),
+            start: savedDay.start || day.start,
+            end: savedDay.end || day.end,
+          }
+        : day
+    })
+  } catch {
+    return defaults
+  }
+}
+
+const availabilityDays = ref<AvailabilityDay[]>(loadAvailability())
+
+const timeZoneItems = (() => {
+  const intlWithValues = Intl as typeof Intl & {
+    supportedValuesOf?: (key: 'timeZone') => string[]
+  }
+  const supported = intlWithValues.supportedValuesOf?.('timeZone') ?? [
+    'America/New_York',
+    'America/Chicago',
+    'America/Denver',
+    'America/Los_Angeles',
+    'America/Phoenix',
+    'America/Anchorage',
+    'Pacific/Honolulu',
+    'UTC',
+  ]
+  return [...new Set([browserTimeZone, authStore.timeZone, ...supported].filter(Boolean))]
+})()
+
 const initials = computed(() => {
-  const n = teamName.value.trim() || authStore.playerName || '?'
-  return n
+  const name = teamName.value.trim() || authStore.playerName || '?'
+  return name
     .split(' ')
-    .map((w: string) => w[0])
+    .map((word) => word[0])
     .join('')
     .toUpperCase()
     .slice(0, 2)
 })
 
-function onImgError() {
-  imgError.value = true
-}
-function onImgLoad() {
-  imgError.value = false
+const invalidAvailabilityDays = computed(() =>
+  availabilityDays.value.filter(
+    (day) => day.enabled && (!day.start || !day.end || day.start >= day.end),
+  ),
+)
+
+function useDetectedTimeZone() {
+  timeZone.value = browserTimeZone
 }
 
 async function save() {
-  isSaving.value = true
-  saveError.value = ''
-  saveSuccess.value = false
-  const err = await authStore.updateProfile(teamName.value.trim(), teamImageUrl.value.trim())
-  if (err) {
-    saveError.value = err
-  } else {
-    saveSuccess.value = true
-    setTimeout(() => {
-      saveSuccess.value = false
-    }, 3000)
+  if (invalidAvailabilityDays.value.length) {
+    enqueueSnackbar('Each available day must end after its start time.', 'error')
+    return
   }
+
+  const weeklyAvailability: WeeklyAvailability = {
+    version: 1,
+    days: availabilityDays.value.map(({ key, enabled, start, end }) => ({
+      key,
+      enabled,
+      start,
+      end,
+    })),
+  }
+
+  isSaving.value = true
+  const error = await authStore.updateProfile(
+    teamName.value.trim(),
+    teamImageUrl.value.trim(),
+    timeZone.value,
+    JSON.stringify(weeklyAvailability),
+  )
+  enqueueSnackbar(error ?? 'Team settings saved.', error ? 'error' : 'success')
   isSaving.value = false
 }
 </script>
 
 <template>
-  <main class="settings-wrap">
-    <div class="settings-card">
-      <p class="eyebrow">Account</p>
-      <h1>Team Settings</h1>
-      <p class="subtitle">Customise how your team appears to other players in the league.</p>
+  <v-container fluid class="settings-page">
+    <v-card class="settings-card">
+      <v-card-title>
+        <div>
+          <div class="text-overline text-medium-emphasis">Account</div>
+          <div class="text-h5 font-weight-bold">Team Settings</div>
+        </div>
+      </v-card-title>
+      <v-card-subtitle>
+        Manage how your team appears and when other players can schedule matches with you.
+      </v-card-subtitle>
 
-      <div class="avatar-section">
-        <div class="avatar-preview">
-          <img
-            v-if="teamImageUrl && !imgError"
-            :src="teamImageUrl"
-            alt="Team avatar"
-            class="avatar-img"
-            @error="onImgError"
-            @load="onImgLoad"
+      <v-card-text>
+        <v-card class="avatar-card mb-2" variant="outlined">
+          <v-card-text class="avatar-content">
+            <v-avatar size="72" color="primary">
+              <v-img
+                v-if="teamImageUrl && !imgError"
+                :src="teamImageUrl"
+                alt="Team avatar"
+                cover
+                @error="imgError = true"
+                @load="imgError = false"
+              />
+              <span v-else class="text-h6 font-weight-bold">{{ initials }}</span>
+            </v-avatar>
+            <div>
+              <div class="font-weight-bold">Team Avatar</div>
+              <div class="text-body-2 text-medium-emphasis">
+                Your avatar is shown to other players in the league.
+              </div>
+            </div>
+          </v-card-text>
+        </v-card>
+
+        <v-form class="settings-form" @submit.prevent="save">
+          <v-text-field
+            v-model="teamName"
+            label="Team Name"
+            maxlength="40"
+            :counter="40"
+            variant="outlined"
           />
-          <div v-else class="avatar-initials">{{ initials }}</div>
-        </div>
-        <div class="avatar-info">
-          <p class="avatar-label">Team Avatar</p>
-          <p class="avatar-hint">
-            Your avatar is shown to other players. You can change this later.
-          </p>
-        </div>
-      </div>
 
-      <form class="settings-form" @submit.prevent="save">
-        <div class="field">
-          <label for="team-name">Team Name</label>
-          <input id="team-name" v-model="teamName" type="text" placeholder="" maxlength="40" />
-          <span class="hint">{{ 40 - teamName.length }} characters remaining</span>
-        </div>
-
-        <div class="field">
-          <label for="team-image">Team Avatar URL</label>
-          <input
-            id="team-image"
+          <v-text-field
             v-model="teamImageUrl"
-            type="url"
+            label="Team Avatar URL"
             placeholder="https://example.com/avatar.png"
+            type="url"
+            variant="outlined"
+            hint="Paste a direct image URL."
+            persistent-hint
           />
-          <span class="hint">Paste any direct image URL.</span>
-        </div>
 
-        <div v-if="saveError" class="feedback error">{{ saveError }}</div>
-        <div v-if="saveSuccess" class="feedback success">✓ Profile saved!</div>
+          <v-divider />
 
-        <div class="form-actions">
-          <button type="button" class="btn btn-secondary" @click="router.back()">Cancel</button>
-          <button type="submit" class="btn btn-primary" :disabled="isSaving">
-            {{ isSaving ? 'Saving…' : 'Save Changes' }}
-          </button>
-        </div>
-      </form>
-    </div>
-  </main>
+          <div>
+            <div class="text-subtitle-1 font-weight-bold">Match Availability</div>
+            <div class="text-body-2 text-medium-emphasis">
+              Select the days and local time ranges when you are normally available to play.
+            </div>
+          </div>
+
+          <div class="timezone-row">
+            <v-autocomplete
+              v-model="timeZone"
+              :items="timeZoneItems"
+              label="Time Zone"
+              prepend-inner-icon="mdi-clock-outline"
+              variant="outlined"
+              auto-select-first
+              hide-details
+            />
+            <v-btn
+              variant="tonal"
+              prepend-icon="mdi-crosshairs-gps"
+              @click="useDetectedTimeZone"
+            >
+              Use detected
+            </v-btn>
+          </div>
+          <v-chip size="small" color="primary" variant="tonal" prepend-icon="mdi-map-marker">
+            Detected: {{ browserTimeZone }}
+          </v-chip>
+
+          <v-card class="availability-card" variant="outlined">
+            <v-list bg-color="transparent">
+              <v-list-item
+                v-for="day in availabilityDays"
+                :key="day.key"
+                class="availability-row"
+              >
+                <div class="day-toggle">
+                  <v-checkbox-btn v-model="day.enabled" />
+                  <span class="font-weight-medium">{{ day.label }}</span>
+                </div>
+
+                <div class="time-range">
+                  <v-text-field
+                    v-model="day.start"
+                    type="time"
+                    label="From"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    :disabled="!day.enabled"
+                    :error="day.enabled && day.start >= day.end"
+                  />
+                  <span class="text-medium-emphasis">to</span>
+                  <v-text-field
+                    v-model="day.end"
+                    type="time"
+                    label="Until"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                    :disabled="!day.enabled"
+                    :error="day.enabled && day.start >= day.end"
+                  />
+                </div>
+              </v-list-item>
+            </v-list>
+          </v-card>
+
+          <div class="form-actions">
+            <v-btn variant="tonal" @click="router.back()">Cancel</v-btn>
+            <v-btn
+              type="submit"
+              color="primary"
+              variant="flat"
+              prepend-icon="mdi-content-save"
+              :loading="isSaving"
+            >
+              Save Changes
+            </v-btn>
+          </div>
+        </v-form>
+      </v-card-text>
+    </v-card>
+  </v-container>
 </template>
 
 <style scoped>
-.settings-wrap {
+.settings-page {
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  padding: 2.5rem 1rem 4rem;
+  padding: 16px;
 }
 
 .settings-card {
-  background: var(--card-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 85dvh;
+  max-height: 85dvh;
+  overflow: auto;
+  padding: 8px;
+  width: min(100%, 900px);
+}
+
+.settings-card,
+.settings-card :deep(.v-card) {
   border: 1px solid var(--border-color);
-  border-radius: 20px;
-  padding: 2rem 2.5rem;
-  width: 100%;
-  max-width: 520px;
+  border-radius: 6px;
 }
 
-.eyebrow {
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.72rem;
-  margin-bottom: 0.3rem;
+.settings-card > :deep(.v-card-title),
+.settings-card > :deep(.v-card-subtitle),
+.settings-card > :deep(.v-card-text) {
+  padding: 8px;
 }
 
-h1 {
-  font-size: 1.75rem;
-  font-weight: 800;
-  color: var(--text);
-  margin-bottom: 0.4rem;
-}
-.subtitle {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  margin-bottom: 1.75rem;
+.avatar-card {
+  background: var(--bg);
 }
 
-.avatar-section {
+.avatar-content {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
-  padding: 1.25rem;
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 14px;
-  margin-bottom: 1.75rem;
-}
-
-.avatar-preview {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  overflow: hidden;
-  flex-shrink: 0;
-  background: var(--border-color);
-}
-
-.avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-initials {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(59, 76, 202, 0.25);
-  color: #a5b4fc;
-  font-size: 1.4rem;
-  font-weight: 800;
-}
-
-.avatar-label {
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 0.3rem;
-}
-
-.avatar-hint {
-  color: var(--text-muted);
-  font-size: 0.82rem;
+  gap: 12px;
 }
 
 .settings-form {
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
+  gap: 8px;
+  width: 100%;
 }
 
-label {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--text);
+.timezone-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
 }
 
-input {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 0.65rem 0.9rem;
-  color: var(--text);
-  font-size: 0.95rem;
-  outline: none;
-  transition: border-color 0.15s;
+.availability-card {
+  background: var(--bg);
 }
 
-input:focus {
-  border-color: var(--secondary);
-}
-.hint {
-  font-size: 0.76rem;
-  color: var(--text-muted);
+.availability-row {
+  border-bottom: 1px solid var(--border-color);
 }
 
-.feedback {
-  padding: 0.65rem 1rem;
-  border-radius: 10px;
-  font-size: 0.88rem;
-  font-weight: 600;
+.availability-row:last-child {
+  border-bottom: 0;
 }
-.feedback.error {
-  background: rgba(248, 113, 113, 0.12);
-  color: #f87171;
-  border: 1px solid rgba(248, 113, 113, 0.3);
+
+.availability-row :deep(.v-list-item__content) {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.5fr) minmax(280px, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
 }
-.feedback.success {
-  background: rgba(52, 211, 153, 0.12);
-  color: #34d399;
-  border: 1px solid rgba(52, 211, 153, 0.3);
+
+.day-toggle,
+.time-range {
+  display: flex;
+  align-items: center;
+}
+
+.day-toggle {
+  gap: 4px;
+}
+
+.time-range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+
+.time-range :deep(.v-input) {
+  min-width: 0;
+  width: 100%;
 }
 
 .form-actions {
   display: flex;
-  gap: 0.75rem;
   justify-content: flex-end;
-  margin-top: 0.5rem;
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .settings-page {
+    display: block;
+    padding: 0;
+  }
+
+  .settings-card {
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 6px;
+  }
+
+  .settings-card :deep(.v-card) {
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+  }
+
+  .timezone-row {
+    grid-template-columns: 1fr;
+  }
+
+  .availability-row :deep(.v-list-item__content) {
+    grid-template-columns: 1fr;
+    min-width: 0;
+  }
+
+  .time-range {
+    padding-left: 32px;
+  }
+
+  .form-actions {
+    width: 100%;
+  }
+
+  .form-actions :deep(.v-btn) {
+    flex: 1;
+  }
+}
+
+@media (max-width: 440px) {
+  .avatar-content {
+    align-items: flex-start;
+  }
+
+  .time-range {
+    grid-template-columns: 1fr;
+  }
+
+  .time-range > span {
+    display: none;
+  }
 }
 </style>

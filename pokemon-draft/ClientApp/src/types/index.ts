@@ -13,6 +13,8 @@ export interface LeaguePlayer {
   name: string
   teamName: string
   teamImageUrl: string
+  timeZone: string
+  availability: string
 }
 
 export interface DraftPick {
@@ -104,6 +106,8 @@ export interface ServerPlayerResponse {
   name: string
   teamName: string
   teamImageUrl: string
+  timeZone: string
+  availability: string
   discordId?: string
 }
 

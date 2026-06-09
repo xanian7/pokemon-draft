@@ -35,6 +35,8 @@ export const useLeagueStore = defineStore('league', () => {
       name: trimmed,
       teamName: '',
       teamImageUrl: '',
+      timeZone: '',
+      availability: '',
     })
     save()
   }

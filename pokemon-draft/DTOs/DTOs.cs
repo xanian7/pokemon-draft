@@ -18,7 +18,14 @@ public record RegisterPlayerRequest(string Name, string? Pin, string? TeamName, 
 
 public record JoinRequest(string LeagueCode, string Pin);
 
-public record UpdatePlayerProfileRequest(string PlayerId, string Pin, string? TeamName, string? TeamImageUrl);
+public record UpdatePlayerProfileRequest(
+    string PlayerId,
+    string Pin,
+    string? TeamName,
+    string? TeamImageUrl,
+    string? TimeZone,
+    string? Availability
+);
 
 public record ProposeTradeRequest(string InitiatorPlayerId, string InitiatorPin, string TargetPlayerId, List<int> OfferingPokemonIds, List<int> RequestingPokemonIds);
 
@@ -61,7 +68,18 @@ public record PokemonDetailStat(string Name, int BaseStat);
 public record PokemonDetailAbility(string Name, bool IsHidden);
 public record PokemonDetailMove(string Name, string Type, int? Power, int? Pp, string Category);
 
-public record JoinResponse(string PlayerId, string PlayerName, bool IsAdmin, string LeagueCode, string TeamName, string TeamImageUrl, string LeagueName, string? SessionToken = null);
+public record JoinResponse(
+    string PlayerId,
+    string PlayerName,
+    bool IsAdmin,
+    string LeagueCode,
+    string TeamName,
+    string TeamImageUrl,
+    string TimeZone,
+    string Availability,
+    string LeagueName,
+    string? SessionToken = null
+);
 
 public record LeagueResponse(
     string Code,
@@ -75,7 +93,15 @@ public record LeagueResponse(
     DraftStateResponse Draft
 );
 
-public record PlayerResponse(string Id, string Name, string TeamName, string TeamImageUrl, string? DiscordId);
+public record PlayerResponse(
+    string Id,
+    string Name,
+    string TeamName,
+    string TeamImageUrl,
+    string TimeZone,
+    string Availability,
+    string? DiscordId
+);
 
 public record DraftStateResponse(
     string Status,

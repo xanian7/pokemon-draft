@@ -107,6 +107,8 @@ public interface ILeagueService
 
     // ── Profile ────────────────────────────────────────────────────────────────
 
-    /// <summary>Updates a player's team name and/or avatar image URL.</summary>
-    (bool success, string? error) UpdatePlayerProfile(string leagueCode, string playerId, string pin, string? teamName, string? teamImageUrl);
+    /// <summary>Updates a player's public team and scheduling profile.</summary>
+    (bool success, string? error) UpdatePlayerProfile(
+        string leagueCode, string playerId, string pin, string? teamName,
+        string? teamImageUrl, string? timeZone, string? availability);
 }
