@@ -44,6 +44,11 @@ const router = createRouter({
       component: () => import('../views/LeagueView.vue'),
     },
     {
+      path: '/matchup',
+      name: 'matchup',
+      component: () => import('../views/LeagueView.vue'),
+    },
+    {
       path: '/schedule',
       name: 'schedule',
       component: () => import('../views/LeagueView.vue'),

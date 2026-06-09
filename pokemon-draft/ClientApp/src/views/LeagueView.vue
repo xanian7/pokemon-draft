@@ -5,13 +5,23 @@ import { useAuthStore } from '@/stores/auth'
 import DraftView from '@/views/DraftView.vue'
 import HomeView from '@/views/HomeView.vue'
 import LeagueSetupView from '@/views/LeagueSetupView.vue'
+import MatchupView from '@/views/MatchupView.vue'
 import MyTeamView from '@/views/MyTeamView.vue'
 import PlayoffsView from '@/views/PlayoffsView.vue'
 import PokemonView from '@/views/PokemonView.vue'
 import ScheduleView from '@/views/ScheduleView.vue'
 import TeamsView from '@/views/TeamsView.vue'
 
-type LeagueTab = 'home' | 'team' | 'teams' | 'schedule' | 'playoffs' | 'draft' | 'setup' | 'pokemon'
+type LeagueTab =
+  | 'home'
+  | 'team'
+  | 'matchup'
+  | 'teams'
+  | 'schedule'
+  | 'playoffs'
+  | 'draft'
+  | 'setup'
+  | 'pokemon'
 
 const route = useRoute()
 const router = useRouter()
@@ -26,6 +36,7 @@ const tabs: Array<{
 }> = [
   { label: 'Home', value: 'home', icon: 'mdi-home', component: HomeView },
   { label: 'My Team', value: 'team', icon: 'mdi-account', component: MyTeamView },
+  { label: 'Matchup', value: 'matchup', icon: 'mdi-sword-cross', component: MatchupView },
   { label: 'All Teams', value: 'teams', icon: 'mdi-account-group', component: TeamsView },
   { label: 'Schedule', value: 'schedule', icon: 'mdi-calendar', component: ScheduleView },
   { label: 'Playoffs', value: 'playoffs', icon: 'mdi-trophy', component: PlayoffsView },
@@ -53,6 +64,7 @@ function tabFromRoute(): LeagueTab {
   if (isLeagueTab(tabQuery)) tab = tabQuery
   else if (route.path === '/') tab = 'home'
   else if (route.path === '/team') tab = 'team'
+  else if (route.path === '/matchup') tab = 'matchup'
   else if (route.path === '/teams') tab = 'teams'
   else if (route.path === '/schedule') tab = 'schedule'
   else if (route.path === '/playoffs') tab = 'playoffs'
