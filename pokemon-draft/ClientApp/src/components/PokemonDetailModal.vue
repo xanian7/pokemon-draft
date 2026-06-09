@@ -246,7 +246,10 @@ async function fetchMegaForm(name: string): Promise<MegaForm> {
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
     const json = await res.json()
-    form.sprite = json.sprites.front_default
+    form.sprite =
+      json.sprites.other?.home?.front_default ??
+      json.sprites.other?.['official-artwork']?.front_default ??
+      json.sprites.front_default
     form.types = (json.types as { type: { name: string } }[]).map((type) => type.type.name)
     form.stats = (json.stats as { stat: { name: string }; base_stat: number }[]).map((stat) => ({
       label: STAT_LABELS[stat.stat.name] ?? stat.stat.name,

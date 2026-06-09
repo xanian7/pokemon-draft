@@ -43,8 +43,7 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
               base_stat
             }
             pokemonsprites {
-              latest: sprites(path: "versions.generation-ix.scarlet-violet.front_default")
-              home: sprites(path: "other.home.front_default")
+              modern: sprites(path: "other.home.front_default")
               artwork: sprites(path: "other.official-artwork.front_default")
               default: sprites(path: "front_default")
             }
@@ -164,8 +163,7 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
     private static string GetSpriteUrl(PokeApiPokemon pokemon)
     {
         var sprites = pokemon.Sprites.FirstOrDefault();
-        return sprites?.Latest
-            ?? sprites?.Home
+        return sprites?.Modern
             ?? sprites?.Artwork
             ?? sprites?.Default
             ?? $"https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{pokemon.Id}.png";
@@ -223,11 +221,8 @@ public class PokemonService(HttpClient httpClient, IMemoryCache cache) : IPokemo
 
     private sealed class PokeApiSprites
     {
-        [JsonPropertyName("latest")]
-        public string? Latest { get; set; }
-
-        [JsonPropertyName("home")]
-        public string? Home { get; set; }
+        [JsonPropertyName("modern")]
+        public string? Modern { get; set; }
 
         [JsonPropertyName("artwork")]
         public string? Artwork { get; set; }
