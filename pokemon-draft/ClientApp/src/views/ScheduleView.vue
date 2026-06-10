@@ -497,8 +497,12 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
 
 <style scoped>
 
+.v-container {
+  padding: 0;
+}
+
 .page-card {
-  padding: clamp(1rem, 2vw, 2rem);
+  padding: 0 clamp(1rem, 2vw, 2rem);
 }
 
 .page-content {

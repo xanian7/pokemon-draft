@@ -221,7 +221,7 @@ const outlookStatusLabel = (status: string) => {
 
 <template>
   <!-- ── Not logged in: landing ──────────────────────────────────────────── -->
-  <main v-if="!authStore.isAuthenticated" class="landing">
+  <v-container v-if="!authStore.isAuthenticated" class="landing">
     <div class="landing-inner">
       <div class="landing-icon"><AppIcon :path="mdiPokeball" :size="64" /></div>
       <h1>PokéDraft</h1>
@@ -257,10 +257,10 @@ const outlookStatusLabel = (status: string) => {
         </div>
       </div>
     </div>
-  </main>
+  </v-container>
 
   <!-- ── Admin dashboard ─────────────────────────────────────────────────── -->
-  <main v-else-if="authStore.isAdmin" class="dashboard admin-dashboard">
+  <v-container v-else-if="authStore.isAdmin" class="dashboard admin-dashboard">
     <PageHeader
       class="dash-header"
       eyebrow="Commissioner dashboard"
@@ -354,10 +354,10 @@ const outlookStatusLabel = (status: string) => {
         <v-btn variant="tonal" prepend-icon="mdi-account-group-outline" @click="router.push('/roster')">View Rosters</v-btn>
       </div>
     </section>
-  </main>
+  </v-container>
 
   <!-- ── Player dashboard ────────────────────────────────────────────────── -->
-  <main v-else class="dashboard player-dashboard">
+  <v-container v-else class="dashboard player-dashboard">
     <PageHeader
       class="dash-header"
       eyebrow="League home"
@@ -605,17 +605,21 @@ const outlookStatusLabel = (status: string) => {
         </div>
       </section>
     </template>
-  </main>
+  </v-container>
 </template>
 
 <style scoped>
 /* ── Shared layout ───────────────────────────────────────────────────────── */
+.v-container {
+  padding: 0;
+}
+
 .landing,
 .dashboard {
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 2rem clamp(1rem, 2vw, 2rem);
+  padding: clamp(1rem, 2vw, 2rem);
 }
 
 .admin-dashboard {
