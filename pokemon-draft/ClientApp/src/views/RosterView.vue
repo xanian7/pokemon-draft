@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { API_BASE, useSignalR } from '@/services/signalr'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
@@ -10,6 +10,8 @@ import AppIcon from '@/components/AppIcon.vue'
 import PokemonGrid from '@/components/PokemonGrid.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
 import FormField from '@/components/FormField.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import DraftGateNotice from '@/components/DraftGateNotice.vue'
 import { enqueueSnackbar } from '@/services/snackbar'
 import { mdiAccountGroup } from '@mdi/js'
 
@@ -315,30 +317,45 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 </script>
 
 <template>
-  <main class="roster-view page">
+  <main class="roster-view page" :class="{ 'trade-mode': activeTab === 'trade' }">
     <section v-if="isLoading" class="state-card loading-card">
       <!-- <PokeballLoader variant="page" label="Loading roster tools…" /> -->
     </section>
 
     <template v-else-if="league">
-      <section class="hero-card">
-        <div class="hero-left">
-          <p class="eyebrow">{{ league.name }}</p>
-          <h1>Team Management</h1>
-        </div>
-        <div class="hero-actions">
-          <div class="connection-badge" :class="isConnected ? 'live' : 'offline'">
-            {{ isConnected ? '● Live' : '○ Offline' }}
-          </div>
-          <RouterLink class="secondary-link" to="/team">← My Team</RouterLink>
-        </div>
-      </section>
+      <PageHeader
+        class="management-header"
+        eyebrow="League"
+        title="Team Management"
+        subtitle="Manage roster transactions and propose trades."
+      >
+        <template #actions>
+          <v-chip
+            :color="isConnected ? 'success' : undefined"
+            :prepend-icon="isConnected ? 'mdi-wifi' : 'mdi-wifi-off'"
+            size="small"
+            variant="tonal"
+          >
+            {{ isConnected ? 'Live' : 'Offline' }}
+          </v-chip>
+          <v-chip color="primary" size="small" variant="tonal">
+            {{ myPointTotal }} / {{ league.pointLimit }} pts
+          </v-chip>
+          <v-btn
+            size="small"
+            variant="text"
+            prepend-icon="mdi-arrow-left"
+            @click="router.push('/league?tab=team')"
+          >
+            My Team
+          </v-btn>
+        </template>
+      </PageHeader>
 
-      <section v-if="!draftComplete" class="state-card warning-card">
-        <h2>Draft is still in progress</h2>
-        <p>Come back here after the draft is complete to manage your roster.</p>
-        <RouterLink class="secondary-link" to="/draft">Go to Draft Board</RouterLink>
-      </section>
+      <DraftGateNotice
+        v-if="!draftComplete"
+        text="Roster transactions and trades unlock once the draft is complete."
+      />
 
       <template v-else>
         <div class="page-body">
@@ -357,9 +374,6 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                 Propose Trade
               </v-btn>
             </v-btn-toggle>
-            <v-chip color="primary" variant="tonal">
-              {{ myPointTotal }} / {{ league.pointLimit }} pts
-            </v-chip>
           </v-card>
 
           <section v-if="activeTab === 'add-drop'" class="add-drop-layout">
@@ -568,19 +582,23 @@ onUnmounted(() => unsubscribe(handleLeagueState))
             </v-card>
 
             <template v-else>
-              <v-card variant="outlined">
-                <v-card-title class="section-header">
-                  <div>
-                    <div class="text-overline text-medium-emphasis">Step 1</div>
-                    <span>Select target player</span>
+              <v-card class="trade-section trade-target-card" variant="outlined">
+                <v-card-text class="trade-target-content">
+                  <div class="trade-section-heading">
+                    <v-avatar color="primary" variant="tonal" size="42">
+                      <v-icon icon="mdi-account-switch" />
+                    </v-avatar>
+                    <div>
+                      <span class="trade-step">Step 1</span>
+                      <h2>Choose a trade partner</h2>
+                      <p>Select the manager whose roster you want to browse.</p>
+                    </div>
                   </div>
-                </v-card-title>
-                <v-card-text>
-                  <FormField label="Manager">
+                  <FormField label="Manager" class="trade-manager-field">
                     <v-select
                       v-model="targetPlayerId"
                       :items="otherPlayers"
-                      item-title="name"
+                      :item-title="(player) => player.teamName || player.name"
                       item-value="id"
                       placeholder="Choose a manager"
                       prepend-inner-icon="mdi-account-search"
@@ -590,28 +608,38 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                 </v-card-text>
               </v-card>
 
-              <v-card v-if="targetPlayerId" variant="outlined">
-                <v-card-title class="section-header">
-                  <div>
-                    <div class="text-overline text-medium-emphasis">Steps 2 & 3</div>
-                    <span>Build the trade</span>
+              <v-card v-if="targetPlayerId" class="trade-section" variant="outlined">
+                <v-card-title class="trade-section-title">
+                  <div class="trade-section-heading">
+                    <v-avatar color="primary" variant="tonal" size="42">
+                      <v-icon icon="mdi-swap-horizontal-bold" />
+                    </v-avatar>
+                    <div>
+                      <span class="trade-step">Steps 2 & 3</span>
+                      <h2>Build the trade</h2>
+                      <p>Select at least one Pokémon from each roster.</p>
+                    </div>
                   </div>
                 </v-card-title>
-                <v-card-text>
-                  <v-row>
+                <v-card-text class="trade-builder">
+                  <v-row class="trade-roster-grid">
                     <v-col cols="12" md="6">
-                      <v-card variant="tonal">
+                      <v-card class="trade-roster-card" variant="tonal">
                         <v-card-title class="trade-roster-title">
-                          <span>Your team</span>
-                          <v-chip size="small" variant="tonal">
+                          <div>
+                            <span>Your team</span>
+                            <small>Select what you are offering</small>
+                          </div>
+                          <v-chip color="primary" size="small" variant="tonal">
                             {{ offeringPokemonIds.length }} selected
                           </v-chip>
                         </v-card-title>
-                        <v-card-subtitle>Select what you’re offering</v-card-subtitle>
-                        <v-list bg-color="transparent">
+                        <v-list class="trade-pokemon-list" bg-color="transparent">
                           <v-list-item
                             v-for="entry in myTeam"
                             :key="`offer-${entry.pokemonId}`"
+                            class="trade-pokemon-row"
+                            :class="{ selected: offeringPokemonIds.includes(entry.pokemonId) }"
                             @click="
                               offeringPokemonIds.includes(entry.pokemonId)
                                 ? (offeringPokemonIds = offeringPokemonIds.filter(
@@ -624,9 +652,10 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                               <v-checkbox-btn
                                 v-model="offeringPokemonIds"
                                 :value="entry.pokemonId"
+                                color="primary"
                                 @click.stop
                               />
-                              <v-avatar size="44">
+                              <v-avatar class="trade-pokemon-avatar" size="48">
                                 <v-img
                                   v-if="entry.pokemon?.spriteUrl"
                                   :src="entry.pokemon.spriteUrl"
@@ -634,7 +663,9 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                                 />
                               </v-avatar>
                             </template>
-                            <v-list-item-title>{{ getPokemonName(entry.pokemonId) }}</v-list-item-title>
+                            <v-list-item-title class="trade-pokemon-name">
+                              {{ getPokemonName(entry.pokemonId) }}
+                            </v-list-item-title>
                             <template #append>
                               <v-chip size="small" color="primary" variant="tonal">
                                 {{ entry.points }} pts
@@ -646,18 +677,22 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                     </v-col>
 
                     <v-col cols="12" md="6">
-                      <v-card variant="tonal">
+                      <v-card class="trade-roster-card" variant="tonal">
                         <v-card-title class="trade-roster-title">
-                          <span>{{ getPlayerName(targetPlayerId) }}’s team</span>
-                          <v-chip size="small" variant="tonal">
+                          <div>
+                            <span>{{ getPlayerName(targetPlayerId) }}’s team</span>
+                            <small>Select what you are requesting</small>
+                          </div>
+                          <v-chip color="secondary" size="small" variant="tonal">
                             {{ requestingPokemonIds.length }} selected
                           </v-chip>
                         </v-card-title>
-                        <v-card-subtitle>Select what you’re requesting</v-card-subtitle>
-                        <v-list bg-color="transparent">
+                        <v-list class="trade-pokemon-list" bg-color="transparent">
                           <v-list-item
                             v-for="entry in targetTeam"
                             :key="`request-${entry.pokemonId}`"
+                            class="trade-pokemon-row request-row"
+                            :class="{ selected: requestingPokemonIds.includes(entry.pokemonId) }"
                             @click="
                               requestingPokemonIds.includes(entry.pokemonId)
                                 ? (requestingPokemonIds = requestingPokemonIds.filter(
@@ -670,9 +705,10 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                               <v-checkbox-btn
                                 v-model="requestingPokemonIds"
                                 :value="entry.pokemonId"
+                                color="secondary"
                                 @click.stop
                               />
-                              <v-avatar size="44">
+                              <v-avatar class="trade-pokemon-avatar" size="48">
                                 <v-img
                                   v-if="entry.pokemon?.spriteUrl"
                                   :src="entry.pokemon.spriteUrl"
@@ -680,9 +716,11 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                                 />
                               </v-avatar>
                             </template>
-                            <v-list-item-title>{{ getPokemonName(entry.pokemonId) }}</v-list-item-title>
+                            <v-list-item-title class="trade-pokemon-name">
+                              {{ getPokemonName(entry.pokemonId) }}
+                            </v-list-item-title>
                             <template #append>
-                              <v-chip size="small" color="primary" variant="tonal">
+                              <v-chip size="small" color="secondary" variant="tonal">
                                 {{ entry.points }} pts
                               </v-chip>
                             </template>
@@ -694,18 +732,27 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                 </v-card-text>
               </v-card>
 
-              <v-card v-if="targetPlayerId" variant="outlined">
-                <v-card-title class="section-header">
-                  <div>
-                    <div class="text-overline text-medium-emphasis">Step 4</div>
-                    <span>Preview and submit</span>
+              <v-card v-if="targetPlayerId" class="trade-section trade-preview-card" variant="outlined">
+                <v-card-title class="trade-section-title">
+                  <div class="trade-section-heading">
+                    <v-avatar color="success" variant="tonal" size="42">
+                      <v-icon icon="mdi-clipboard-check-outline" />
+                    </v-avatar>
+                    <div>
+                      <span class="trade-step">Step 4</span>
+                      <h2>Review proposal</h2>
+                      <p>Confirm both sides before sending the trade.</p>
+                    </div>
                   </div>
                 </v-card-title>
-                <v-card-text>
-                  <v-row>
+                <v-card-text class="trade-preview">
+                  <v-row class="trade-preview-grid">
                     <v-col cols="12" md="6">
-                      <v-card variant="tonal">
-                        <v-card-title class="text-subtitle-1">You offer</v-card-title>
+                      <v-card class="trade-preview-side offer" variant="tonal">
+                        <v-card-title class="text-subtitle-1">
+                          <v-icon icon="mdi-arrow-up-right" size="small" />
+                          You offer
+                        </v-card-title>
                         <v-list v-if="selectedOffer.length" bg-color="transparent" density="compact">
                           <v-list-item
                             v-for="entry in selectedOffer"
@@ -723,8 +770,11 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                       </v-card>
                     </v-col>
                     <v-col cols="12" md="6">
-                      <v-card variant="tonal">
-                        <v-card-title class="text-subtitle-1">You request</v-card-title>
+                      <v-card class="trade-preview-side request" variant="tonal">
+                        <v-card-title class="text-subtitle-1">
+                          <v-icon icon="mdi-arrow-down-left" size="small" />
+                          You request
+                        </v-card-title>
                         <v-list v-if="selectedRequest.length" bg-color="transparent" density="compact">
                           <v-list-item
                             v-for="entry in selectedRequest"
@@ -743,7 +793,10 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                     </v-col>
                   </v-row>
                 </v-card-text>
-                <v-card-actions class="justify-end">
+                <v-card-actions class="trade-submit-actions">
+                  <span>
+                    {{ selectedOffer.length }} offered · {{ selectedRequest.length }} requested
+                  </span>
                   <v-btn
                     color="primary"
                     variant="flat"
@@ -767,46 +820,24 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 
 <style scoped>
 .roster-view {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  height: 85dvh;
-  max-height: 85dvh;
+  gap: 10px;
+  height: calc(100dvh - 88px);
+  max-height: calc(100dvh - 88px);
   overflow: hidden;
-  padding: 8px;
+  padding: 0 clamp(1rem, 2vw, 2rem) clamp(1rem, 2vw, 2rem);
 }
 
-.hero-card,
 .toolbar-card,
 .panel-card,
 .state-card {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 6px;
-}
-
-.hero-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 8px;
-  flex-shrink: 0;
-}
-
-.hero-left {
-  display: flex;
-  align-items: baseline;
-  gap: 0.85rem;
-}
-
-.hero-left h1 {
-  font-size: 1.1rem;
-  font-weight: 800;
-  margin: 0;
 }
 
 .toolbar-card {
@@ -817,6 +848,10 @@ onUnmounted(() => unsubscribe(handleLeagueState))
   flex-wrap: wrap;
   padding: 6px 8px;
   flex-shrink: 0;
+}
+
+.management-header {
+  flex: 0 0 auto;
 }
 
 .page-body {
@@ -928,29 +963,6 @@ h3 {
   border-radius: 999px;
   font-size: 0.85rem;
   font-weight: 700;
-}
-
-.connection-badge {
-  padding: 0.35rem 0.7rem;
-}
-
-.connection-badge.live {
-  color: #34d399;
-  background: rgba(52, 211, 153, 0.12);
-}
-
-.connection-badge.offline {
-  color: var(--text-muted);
-  background: var(--input-bg);
-}
-
-.secondary-link {
-  color: var(--secondary);
-  font-weight: 700;
-}
-
-.warning-card {
-  border-color: rgba(245, 158, 11, 0.4);
 }
 
 .error-card {
@@ -1198,8 +1210,192 @@ h3 {
   flex-direction: column;
   gap: 8px;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding-right: 0.15rem;
+}
+
+.trade-layout > .v-card {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.trade-section {
+  background: rgba(20, 26, 43, 0.72) !important;
+  border-color: var(--border-color) !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+}
+
+.trade-target-content {
+  align-items: end;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(280px, 1fr) minmax(260px, 420px);
+  padding: 18px !important;
+}
+
+.trade-section-title {
+  padding: 18px 18px 8px;
+  white-space: normal;
+}
+
+.trade-section-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.trade-section-heading h2 {
+  font-size: 1.05rem;
+  line-height: 1.25;
+  margin: 1px 0 2px;
+}
+
+.trade-section-heading p,
+.trade-roster-title small {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.trade-step {
+  color: var(--primary);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.trade-manager-field {
+  margin: 0;
+}
+
+.trade-builder,
+.trade-preview {
+  padding: 8px 14px 14px !important;
+}
+
+.trade-roster-grid,
+.trade-preview-grid {
+  align-items: stretch;
+}
+
+.trade-roster-grid > .v-col,
+.trade-preview-grid > .v-col {
+  display: flex;
+}
+
+.trade-roster-card,
+.trade-preview-side {
+  background: rgba(8, 11, 20, 0.44) !important;
+  border: 1px solid var(--border-color);
+  border-radius: 13px !important;
+  width: 100%;
+}
+
+.trade-roster-title {
+  align-items: center;
+  padding: 14px 14px 8px;
+}
+
+.trade-roster-title > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.trade-pokemon-list {
+  display: grid;
+  gap: 7px;
+  padding: 6px 10px 10px;
+}
+
+.trade-pokemon-row {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid transparent;
+  border-radius: 11px !important;
+  min-height: 62px;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.trade-pokemon-row:hover {
+  background: rgba(255, 255, 255, 0.055);
+  transform: translateY(-1px);
+}
+
+.trade-pokemon-row.selected {
+  background: rgba(var(--primary-rgb), 0.11);
+  border-color: rgba(var(--primary-rgb), 0.55);
+}
+
+.trade-pokemon-row.request-row.selected {
+  background: rgba(255, 92, 122, 0.1);
+  border-color: rgba(255, 92, 122, 0.55);
+}
+
+.trade-pokemon-avatar {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.trade-pokemon-name {
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.trade-preview-side {
+  min-height: 120px;
+}
+
+.trade-preview-side.offer {
+  border-top: 2px solid var(--primary);
+}
+
+.trade-preview-side.request {
+  border-top: 2px solid var(--secondary);
+}
+
+.trade-preview-side .v-card-title {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.trade-submit-actions {
+  align-items: center;
+  background: rgba(8, 11, 20, 0.35);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px !important;
+}
+
+.trade-submit-actions > span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.roster-view.trade-mode {
+  height: auto;
+  max-height: none;
+  min-height: 85dvh;
+  overflow: visible;
+}
+
+.roster-view.trade-mode .page-body {
+  flex: none;
+  min-height: auto;
+  overflow: visible;
+}
+
+.roster-view.trade-mode .trade-layout {
+  flex: none;
+  min-height: auto;
+  overflow: visible;
 }
 
 .trade-roster-title {
@@ -1218,20 +1414,21 @@ h3 {
   .team-sidebar {
     max-height: 280px;
   }
+
+  .trade-target-content {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
   .roster-view {
-    border-left: 0;
-    border-right: 0;
-    border-radius: 0;
     height: auto;
     max-height: none;
     overflow: visible;
-    padding: 6px;
+    padding: 0 12px 12px;
   }
 
-  .hero-card,
   .toolbar-card,
   .panel-card,
   .state-card,
@@ -1239,6 +1436,24 @@ h3 {
     border-left: 0;
     border-right: 0;
     border-radius: 0;
+  }
+
+  .trade-section {
+    border-radius: 12px !important;
+  }
+
+  .trade-target-content,
+  .trade-section-title {
+    padding: 14px !important;
+  }
+
+  .trade-submit-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .trade-submit-actions .v-btn {
+    width: 100%;
   }
 
   .page-body {

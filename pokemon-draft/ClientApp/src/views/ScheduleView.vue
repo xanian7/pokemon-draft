@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
 import FormField from '@/components/FormField.vue'
+import DraftGateNotice from '@/components/DraftGateNotice.vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import PokeballLoader from '@/components/PokeballLoader.vue'
@@ -377,9 +378,10 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
           <!-- <PokeballLoader variant="page" label="Loading schedule..." /> -->
         </div>
         <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>
-        <v-alert v-else-if="!schedule || !schedule.weeks.length" type="info" variant="tonal">
-          The schedule will appear here once the draft is complete.
-        </v-alert>
+        <DraftGateNotice
+          v-else-if="!schedule || !schedule.weeks.length"
+          text="The schedule and standings will appear once the draft is complete."
+        />
 
         <div v-else>
           <v-card class="progression-card">

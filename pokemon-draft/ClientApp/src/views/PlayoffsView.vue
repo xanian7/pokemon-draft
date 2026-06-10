@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import PokeballLoader from '@/components/PokeballLoader.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import DraftGateNotice from '@/components/DraftGateNotice.vue'
 import { API_BASE } from '@/services/signalr'
 
 const router = useRouter()
@@ -103,10 +104,8 @@ const headers = [
       <!-- <PokeballLoader variant="page" label="Loading outlook…" /> -->
     </div>
     <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>
-    <v-empty-state
+    <DraftGateNotice
       v-else-if="!draftComplete"
-      icon="mdi-trophy-outline"
-      title="The race has not started"
       text="Playoff projections unlock once the draft is complete."
     />
     <v-empty-state

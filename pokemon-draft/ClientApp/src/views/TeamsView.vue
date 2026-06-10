@@ -6,6 +6,7 @@ import { usePokemonStore } from '@/stores/pokemon'
 import PokeballLoader from '@/components/PokeballLoader.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import DraftGateNotice from '@/components/DraftGateNotice.vue'
 import { API_BASE } from '@/services/signalr'
 
 const router = useRouter()
@@ -107,11 +108,10 @@ const leader = computed(() => teams.value[0] ?? null)
       <!-- <PokeballLoader variant="page" label="Loading teams…" /> -->
     </div>
     <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>
-    <v-empty-state
+    <DraftGateNotice
       v-else-if="!league?.draft?.picks?.length"
-      icon="mdi-pokeball"
-      title="No drafted teams yet"
-      text="Teams will appear here once the draft has started."
+      title="Waiting for the draft"
+      text="Team rosters will appear here once drafting begins."
     />
 
     <template v-else>

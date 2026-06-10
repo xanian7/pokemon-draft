@@ -8,6 +8,7 @@ import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import DraftGateNotice from '@/components/DraftGateNotice.vue'
 import type {
   DraftPick,
   LeaguePlayer,
@@ -340,7 +341,11 @@ onUnmounted(() => unsubscribe(handleLeagueState))
             >
               {{ isConnected ? 'Live' : 'Offline' }}
             </v-chip>
-            <v-btn color="primary" prepend-icon="mdi-account-edit" @click="router.push('/team/manage')">
+            <v-btn
+              color="primary"
+              prepend-icon="mdi-account-edit"
+              @click="router.push('/league?tab=manage')"
+            >
               Manage Roster
             </v-btn>
           </div>
@@ -348,17 +353,10 @@ onUnmounted(() => unsubscribe(handleLeagueState))
         </template>
       </PageHeader>
 
-      <v-alert
+      <DraftGateNotice
         v-if="!draftComplete"
-        type="warning"
-        variant="tonal"
-        title="Draft is still in progress"
         text="Roster moves unlock once the draft is complete."
-      >
-        <template #append>
-          <v-btn variant="tonal" @click="router.push('/draft')">Go to Draft Board</v-btn>
-        </template>
-      </v-alert>
+      />
 
       <v-row v-else align="start" class="team-content-row">
         <v-col cols="12" lg="8" class="main-team-column">

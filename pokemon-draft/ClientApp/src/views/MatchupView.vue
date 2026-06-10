@@ -6,6 +6,7 @@ import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import FormField from '@/components/FormField.vue'
+import DraftGateNotice from '@/components/DraftGateNotice.vue'
 import { apiGet } from '@/services/api'
 import { enqueueSnackbar } from '@/services/snackbar'
 import { useSignalR } from '@/services/signalr'
@@ -72,6 +73,8 @@ const activeMatchup = computed(
     myMatchups.value[0] ??
     null,
 )
+
+const draftComplete = computed(() => league.value?.draft.status.toLowerCase() === 'complete')
 
 const opponentId = computed(() => {
   const matchup = activeMatchup.value
@@ -280,6 +283,11 @@ function localTime(timeZone?: string) {
       <div v-if="isLoading" class="loading-panel">
         <!-- <PokeballLoader variant="page" label="Loading matchup..." /> -->
       </div>
+
+      <DraftGateNotice
+        v-else-if="!draftComplete"
+        text="Matchups and opponent scouting unlock once the draft is complete."
+      />
 
       <v-alert
         v-else-if="!activeMatchup"

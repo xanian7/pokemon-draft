@@ -9,12 +9,14 @@ import MatchupView from '@/views/MatchupView.vue'
 import MyTeamView from '@/views/MyTeamView.vue'
 import PlayoffsView from '@/views/PlayoffsView.vue'
 import PokemonView from '@/views/PokemonView.vue'
+import RosterView from '@/views/RosterView.vue'
 import ScheduleView from '@/views/ScheduleView.vue'
 import TeamsView from '@/views/TeamsView.vue'
 
 type LeagueTab =
   | 'home'
   | 'team'
+  | 'manage'
   | 'matchup'
   | 'teams'
   | 'schedule'
@@ -36,6 +38,7 @@ const tabs: Array<{
 }> = [
   { label: 'Home', value: 'home', icon: 'mdi-home', component: HomeView },
   { label: 'My Team', value: 'team', icon: 'mdi-account', component: MyTeamView },
+  { label: 'Manage Team', value: 'manage', icon: 'mdi-account-edit', component: RosterView },
   { label: 'Matchup', value: 'matchup', icon: 'mdi-sword-cross', component: MatchupView },
   { label: 'All Teams', value: 'teams', icon: 'mdi-account-group', component: TeamsView },
   { label: 'Schedule', value: 'schedule', icon: 'mdi-calendar', component: ScheduleView },
@@ -67,6 +70,7 @@ function tabFromRoute(): LeagueTab {
   if (isLeagueTab(tabQuery)) tab = tabQuery
   else if (route.path === '/') tab = 'home'
   else if (route.path === '/team') tab = 'team'
+  else if (route.path === '/team/manage') tab = 'manage'
   else if (route.path === '/matchup') tab = 'matchup'
   else if (route.path === '/teams') tab = 'teams'
   else if (route.path === '/schedule') tab = 'schedule'

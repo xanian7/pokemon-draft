@@ -81,7 +81,7 @@ const router = createRouter({
     {
       path: '/team/manage',
       name: 'team-manage',
-      component: () => import('../views/RosterView.vue'),
+      component: () => import('../views/LeagueView.vue'),
     },
     {
       path: '/login',
