@@ -136,16 +136,18 @@ const leader = computed(() => teams.value[0] ?? null)
         </v-col>
       </v-row>
 
-      <v-expansion-panels variant="accordion" class="team-list">
-        <v-expansion-panel
+      <div class="team-grid">
+        <v-card
           v-for="team in teams"
           :key="team.id"
+          class="team-card"
           :class="{ 'my-team': team.id === authStore.playerId }"
+          variant="outlined"
         >
-          <v-expansion-panel-title>
-            <div class="team-title">
+          <v-card-title class="team-card-header">
+            <div class="team-identity">
               <v-chip size="small" variant="tonal">#{{ team.rank || '—' }}</v-chip>
-              <v-avatar size="44" color="surface">
+              <v-avatar size="40" color="surface">
                 <v-img v-if="team.teamImageUrl" :src="team.teamImageUrl" :alt="team.teamName" />
                 <span v-else>{{ (team.teamName || team.name).slice(0, 2).toUpperCase() }}</span>
               </v-avatar>
@@ -154,14 +156,17 @@ const leader = computed(() => teams.value[0] ?? null)
                 <span>{{ team.teamName ? team.name : `${team.picks.length} Pokémon` }}</span>
               </div>
               <v-chip v-if="team.id === authStore.playerId" size="small" color="primary">You</v-chip>
-              <div class="team-metrics">
-                <div><strong>{{ team.wins }}–{{ team.losses }}</strong><span>Record</span></div>
-                <div><strong>{{ team.matchPoints }}</strong><span>Match pts</span></div>
-                <div><strong>{{ team.totalPoints }}</strong><span>Draft pts</span></div>
-              </div>
             </div>
-          </v-expansion-panel-title>
-          <v-expansion-panel-text>
+            <div class="team-metrics">
+              <div><strong>{{ team.wins }}–{{ team.losses }}</strong><span>Record</span></div>
+              <div><strong>{{ team.matchPoints }}</strong><span>Match pts</span></div>
+              <div><strong>{{ team.totalPoints }}</strong><span>Draft pts</span></div>
+            </div>
+          </v-card-title>
+
+          <v-divider />
+
+          <v-card-text class="team-roster">
             <v-empty-state
               v-if="team.picks.length === 0"
               icon="mdi-pokeball-outline"
@@ -184,9 +189,9 @@ const leader = computed(() => teams.value[0] ?? null)
                 </v-card-text>
               </v-card>
             </div>
-          </v-expansion-panel-text>
-        </v-expansion-panel>
-      </v-expansion-panels>
+          </v-card-text>
+        </v-card>
+      </div>
     </template>
 
     <PokemonDetailModal
@@ -244,21 +249,32 @@ const leader = computed(() => teams.value[0] ?? null)
 .summary-card strong {
   font-size: 1.15rem;
 }
-.team-list {
-  gap: 8px;
+.team-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
 }
-.team-list :deep(.v-expansion-panel) {
+.team-card {
   border: 1px solid var(--border-color);
-  border-radius: 16px !important;
+  border-radius: 16px;
   overflow: hidden;
 }
-.team-list :deep(.v-expansion-panel.my-team) {
+.team-card.my-team {
   border-color: rgba(var(--primary-rgb), 0.65);
+  box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.2);
 }
-.team-title {
+.team-card-header {
+  align-items: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 12px;
+  white-space: normal;
+}
+.team-identity {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
 }
 .team-info {
@@ -269,31 +285,38 @@ const leader = computed(() => teams.value[0] ?? null)
 }
 .picks-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 8px;
+}
+.team-roster {
+  padding: 12px;
 }
 .pick-tile {
   cursor: pointer;
 }
+.pick-tile :deep(.v-img) {
+  margin-top: 4px;
+}
 .pick-tile .v-card-text {
   display: flex;
   flex-direction: column;
-  padding: 8px;
+  padding: 4px 6px 8px;
   text-align: center;
 }
 .pick-tile strong {
   text-transform: capitalize;
-  font-size: 0.76rem;
+  font-size: 0.72rem;
 }
 .team-metrics {
   display: flex;
-  gap: clamp(14px, 3vw, 34px);
-  margin-left: auto;
+  justify-content: space-around;
+  gap: 12px;
+  padding: 0 4px;
 }
 .team-metrics div {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
 }
 @media (max-width: 700px) {
   .teams-page {
@@ -302,14 +325,11 @@ const leader = computed(() => teams.value[0] ?? null)
   .hero-content {
     align-items: flex-start;
   }
-  .team-metrics {
-    display: none;
-  }
-  .team-title {
+  .team-identity {
     gap: 8px;
   }
   .picks-grid {
-    grid-template-columns: repeat(auto-fill, minmax(94px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
   }
 }
 </style>
