@@ -118,8 +118,8 @@ async function enterAsAdmin() {
 
           <div v-if="error" class="error-msg">{{ error }}</div>
           <button type="submit" class="btn btn-primary btn-full btn-lg" :disabled="isLoading">
-            <PokeballLoader v-if="isLoading" variant="inline" :size="16" />
-            {{ isLoading ? 'Creating…' : 'Create League' }}
+            <!-- <PokeballLoader v-if="isLoading" variant="inline" :size="16" />
+            {{ isLoading ? 'Creating…' : 'Create League' }} -->
           </button>
         </form>
       </template>

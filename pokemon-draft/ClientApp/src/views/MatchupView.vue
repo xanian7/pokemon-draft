@@ -278,7 +278,7 @@ function localTime(timeZone?: string) {
       </PageHeader>
 
       <div v-if="isLoading" class="loading-panel">
-        <PokeballLoader variant="page" label="Loading matchup..." />
+        <!-- <PokeballLoader variant="page" label="Loading matchup..." /> -->
       </div>
 
       <v-alert

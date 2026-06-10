@@ -161,10 +161,9 @@ const isInLeague = computed(() => authStore.isAuthenticated)
 
           <!-- Join League -->
           <v-tabs-window-item value="join">
-            <FormField label="League Code" :hint="joinLeagueName">
+            <FormField label="League Code" :hint="joinLeagueName" class="top-btn">
               <v-text-field
                 v-model="joinCode"
-                class="top-btn"
                 placeholder="ABC123"
                 hide-details
                 maxlength="6"
@@ -189,8 +188,8 @@ const isInLeague = computed(() => authStore.isAuthenticated)
           <!-- Create League -->
           <v-tabs-window-item value="create">
             <template v-if="!createdLeague">
-              <FormField label="Your Name">
-                <v-text-field v-model="createCommissionerName" class="top-btn" placeholder="Commissioner name" hide-details />
+              <FormField label="Your Name" class="top-btn">
+                <v-text-field v-model="createCommissionerName" placeholder="Commissioner name" hide-details />
               </FormField>
               <FormField label="League Name">
                 <v-text-field v-model="createLeagueName" placeholder="My Draft League" hide-details />

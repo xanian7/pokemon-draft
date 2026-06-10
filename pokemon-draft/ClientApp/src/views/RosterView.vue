@@ -317,7 +317,7 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 <template>
   <main class="roster-view page">
     <section v-if="isLoading" class="state-card loading-card">
-      <PokeballLoader variant="page" label="Loading roster tools…" />
+      <!-- <PokeballLoader variant="page" label="Loading roster tools…" /> -->
     </section>
 
     <template v-else-if="league">

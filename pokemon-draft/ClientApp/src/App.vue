@@ -81,7 +81,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
         :model-value="isApiLoading"
         class="api-loading-overlay"
         persistent
-        scrim="rgba(0, 0, 0, 0.45)"
+        scrim="rgba(0, 0, 0, 0.1)"
       >
         <PokeballLoader variant="page" label="Loading…" />
       </v-overlay>

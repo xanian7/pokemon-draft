@@ -243,7 +243,7 @@ async function saveToServer() {
 
     <!-- Grid -->
     <div v-if="pokemonStore.isLoading" class="loading">
-      <PokeballLoader variant="page" label="Loading Pokémon data…" />
+      <!-- <PokeballLoader variant="page" label="Loading Pokémon data…" /> -->
     </div>
     <div v-else-if="pokemonStore.error" class="loading">
       {{ pokemonStore.error }}

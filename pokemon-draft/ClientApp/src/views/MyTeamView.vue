@@ -269,7 +269,7 @@ onUnmounted(() => unsubscribe(handleLeagueState))
     <v-card class="team-wrapper">
     <v-card v-if="isLoading" class="state-card" variant="outlined">
       <v-card-text class="d-flex justify-center pa-10">
-        <PokeballLoader variant="page" label="Loading your team…" />
+        <!-- <PokeballLoader variant="page" label="Loading your team…" /> -->
       </v-card-text>
     </v-card>
 

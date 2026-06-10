@@ -104,7 +104,7 @@ const leader = computed(() => teams.value[0] ?? null)
     </PageHeader>
 
     <div v-if="isLoading" class="state-panel">
-      <PokeballLoader variant="page" label="Loading teams…" />
+      <!-- <PokeballLoader variant="page" label="Loading teams…" /> -->
     </div>
     <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>
     <v-empty-state

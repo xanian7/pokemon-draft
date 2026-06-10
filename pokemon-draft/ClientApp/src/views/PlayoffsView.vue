@@ -100,7 +100,7 @@ const headers = [
     </PageHeader>
 
     <div v-if="isLoading" class="state-panel">
-      <PokeballLoader variant="page" label="Loading outlook…" />
+      <!-- <PokeballLoader variant="page" label="Loading outlook…" /> -->
     </div>
     <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>
     <v-empty-state

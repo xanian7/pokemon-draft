@@ -50,13 +50,13 @@ async function enterLeague(code: string) {
 <template>
   <v-container fluid class="page">
     <div v-if="isLoading" class="loader-wrap">
-      <PokeballLoader />
+      <!-- <PokeballLoader /> -->
     </div>
 
     <template v-else>
       <v-row>
         <v-col cols="2"></v-col>
-        <v-col cols="12" md="2" class="d-flex justify-end">
+        <v-col cols="12" md="2" class="d-flex">
           <LoginForm />
         </v-col>
         <v-col cols="12" md="6" class="d-flex justify-start">

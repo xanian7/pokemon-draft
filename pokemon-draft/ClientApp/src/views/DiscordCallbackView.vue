@@ -62,10 +62,10 @@ onMounted(async () => {
       <p class="error-msg">{{ errorMsg }}</p>
       <RouterLink to="/login" class="btn btn-primary">Back to Login</RouterLink>
     </div>
-    <div v-else class="loading-wrap">
+    <!-- <div v-else class="loading-wrap">
       <PokeballLoader />
       <p>Signing you in…</p>
-    </div>
+    </div> -->
   </div>
 </template>
 

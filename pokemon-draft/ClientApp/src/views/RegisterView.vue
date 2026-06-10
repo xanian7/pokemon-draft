@@ -175,8 +175,8 @@ async function register() {
           <div v-if="error" class="error-msg">{{ error }}</div>
 
           <button type="submit" class="btn btn-primary btn-full btn-lg" :disabled="isLoading">
-            <PokeballLoader v-if="isLoading" variant="inline" :size="16" />
-            {{ isLoading ? 'Joining…' : 'Join League' }}
+            <!-- <PokeballLoader v-if="isLoading" variant="inline" :size="16" />
+            {{ isLoading ? 'Joining…' : 'Join League' }} -->
           </button>
         </form>
 
