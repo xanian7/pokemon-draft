@@ -95,6 +95,41 @@ const standingsRows = computed(() =>
   })),
 )
 
+const pointsProgression = computed(() => {
+  if (!schedule.value) return []
+
+  const latestReportedWeek = schedule.value.weeks.reduce(
+    (latest, week) =>
+      week.matchups.some((matchup) => matchup.player1MatchPoints !== null)
+        ? Math.max(latest, week.week)
+        : latest,
+    0,
+  )
+  const reportedWeeks = schedule.value.weeks.filter((week) => week.week <= latestReportedWeek)
+
+  return schedule.value.standings.map((standing) => {
+    let total = 0
+    const values = [0]
+
+    for (const week of reportedWeeks) {
+      for (const matchup of week.matchups) {
+        if (matchup.player1Id === standing.playerId) {
+          total += matchup.player1MatchPoints ?? 0
+        } else if (matchup.player2Id === standing.playerId) {
+          total += matchup.player2MatchPoints ?? 0
+        }
+      }
+      values.push(total)
+    }
+
+    return {
+      playerId: standing.playerId,
+      label: teamLabel(standing.playerName, standing.teamName),
+      values,
+    }
+  })
+})
+
 function isMyMatchup(matchup: MatchupResponse) {
   return matchup.player1Id === authStore.playerId || matchup.player2Id === authStore.playerId
 }
@@ -445,6 +480,46 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
                 </template>
               </v-data-table>
             </v-card>
+
+            <v-card class="progression-card">
+              <v-card-title class="text-h6">Points Progression</v-card-title>
+              <v-card-subtitle>Cumulative match points by week</v-card-subtitle>
+              <v-card-text class="progression-list">
+                <div
+                  v-for="player in pointsProgression"
+                  :key="player.playerId"
+                  class="progression-row"
+                  :class="{ mine: player.playerId === authStore.playerId }"
+                >
+                  <div class="progression-heading">
+                    <span class="progression-name">{{ player.label }}</span>
+                    <strong>{{ player.values.at(-1) ?? 0 }} pts</strong>
+                  </div>
+                  <v-sparkline
+                    :model-value="player.values"
+                    :color="player.playerId === authStore.playerId ? 'primary' : 'info'"
+                    :gradient="
+                      player.playerId === authStore.playerId
+                        ? ['#7c6cff', '#b4aaff']
+                        : ['#2ab6ff', '#35d39a']
+                    "
+                    auto-draw
+                    fill
+                    height="54"
+                    label-size="7"
+                    line-width="2"
+                    padding="8"
+                    show-labels
+                    smooth="8"
+                    width="320"
+                  >
+                    <template #label="{ index, value }">
+                      W{{ index }}: {{ value }}
+                    </template>
+                  </v-sparkline>
+                </div>
+              </v-card-text>
+            </v-card>
           </v-col>
         </v-row>
       </div>
@@ -609,6 +684,45 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
 
 .standings-card {
   border: 1px solid var(--border-color);
+}
+
+.progression-card {
+  border: 1px solid var(--border-color);
+  margin-top: 16px;
+}
+
+.progression-list {
+  display: grid;
+  gap: 18px;
+}
+
+.progression-row {
+  border-top: 1px solid var(--border-color);
+  padding-top: 14px;
+}
+
+.progression-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.progression-row.mine .progression-name {
+  color: var(--primary);
+}
+
+.progression-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.progression-name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .standing-team {
