@@ -23,6 +23,7 @@ import {
   mdiCalendarCheck,
   mdiAccountMultiple,
   mdiChartLine,
+  mdiSwordCross,
   mdiArrowRight,
 } from '@mdi/js'
 
@@ -452,9 +453,9 @@ const outlookStatusLabel = (status: string) => {
             <AppIcon :path="mdiChartLine" :size="22" />
             Playoffs
           </v-btn>
-          <v-btn class="qnav-btn" variant="tonal" stacked @click="router.push('/league?tab=pokemon')">
-            <AppIcon :path="mdiPokeball" :size="22" />
-            Pokémon
+          <v-btn class="qnav-btn" variant="tonal" stacked @click="router.push('/league?tab=matchup')">
+            <AppIcon :path="mdiSwordCross" :size="22" />
+            Matchup
           </v-btn>
         </div>
       </div>
@@ -981,10 +982,6 @@ h1 {
     width: 100%;
   }
 
-  .quicknav-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .hub-row {
     grid-template-columns: 1fr;
   }
@@ -1179,8 +1176,9 @@ h1 {
 /* Quick nav */
 .quicknav-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(90px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 0.6rem;
+  min-width: 0;
 }
 
 .qnav-btn {
@@ -1191,7 +1189,10 @@ h1 {
   background: var(--input-bg);
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  padding: 0.85rem 1.1rem;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.85rem 0.5rem;
+  width: 100%;
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--text);
@@ -1199,7 +1200,12 @@ h1 {
   transition:
     border-color 0.15s,
     background 0.15s;
-  min-width: 78px;
+}
+
+.qnav-btn :deep(.v-btn__content) {
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
 }
 
 .qnav-btn:hover {
