@@ -24,9 +24,8 @@ import ProfilePopup from '@/components/ProfilePopup.vue'
 
 <style scoped>
 .top-bar {
-  background: rgba(8, 11, 20, 0.72) !important;
+  background: rgba(8, 11, 20, 0.96) !important;
   border-bottom: 1px solid var(--border-color) !important;
-  backdrop-filter: blur(20px) saturate(140%);
 }
 
 .top-bar__inner {

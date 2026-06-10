@@ -123,7 +123,6 @@ const emit = defineEmits<{
   width: 78px;
   height: 78px;
   object-fit: contain;
-  filter: drop-shadow(0 10px 10px rgba(0, 0, 0, 0.24));
   transition: transform 0.2s ease;
 }
 

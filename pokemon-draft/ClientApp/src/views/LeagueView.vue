@@ -48,6 +48,9 @@ const tabs: Array<{
 if (!authStore.isAuthenticated) router.replace('/join')
 
 const visibleTabs = computed(() => tabs.filter((tab) => !tab.adminOnly || authStore.isAdmin))
+const activeTabComponent = computed(
+  () => visibleTabs.value.find((tab) => tab.value === activeTab.value)?.component,
+)
 
 function isLeagueTab(value: unknown): value is LeagueTab {
   return tabs.some((tab) => tab.value === value)
@@ -110,13 +113,8 @@ watch(activeTab, (tab) => {
       </v-tab>
     </v-tabs>
 
-    <section
-      v-for="tab in visibleTabs"
-      :key="tab.value"
-      class="league-tab-panel"
-      v-show="activeTab === tab.value"
-    >
-      <component :is="tab.component" />
+    <section class="league-tab-panel">
+      <component :is="activeTabComponent" :key="activeTab" />
     </section>
   </v-container>
 </template>
@@ -142,7 +140,6 @@ watch(activeTab, (tab) => {
   border-radius: 16px;
   background: rgba(15, 20, 35, 0.78);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(18px);
   z-index: 20;
 }
 

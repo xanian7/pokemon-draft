@@ -67,7 +67,6 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   box-shadow: var(--surface-shadow);
-  backdrop-filter: blur(18px);
 }
 
 /* ── Eyebrow / section label ────────────────────────────────────────────────── */
@@ -131,6 +130,17 @@
   border: 1px solid var(--border-color) !important;
   border-radius: var(--radius-md) !important;
   box-shadow: var(--surface-shadow) !important;
+}
+
+/* Page-level shells should let the app background remain visible. */
+.v-card.wrapper-card,
+.v-card.team-wrapper,
+.v-card.page-card,
+.v-card.settings-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 
 .v-field {
@@ -283,7 +293,6 @@
   text-align: center;
   position: relative;
   box-shadow: var(--surface-shadow);
-  backdrop-filter: blur(18px);
 }
 
 /* ── Pokémon grid (global, used by PokemonView + PokemonGrid component) ── */
