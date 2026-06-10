@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { enqueueSnackbar } from '@/services/snackbar'
+import PageHeader from '@/components/PageHeader.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -139,15 +140,12 @@ async function save() {
 <template>
   <v-container fluid class="settings-page">
     <v-card class="settings-card">
-      <v-card-title>
-        <div>
-          <div class="text-overline text-medium-emphasis">Account</div>
-          <div class="text-h5 font-weight-bold">Team Settings</div>
-        </div>
-      </v-card-title>
-      <v-card-subtitle>
-        Manage how your team appears and when other players can schedule matches with you.
-      </v-card-subtitle>
+      <PageHeader
+        class="settings-header"
+        eyebrow="Account"
+        title="Team Settings"
+        subtitle="Manage how your team appears and when other players can schedule matches with you."
+      />
 
       <v-card-text>
         <v-card class="avatar-card mb-2" variant="outlined">
@@ -281,49 +279,56 @@ async function save() {
 
 <style scoped>
 .settings-page {
-  display: flex;
-  justify-content: center;
-  padding: 16px;
+  padding: clamp(1rem, 2vw, 2rem);
 }
 
 .settings-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  height: 85dvh;
-  max-height: 85dvh;
-  overflow: auto;
-  padding: 8px;
-  width: min(100%, 900px);
+  display: grid;
+  grid-template-columns: minmax(260px, 0.7fr) minmax(0, 1.3fr);
+  gap: 16px;
+  width: 100%;
+  padding: 0;
 }
 
-.settings-card,
 .settings-card :deep(.v-card) {
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 
-.settings-card > :deep(.v-card-title),
-.settings-card > :deep(.v-card-subtitle),
+.settings-header {
+  grid-column: 1 / -1;
+}
+
 .settings-card > :deep(.v-card-text) {
-  padding: 8px;
+  display: contents;
 }
 
 .avatar-card {
-  background: var(--bg);
+  grid-column: 1;
+  grid-row: 3;
+  align-self: start;
+  background: linear-gradient(145deg, rgba(var(--primary-rgb), 0.12), transparent) !important;
 }
 
 .avatar-content {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 24px !important;
 }
 
 .settings-form {
+  grid-column: 2;
+  grid-row: 3;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   width: 100%;
+  padding: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--card-bg-solid);
 }
 
 .timezone-row {
@@ -334,7 +339,7 @@ async function save() {
 }
 
 .availability-card {
-  background: var(--bg);
+  background: transparent;
 }
 
 .availability-row {
@@ -383,24 +388,12 @@ async function save() {
 
 @media (max-width: 720px) {
   .settings-page {
-    display: block;
-    padding: 0;
+    padding: 12px;
   }
 
   .settings-card {
-    border-left: 0;
-    border-right: 0;
-    border-radius: 0;
-    height: auto;
-    max-height: none;
-    overflow: visible;
-    padding: 6px;
-  }
-
-  .settings-card :deep(.v-card) {
-    border-left: 0;
-    border-right: 0;
-    border-radius: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .timezone-row {

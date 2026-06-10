@@ -16,6 +16,28 @@ import { installApiLoadingTracker } from './services/apiLoading'
 const vuetify = createVuetify({
   components,
   directives,
+  defaults: {
+    VTextField: {
+      variant: 'outlined',
+      density: 'compact',
+    },
+    VSelect: {
+      variant: 'outlined',
+      density: 'compact',
+    },
+    VAutocomplete: {
+      variant: 'outlined',
+      density: 'compact',
+    },
+    VNumberInput: {
+      variant: 'outlined',
+      density: 'compact',
+    },
+    VTextarea: {
+      variant: 'outlined',
+      density: 'compact',
+    },
+  },
   theme: {
     defaultTheme: 'pokeDraftDark',
     themes: {

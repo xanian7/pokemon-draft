@@ -124,9 +124,7 @@ watch(activeTab, (tab) => {
   display: flex;
   flex-direction: column;
   gap: 0;
-  height: calc(100dvh - var(--v-layout-top, 64px) - 64px);
-  min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   padding: 0;
 }
 
@@ -172,9 +170,8 @@ watch(activeTab, (tab) => {
 
 .league-tab-panel {
   flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  padding-top:0px;
+  overflow: visible;
+  padding-top: 0;
 }
 
 .league-tab-panel :deep(> .v-container) {
@@ -182,10 +179,6 @@ watch(activeTab, (tab) => {
 }
 
 @media (max-width: 720px) {
-  .league-view {
-    height: calc(100dvh - var(--v-layout-top, 64px) - 64px);
-  }
-
   .league-tabs {
     margin: 8px 8px 6px;
     width: calc(100% - 16px);
@@ -210,8 +203,5 @@ watch(activeTab, (tab) => {
     margin-inline-end: 2px !important;
   }
 
-  .league-tab-panel {
-    -webkit-overflow-scrolling: touch;
-  }
 }
 </style>

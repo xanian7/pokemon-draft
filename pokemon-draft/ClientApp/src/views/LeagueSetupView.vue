@@ -1,23 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import AppIcon from '@/components/AppIcon.vue'
 import { REGULATIONS } from '@/data/regulations'
 import { useSignalR, API_BASE } from '@/services/signalr'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
 import { useDraftStore } from '@/stores/draft'
 import { enqueueSnackbar } from '@/services/snackbar'
-import {
-  mdiCog,
-  mdiCheck,
-  mdiTrophy,
-  mdiClipboardList,
-  mdiAlert,
-  mdiArrowUp,
-  mdiArrowDown,
-  mdiShieldAccount,
-} from '@mdi/js'
+import PageHeader from '@/components/PageHeader.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -237,500 +227,318 @@ const snakePreview = computed(() => {
 </script>
 
 <template>
-  <main class="league-setup">
-    <div class="page-header">
-      <h1><AppIcon :path="mdiCog" :size="24" /> League Setup</h1>
-      <div class="connection-badge" :class="isConnected ? 'live' : 'offline'">
-        {{ isConnected ? '● Live' : '○ Disconnected' }}
-      </div>
-    </div>
+  <v-container fluid class="league-setup">
+    <PageHeader
+      class="setup-hero"
+      eyebrow="Commissioner workspace"
+      title="League Setup"
+      subtitle="Configure the season, organize players, and launch the draft."
+    >
+      <template #actions>
+        <v-chip :color="isConnected ? 'success' : undefined" variant="tonal">
+          <v-icon start :icon="isConnected ? 'mdi-access-point' : 'mdi-access-point-off'" />
+          {{ isConnected ? 'Live' : 'Disconnected' }}
+        </v-chip>
+      </template>
+    </PageHeader>
 
-    <div class="invite-banner">
-      <div class="invite-top">
-        <span class="label">Invite Players</span>
-        <span class="code-pill">{{ leagueCode }}</span>
-      </div>
-      <div class="invite-link-row">
-        <input
-          class="invite-url"
-          :value="inviteLink"
-          readonly
-          @focus="($event.target as HTMLInputElement).select()"
-        />
-        <button class="btn-copy" @click="copyInviteLink">
-          <template v-if="linkCopied"><AppIcon :path="mdiCheck" :size="16" /> Copied!</template>
-          <template v-else>Copy Link</template>
-        </button>
-      </div>
-      <p class="hint">Share this link — players click it to choose their name and PIN.</p>
-    </div>
+    <v-row align="start">
+      <v-col cols="12" lg="5">
+        <v-card variant="outlined" class="workspace-card">
+          <v-card-title>
+            <v-icon icon="mdi-link-variant" start /> Invite players
+            <v-chip class="ml-auto" color="primary" variant="tonal">{{ leagueCode }}</v-chip>
+          </v-card-title>
+          <v-card-text>
+            <v-text-field
+              :model-value="inviteLink"
+              label="Registration link"
+              readonly
+              hide-details
+              append-inner-icon="mdi-content-copy"
+              @click:append-inner="copyInviteLink"
+            />
+            <div class="field-help">
+              {{ linkCopied ? 'Copied to clipboard.' : 'Anyone with this link can register for the league.' }}
+            </div>
+          </v-card-text>
+        </v-card>
 
-    <section class="card">
-      <h2>League Info</h2>
-      <div class="form-row">
-        <label>League Name</label>
-        <input v-model="leagueName" type="text" @change="saveConfig" />
-      </div>
-      <div class="form-row">
-        <label>Team Point Limit</label>
-        <input v-model.number="pointLimit" type="number" min="1" @change="saveConfig" />
-        <span class="hint">Max total points a player can spend.</span>
-      </div>
-      <div class="form-row">
-        <label>Draft Rounds</label>
-        <input v-model.number="rounds" type="number" min="1" max="20" @change="saveConfig" />
-        <span class="hint">Pokémon drafted per player.</span>
-      </div>
-      <div class="form-row">
-        <label>Playoff Spots</label>
-        <input v-model.number="playoffSpots" type="number" min="2" max="16" @change="saveConfig" />
-        <span class="hint">Teams that advance to playoffs.</span>
-      </div>
-      <div class="form-row">
-        <label>Regulation Set</label>
-        <select v-model="regulationSet" @change="saveConfig">
-          <option v-for="reg in REGULATIONS" :key="reg.id" :value="reg.id">{{ reg.label }}</option>
-        </select>
-        <span class="hint">Filters which Pokémon are available to draft.</span>
-      </div>
-    </section>
+        <v-card variant="outlined" class="workspace-card">
+          <v-card-title><v-icon icon="mdi-tune-variant" start /> League rules</v-card-title>
+          <v-card-text class="config-grid">
+            <v-text-field v-model="leagueName" label="League name" @change="saveConfig" />
+            <v-select
+              v-model="regulationSet"
+              :items="REGULATIONS"
+              item-title="label"
+              item-value="id"
+              label="Regulation set"
+              @update:model-value="saveConfig"
+            />
+            <v-number-input
+              v-model="pointLimit"
+              label="Team point limit"
+              :min="1"
+              control-variant="stacked"
+              @change="saveConfig"
+            />
+            <v-number-input
+              v-model="rounds"
+              label="Draft rounds"
+              :min="1"
+              :max="20"
+              control-variant="stacked"
+              @change="saveConfig"
+            />
+            <v-number-input
+              v-model="playoffSpots"
+              label="Playoff spots"
+              :min="2"
+              :max="16"
+              control-variant="stacked"
+              @change="saveConfig"
+            />
+          </v-card-text>
+        </v-card>
 
-    <section class="card">
-      <h2>Players</h2>
-      <p class="hint">
-        Add players and assign each a unique PIN. They'll use it to log in at
-        <strong>/join</strong>.
-      </p>
-      <p v-if="authStore.isCommissioner" class="hint">
-        Co-commissioners can edit league settings, manage point values, control the draft, and
-        edit reported matchup results.
-      </p>
+        <v-card v-if="players.length >= 2" variant="outlined" class="workspace-card">
+          <v-card-title><v-icon icon="mdi-swap-vertical-bold" start /> Snake preview</v-card-title>
+          <v-card-text class="pick-schedule">
+            <v-chip
+              v-for="entry in snakePreview"
+              :key="entry.pickNumber"
+              size="small"
+              variant="tonal"
+              :color="entry.round % 2 === 0 ? 'primary' : undefined"
+            >
+              {{ entry.pickNumber + 1 }} · {{ entry.player?.name }}
+            </v-chip>
+          </v-card-text>
+        </v-card>
+      </v-col>
 
-      <div class="add-player">
-        <input
-          v-model="newPlayerName"
-          type="text"
-          placeholder="Player name"
-          @keydown.enter="addPlayer"
-        />
-        <input
-          v-model="newPlayerPin"
-          type="text"
-          placeholder="PIN"
-          style="width: 90px"
-          @keydown.enter="addPlayer"
-        />
-        <button class="btn btn-primary" @click="addPlayer">Add</button>
-      </div>
+      <v-col cols="12" lg="7">
+        <v-card variant="outlined" class="workspace-card">
+          <v-card-title class="players-title">
+            <span><v-icon icon="mdi-account-group-outline" start /> Draft order</span>
+            <v-chip size="small" variant="tonal">{{ players.length }} players</v-chip>
+          </v-card-title>
+          <v-card-text>
+            <div class="add-player">
+              <v-text-field
+                v-model="newPlayerName"
+                label="Player name"
+                hide-details
+                @keydown.enter="addPlayer"
+              />
+              <v-text-field
+                v-model="newPlayerPin"
+                label="PIN"
+                hide-details
+                @keydown.enter="addPlayer"
+              />
+              <v-btn color="primary" prepend-icon="mdi-account-plus" @click="addPlayer">Add</v-btn>
+            </div>
+            <v-alert v-if="addError" type="error" variant="tonal" density="compact" class="mt-3">
+              {{ addError }}
+            </v-alert>
+          </v-card-text>
 
-      <div v-if="addError" class="error-msg">{{ addError }}</div>
-      <ul class="player-list">
-        <li v-if="players.length === 0" class="empty">No players yet.</li>
-        <li v-for="(player, index) in players" :key="player.id" class="player-item">
-          <span class="player-order">{{ index + 1 }}</span>
-          <span class="player-name">{{ player.name }}</span>
-          <span v-if="player.isCommissioner" class="role-badge commissioner">
-            Commissioner
-          </span>
-          <span v-else-if="player.isCoCommissioner" class="role-badge">
-            Co-Commissioner
-          </span>
-          <button class="btn-icon" @click="movePlayer(index, index - 1)" :disabled="index === 0">
-            <AppIcon :path="mdiArrowUp" :size="18" />
-          </button>
-          <button
-            class="btn-icon"
-            @click="movePlayer(index, index + 1)"
-            :disabled="index === players.length - 1"
-          >
-            <AppIcon :path="mdiArrowDown" :size="18" />
-          </button>
-          <button
-            v-if="authStore.isCommissioner && !player.isCommissioner"
-            class="btn btn-role"
-            :disabled="roleSavingPlayerId === player.id"
-            @click="toggleCoCommissioner(player)"
-          >
-            <AppIcon :path="mdiShieldAccount" :size="18" />
-            {{ player.isCoCommissioner ? 'Remove Co-Commissioner' : 'Make Co-Commissioner' }}
-          </button>
-          <button
-            v-if="!player.isCommissioner"
-            class="btn btn-danger"
-            @click="removePlayer(player.id)"
-          >
-            Remove
-          </button>
-        </li>
-      </ul>
-    </section>
+          <v-list lines="two" class="player-list">
+            <v-list-item v-if="players.length === 0" title="No players yet" subtitle="Add at least two players to begin." />
+            <v-list-item v-for="(player, index) in players" :key="player.id">
+              <template #prepend>
+                <v-avatar color="primary" variant="tonal" size="36">{{ index + 1 }}</v-avatar>
+              </template>
+              <v-list-item-title>{{ player.name }}</v-list-item-title>
+              <v-list-item-subtitle>
+                {{ player.isCommissioner ? 'Commissioner' : player.isCoCommissioner ? 'Co-commissioner' : 'Player' }}
+              </v-list-item-subtitle>
+              <template #append>
+                <div class="player-actions">
+                  <v-btn
+                    icon="mdi-arrow-up"
+                    size="small"
+                    variant="text"
+                    :disabled="index === 0"
+                    @click="movePlayer(index, index - 1)"
+                  />
+                  <v-btn
+                    icon="mdi-arrow-down"
+                    size="small"
+                    variant="text"
+                    :disabled="index === players.length - 1"
+                    @click="movePlayer(index, index + 1)"
+                  />
+                  <v-menu v-if="!player.isCommissioner">
+                    <template #activator="{ props }">
+                      <v-btn v-bind="props" icon="mdi-dots-vertical" size="small" variant="text" />
+                    </template>
+                    <v-list>
+                      <v-list-item
+                        v-if="authStore.isCommissioner"
+                        prepend-icon="mdi-shield-account-outline"
+                        :title="player.isCoCommissioner ? 'Remove co-commissioner' : 'Make co-commissioner'"
+                        :disabled="roleSavingPlayerId === player.id"
+                        @click="toggleCoCommissioner(player)"
+                      />
+                      <v-list-item
+                        prepend-icon="mdi-account-remove-outline"
+                        title="Remove player"
+                        base-color="error"
+                        @click="removePlayer(player.id)"
+                      />
+                    </v-list>
+                  </v-menu>
+                </div>
+              </template>
+            </v-list-item>
+          </v-list>
+        </v-card>
 
-    <section class="card" v-if="players.length >= 2">
-      <h2>Snake Draft Preview</h2>
-      <div class="pick-schedule">
-        <div v-for="entry in snakePreview" :key="entry.pickNumber" class="pick-slot">
-          <span class="pick-number">Pick {{ entry.pickNumber + 1 }}</span>
-          <span class="pick-player">{{ entry.player?.name }}</span>
-          <span class="pick-round">R{{ entry.round + 1 }}</span>
-        </div>
-      </div>
-    </section>
+        <v-card variant="outlined" class="workspace-card control-card">
+          <v-card-title><v-icon icon="mdi-pokeball" start /> Draft controls</v-card-title>
+          <v-card-text>
+            <p>Point values and player order should be finalized before starting the draft.</p>
+          </v-card-text>
+          <v-card-actions>
+            <v-btn
+              color="primary"
+              variant="flat"
+              prepend-icon="mdi-play"
+              :disabled="players.length < 2"
+              @click="startDraft"
+            >
+              Start draft
+            </v-btn>
+            <v-btn
+              variant="tonal"
+              prepend-icon="mdi-format-list-numbered"
+              @click="router.push('/league?tab=pokemon')"
+            >
+              Point values
+            </v-btn>
+            <v-spacer />
+            <v-btn color="error" variant="text" prepend-icon="mdi-delete-alert-outline" @click="showResetWarning = true">
+              Reset draft
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-col>
+    </v-row>
 
-    <section class="card">
-      <h2>Draft Controls</h2>
-      <div class="btn-row">
-        <button class="btn btn-primary" :disabled="players.length < 2" @click="startDraft">
-          <AppIcon :path="mdiTrophy" :size="18" />
-          Start Draft
-        </button>
-        <button class="btn-secondary" @click="router.push('/league?tab=pokemon')">
-          <AppIcon :path="mdiClipboardList" :size="18" />
-          Manage Point Values
-        </button>
-        <button class="btn btn-danger" @click="showResetWarning = true">Reset Draft</button>
-      </div>
-      <p v-if="players.length < 2" class="hint" style="margin-top: 0.5rem">
-        Need at least 2 players to start.
-      </p>
-      <div v-if="showResetWarning" class="confirm-reset">
-        <p>
-          <AppIcon :path="mdiAlert" :size="18" /> This will erase all draft picks. Are you sure?
-        </p>
-        <button class="btn btn-danger" @click="resetDraft">Yes, Reset</button>
-        <button @click="showResetWarning = false">Cancel</button>
-      </div>
-    </section>
-  </main>
+    <v-dialog v-model="showResetWarning" max-width="460">
+      <v-card>
+        <v-card-title>Reset the draft?</v-card-title>
+        <v-card-text>This permanently removes every draft pick. This action cannot be undone.</v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="showResetWarning = false">Cancel</v-btn>
+          <v-btn color="error" variant="flat" @click="resetDraft">Reset draft</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </v-container>
 </template>
 
 <style scoped>
 .league-setup {
-  max-width: 700px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+  padding: clamp(1rem, 2vw, 2rem);
 }
-
-.page-header {
+.setup-hero {
+  margin-bottom: 16px;
+}
+.hero-content {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  justify-content: space-between;
+  gap: 16px;
 }
-
-h1 {
-  font-size: 1.6rem;
+.hero-content h1 {
+  margin-top: 3px;
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
   font-weight: 800;
-  margin: 0;
+}
+.hero-content p,
+.field-help,
+.control-card p {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+.workspace-card {
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.workspace-card .v-card-title,
+.players-title {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-}
-
-.connection-badge {
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 0.2rem 0.6rem;
-  border-radius: 20px;
-}
-
-.connection-badge.live {
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.12);
-}
-.connection-badge.offline {
-  color: var(--text-muted);
-  background: var(--input-bg);
-}
-
-.invite-banner {
-  background: var(--card-bg);
-  border: 2px dashed var(--border-color);
-  border-radius: 10px;
-  padding: 1rem 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.invite-top {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.invite-top .label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  letter-spacing: 0.05em;
-  font-weight: 700;
-}
-
-.code-pill {
+  gap: 8px;
   font-size: 1rem;
-  font-weight: 900;
-  letter-spacing: 0.15em;
-  color: var(--primary);
-  background: rgba(204, 0, 0, 0.1);
-  border-radius: 6px;
-  padding: 0.15rem 0.6rem;
-}
-
-.invite-link-row {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.invite-url {
-  flex: 1;
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text-muted);
-  border-radius: 6px;
-  padding: 0.4rem 0.6rem;
-  font-size: 0.82rem;
-  cursor: text;
-}
-
-.btn-copy {
-  background: var(--secondary);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 0.4rem 0.9rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.card {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 1.5rem;
-}
-
-.card h2 {
-  margin: 0 0 1rem;
-  font-size: 0.85rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-}
-
-.form-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.form-row label {
-  width: 130px;
-  font-weight: 600;
-  font-size: 0.9rem;
-  flex-shrink: 0;
-}
-
-.hint {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  margin: 0;
-}
-
-input[type='text'],
-input[type='number'],
-input[type='password'] {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 0.4rem 0.6rem;
-  font-size: 0.9rem;
-  flex: 1;
-}
-
-input[type='number'] {
-  max-width: 100px;
-}
-
-.add-self-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-}
-
-.btn-sm {
-  padding: 0.3rem 0.75rem;
-  font-size: 0.82rem;
-}
-
-.add-player input {
-  flex: 1;
-}
-
-.player-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-.empty {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-
-.player-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--input-bg);
-  border-radius: 6px;
-  padding: 0.4rem 0.6rem;
-}
-
-.player-order {
-  width: 1.4rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-.player-name {
-  flex: 1;
-  font-weight: 600;
-}
-
-.role-badge {
-  padding: 0.2rem 0.5rem;
-  border: 1px solid rgb(var(--v-theme-primary));
-  border-radius: 999px;
-  color: rgb(var(--v-theme-primary));
-  font-size: 0.68rem;
   font-weight: 800;
-  white-space: nowrap;
 }
-
-.role-badge.commissioner {
-  background: rgb(var(--v-theme-primary));
-  color: rgb(var(--v-theme-on-primary));
-}
-
-.btn-role {
-  border: 1px solid rgb(var(--v-theme-primary));
-  background: transparent;
-  color: rgb(var(--v-theme-primary));
-  white-space: nowrap;
-}
-
-.pick-schedule {
+.config-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 0.4rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 12px;
 }
-
-.pick-slot {
-  background: var(--input-bg);
-  border-radius: 6px;
-  padding: 0.4rem 0.6rem;
-  display: flex;
-  flex-direction: column;
-  font-size: 0.78rem;
+.config-grid > :first-child,
+.config-grid > :nth-child(2) {
+  grid-column: span 2;
 }
-.pick-number {
-  color: var(--text-muted);
+.field-help {
+  margin-top: 8px;
 }
-.pick-player {
-  font-weight: 700;
-}
-.pick-round {
-  color: var(--primary);
-  font-size: 0.7rem;
-}
-
-.btn-row {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-/* btn-secondary here is red (--secondary brand color), not the gray global .btn-secondary */
-.btn-secondary {
-  background: var(--secondary);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 1.2rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
+.add-player {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px auto;
+  gap: 10px;
   align-items: center;
-  gap: 0.4rem;
 }
-
-.btn-icon {
+.player-list {
   background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  border-radius: 4px;
-  padding: 0.2rem 0.4rem;
-  cursor: pointer;
-  font-size: 0.8rem;
+  border-top: 1px solid var(--border-color);
+}
+.player-list :deep(.v-list-item) {
+  border-bottom: 1px solid var(--border-color);
+}
+.player-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
 }
-
-.btn-icon:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-@media (max-width: 720px) {
-  .player-item {
-    flex-wrap: wrap;
-  }
-
-  .player-name {
-    min-width: calc(100% - 3rem);
-  }
-
-  .btn-role {
-    order: 2;
-    flex: 1 1 100%;
-    justify-content: center;
-  }
-}
-
-.confirm-reset {
-  margin-top: 1rem;
-  background: rgba(204, 0, 0, 0.1);
-  border: 1px solid var(--primary);
-  border-radius: 8px;
-  padding: 1rem;
+.pick-schedule {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.control-card .v-card-actions {
+  display: flex;
   flex-wrap: wrap;
 }
-
-.confirm-reset p {
-  flex: 1;
-  margin: 0;
-  font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
+@media (max-width: 720px) {
+  .league-setup {
+    padding: 12px;
+  }
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
+  .config-grid > :first-child,
+  .config-grid > :nth-child(2) {
+    grid-column: auto;
+  }
+  .add-player {
+    grid-template-columns: 1fr;
+  }
+  .player-actions > .v-btn:not(:last-child) {
+    display: none;
+  }
+  .control-card .v-card-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .control-card .v-spacer {
+    display: none;
+  }
 }
 </style>

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { apiGet } from '@/services/api'
 import { enqueueSnackbar } from '@/services/snackbar'
 import { useSignalR } from '@/services/signalr'
@@ -254,6 +255,27 @@ function localTime(timeZone?: string) {
 <template>
   <v-container fluid class="matchup-page">
     <v-card class="wrapper-card">
+      <PageHeader
+        class="matchup-page-header"
+        eyebrow="Competition"
+        title="Matchup"
+        :subtitle="activeMatchup ? `Week ${activeMatchup.week} · Review both rosters and prepare for battle.` : 'Your current scheduled opponent and roster comparison.'"
+      >
+        <template v-if="activeMatchup" #actions>
+          <v-chip :color="matchupStatus.color" size="small" variant="tonal">
+            {{ matchupStatus.label }}
+          </v-chip>
+          <v-select
+            v-if="matchupOptions.length > 1"
+            v-model="selectedMatchupId"
+            :items="matchupOptions"
+            label="Matchup"
+            hide-details
+            class="matchup-select"
+          />
+        </template>
+      </PageHeader>
+
       <div v-if="isLoading" class="loading-panel">
         <PokeballLoader variant="page" label="Loading matchup..." />
       </div>
@@ -269,30 +291,6 @@ function localTime(timeZone?: string) {
 
       <div v-else class="matchup-content">
         <v-card class="matchup-card" variant="outlined">
-          <v-card-title class="section-title matchup-title">
-            <div>
-              <div class="text-overline text-medium-emphasis">
-                Week {{ activeMatchup.week }}
-              </div>
-              <span>Current Matchup</span>
-            </div>
-            <div class="matchup-actions">
-              <v-chip :color="matchupStatus.color" size="small" variant="tonal">
-                {{ matchupStatus.label }}
-              </v-chip>
-              <v-select
-                v-if="matchupOptions.length > 1"
-                v-model="selectedMatchupId"
-                :items="matchupOptions"
-                label="Matchup"
-                density="compact"
-                variant="outlined"
-                hide-details
-                class="matchup-select"
-              />
-            </div>
-          </v-card-title>
-          <v-divider />
           <v-card-text class="battle-row">
             <div class="battle-team">
               <v-avatar size="64" color="primary" class="team-avatar">
@@ -438,26 +436,26 @@ function localTime(timeZone?: string) {
 
 <style scoped>
 .matchup-page {
-  padding: 0;
+  padding: clamp(1rem, 2vw, 2rem);
 }
 
 .wrapper-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  height: 85dvh;
-  max-height: 85dvh;
+  gap: 14px;
+  height: auto;
+  max-height: none;
   overflow: auto;
-  padding: 8px;
+  padding: 0;
 }
 
 .wrapper-card :deep(.v-card) {
   border-color: var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 
 .wrapper-card :deep(.v-card-text) {
-  padding: 8px;
+  padding: 16px;
 }
 
 .matchup-content {

@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
 import AppIcon from '@/components/AppIcon.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { API_BASE } from '@/services/signalr'
 import {
   mdiTrophy,
@@ -230,14 +231,12 @@ const outlookStatusLabel = (status: string) => {
       </p>
 
       <div class="landing-actions">
-        <button class="btn btn-primary btn-lg" @click="router.push('/join')">
-          <AppIcon :path="mdiAccountPlus" :size="20" />
+        <v-btn color="primary" size="large" prepend-icon="mdi-account-plus" @click="router.push('/join')">
           Join a League
-        </button>
-        <button class="btn btn-ghost btn-lg" @click="router.push('/league/create')">
-          <AppIcon :path="mdiPlusCircle" :size="20" />
+        </v-btn>
+        <v-btn variant="outlined" size="large" prepend-icon="mdi-plus-circle-outline" @click="router.push('/league/create')">
           Create a League
-        </button>
+        </v-btn>
       </div>
 
       <div class="feature-grid">
@@ -261,19 +260,19 @@ const outlookStatusLabel = (status: string) => {
   </main>
 
   <!-- ── Admin dashboard ─────────────────────────────────────────────────── -->
-  <main v-else-if="authStore.isAdmin" class="dashboard">
-    <div class="dash-header">
-      <div>
-        <h1>{{ league?.name }}</h1>
-        <p class="dash-sub">
-          Commissioner dashboard · Welcome back, <strong>{{ authStore.playerName }}</strong>
-        </p>
-      </div>
-      <button class="btn btn-primary" @click="router.push('/league?tab=draft')">
-        <AppIcon :path="mdiTrophy" :size="18" />
+  <main v-else-if="authStore.isAdmin" class="dashboard admin-dashboard">
+    <PageHeader
+      class="dash-header"
+      eyebrow="Commissioner dashboard"
+      :title="league?.name || 'League Home'"
+      :subtitle="`Welcome back, ${authStore.playerName}`"
+    >
+      <template #actions>
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-view-dashboard-variant" @click="router.push('/league?tab=draft')">
         Draft Board
-      </button>
-    </div>
+      </v-btn>
+      </template>
+    </PageHeader>
 
     <!-- Setup checklist -->
     <section class="section" v-if="draftStatus === 'setup'">
@@ -302,7 +301,7 @@ const outlookStatusLabel = (status: string) => {
       <div v-if="draftReady" class="ready-banner">
         <AppIcon :path="mdiPlayCircle" :size="20" />
         Everything is set — head to the Draft Board to start!
-        <button class="btn btn-primary btn-sm" @click="router.push('/league?tab=draft')">Start Draft</button>
+        <v-btn color="primary" size="small" @click="router.push('/league?tab=draft')">Start Draft</v-btn>
       </div>
     </section>
 
@@ -350,37 +349,34 @@ const outlookStatusLabel = (status: string) => {
     <section class="section">
       <h2 class="section-heading">Quick Actions</h2>
       <div class="action-row">
-        <button class="btn btn-secondary" @click="router.push('/league?tab=setup')">
-          <AppIcon :path="mdiCog" :size="16" /> Configure League
-        </button>
-        <button class="btn btn-secondary" @click="router.push('/league?tab=pokemon')">
-          <AppIcon :path="mdiClipboardList" :size="16" /> Point Values
-        </button>
-        <button class="btn btn-secondary" @click="router.push('/roster')">
-          <AppIcon :path="mdiAccountGroup" :size="16" /> View Rosters
-        </button>
+        <v-btn variant="tonal" prepend-icon="mdi-cog-outline" @click="router.push('/league?tab=setup')">Configure League</v-btn>
+        <v-btn variant="tonal" prepend-icon="mdi-format-list-numbered" @click="router.push('/league?tab=pokemon')">Point Values</v-btn>
+        <v-btn variant="tonal" prepend-icon="mdi-account-group-outline" @click="router.push('/roster')">View Rosters</v-btn>
       </div>
     </section>
   </main>
 
   <!-- ── Player dashboard ────────────────────────────────────────────────── -->
-  <main v-else class="dashboard">
-    <div class="dash-header">
-      <div>
-        <h1>{{ league?.name }}</h1>
-        <p class="dash-sub">
-          Welcome back, <strong>{{ authStore.playerName }}</strong>
-        </p>
-      </div>
-      <button
+  <main v-else class="dashboard player-dashboard">
+    <PageHeader
+      class="dash-header"
+      eyebrow="League home"
+      :title="league?.name || 'League Home'"
+      :subtitle="`Welcome back, ${authStore.playerName}`"
+    >
+      <template #actions>
+      <v-btn
         v-if="draftStatus === 'active'"
-        :class="['btn', isMyTurn ? 'btn-primary pulse' : 'btn-secondary']"
+        :color="isMyTurn ? 'primary' : undefined"
+        :variant="isMyTurn ? 'flat' : 'tonal'"
+        prepend-icon="mdi-view-dashboard-variant"
+        :class="{ pulse: isMyTurn }"
         @click="router.push('/league?tab=draft')"
       >
-        <AppIcon :path="mdiTrophy" :size="18" />
         {{ isMyTurn ? 'Your Turn!' : 'Draft Board' }}
-      </button>
-    </div>
+      </v-btn>
+      </template>
+    </PageHeader>
 
     <!-- ── Post-draft hub ──────────────────────────────────────────────── -->
     <template v-if="draftStatus === 'complete'">
@@ -417,9 +413,7 @@ const outlookStatusLabel = (status: string) => {
               </div>
               <span class="matchup-opp">vs. {{ myNextMatchup.opponentName }}</span>
             </div>
-            <button class="btn btn-ghost btn-sm" @click="router.push('/league?tab=schedule')">
-              View Schedule <AppIcon :path="mdiArrowRight" :size="14" />
-            </button>
+            <v-btn variant="text" size="small" append-icon="mdi-arrow-right" @click="router.push('/league?tab=schedule')">View Schedule</v-btn>
           </div>
           <div v-else class="hub-empty muted">All games played.</div>
         </div>
@@ -429,11 +423,9 @@ const outlookStatusLabel = (status: string) => {
       <div class="hub-card hub-standings" v-if="topStandings.length">
         <div class="hub-card-header">
           <div class="hub-card-label">Standings</div>
-          <button class="btn btn-ghost btn-xs" @click="router.push('/league?tab=schedule')">
-            Full table →
-          </button>
+          <v-btn variant="text" size="small" @click="router.push('/league?tab=schedule')">Full table</v-btn>
         </div>
-        <table class="mini-table">
+        <v-table density="compact" class="mini-table">
           <thead>
             <tr>
               <th>#</th>
@@ -456,7 +448,7 @@ const outlookStatusLabel = (status: string) => {
               <td class="num">{{ s.matchPoints }}</td>
             </tr>
           </tbody>
-        </table>
+        </v-table>
       </div>
       <div v-else-if="!schedule" class="hub-card hub-standings hub-loading">
         <PokeballLoader variant="inline" label="Loading standings…" />
@@ -466,9 +458,7 @@ const outlookStatusLabel = (status: string) => {
       <div class="hub-card hub-outlook" v-if="outlookPreview.length">
         <div class="hub-card-header">
           <div class="hub-card-label">Playoff Outlook</div>
-          <button class="btn btn-ghost btn-xs" @click="router.push('/league?tab=playoffs')">
-            Full view →
-          </button>
+          <v-btn variant="text" size="small" @click="router.push('/league?tab=playoffs')">Full view</v-btn>
         </div>
         <div class="outlook-strip">
           <template v-for="(e, i) in outlookPreview" :key="e.playerId">
@@ -499,26 +489,26 @@ const outlookStatusLabel = (status: string) => {
       <div class="hub-card hub-quicknav">
         <div class="hub-card-label">Quick Nav</div>
         <div class="quicknav-grid">
-          <button class="qnav-btn" @click="router.push('/league?tab=team')">
+          <v-btn class="qnav-btn" variant="tonal" stacked @click="router.push('/league?tab=team')">
             <AppIcon :path="mdiTrophy" :size="22" />
             My Team
-          </button>
-          <button class="qnav-btn" @click="router.push('/league?tab=teams')">
+          </v-btn>
+          <v-btn class="qnav-btn" variant="tonal" stacked @click="router.push('/league?tab=teams')">
             <AppIcon :path="mdiAccountMultiple" :size="22" />
             All Teams
-          </button>
-          <button class="qnav-btn" @click="router.push('/league?tab=schedule')">
+          </v-btn>
+          <v-btn class="qnav-btn" variant="tonal" stacked @click="router.push('/league?tab=schedule')">
             <AppIcon :path="mdiCalendarCheck" :size="22" />
             Schedule
-          </button>
-          <button class="qnav-btn" @click="router.push('/league?tab=playoffs')">
+          </v-btn>
+          <v-btn class="qnav-btn" variant="tonal" stacked @click="router.push('/league?tab=playoffs')">
             <AppIcon :path="mdiChartLine" :size="22" />
             Playoffs
-          </button>
-          <button class="qnav-btn" @click="router.push('/league?tab=pokemon')">
+          </v-btn>
+          <v-btn class="qnav-btn" variant="tonal" stacked @click="router.push('/league?tab=pokemon')">
             <AppIcon :path="mdiPokeball" :size="22" />
             Pokémon
-          </button>
+          </v-btn>
         </div>
       </div>
 
@@ -530,9 +520,7 @@ const outlookStatusLabel = (status: string) => {
             <span class="points-badge" :class="{ over: myPoints > pointLimit }">
               {{ myPoints }} / {{ pointLimit }} pts
             </span>
-            <button class="btn btn-ghost btn-xs" @click="router.push('/league?tab=team')">
-              Full roster →
-            </button>
+            <v-btn variant="text" size="small" @click="router.push('/league?tab=team')">Full roster</v-btn>
           </div>
         </div>
         <div class="team-grid compact">
@@ -581,13 +569,14 @@ const outlookStatusLabel = (status: string) => {
 
         <div v-if="myPicks.length === 0" class="empty-team">
           <span>No Pokémon drafted yet.</span>
-          <button
+          <v-btn
             v-if="draftStatus === 'active'"
-            class="btn btn-primary btn-sm"
+            color="primary"
+            size="small"
             @click="router.push('/league?tab=draft')"
           >
             Go to Draft
-          </button>
+          </v-btn>
         </div>
 
         <div v-else class="team-grid">
@@ -627,6 +616,28 @@ const outlookStatusLabel = (status: string) => {
   max-width: none;
   margin: 0;
   padding: 2rem clamp(1rem, 2vw, 2rem);
+}
+
+.admin-dashboard {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.admin-dashboard .dash-header {
+  grid-column: 1 / -1;
+}
+
+.admin-dashboard .section {
+  margin-bottom: 0;
+  padding: 1.1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: rgba(20, 26, 43, 0.56);
+}
+
+.admin-dashboard .section:last-child {
+  grid-column: 1 / -1;
 }
 
 /* ── Landing ─────────────────────────────────────────────────────────────── */
@@ -700,27 +711,7 @@ h1 {
 
 /* ── Dashboard shared ────────────────────────────────────────────────────── */
 .dash-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.75rem;
-  flex-wrap: wrap;
-}
-
-.dash-header h1 {
-  font-size: 1.8rem;
-  font-weight: 800;
-  margin-bottom: 0.2rem;
-}
-
-.dash-sub {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-
-.dash-sub strong {
-  color: var(--text);
+  margin-bottom: 0.75rem;
 }
 
 .section {
@@ -1028,6 +1019,19 @@ h1 {
 }
 
 @media (max-width: 540px) {
+  .admin-dashboard {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .admin-dashboard .section {
+    padding: 0.9rem;
+  }
+
+  .quicknav-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .hub-row {
     grid-template-columns: 1fr;
   }
@@ -1221,8 +1225,8 @@ h1 {
 
 /* Quick nav */
 .quicknav-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(90px, 1fr));
   gap: 0.6rem;
 }
 

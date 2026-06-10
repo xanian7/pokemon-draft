@@ -1,22 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import AppIcon from '@/components/AppIcon.vue'
 import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { REGULATIONS, getRegulation } from '@/data/regulations'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
 import { API_BASE } from '@/services/signalr'
 import { formatPokemonName } from '@/utils/format'
-import {
-  mdiClipboardList,
-  mdiFlash,
-  mdiContentSave,
-  mdiCheck,
-  mdiViewGrid,
-  mdiViewColumn,
-} from '@mdi/js'
 import { useDisplay } from 'vuetify'
 
 const pokemonStore = usePokemonStore()
@@ -169,76 +161,79 @@ async function saveToServer() {
 </script>
 
 <template>
-  <main class="pokemon-view page">
-    <!-- Top bar -->
-    <div class="view-header page-header">
-      <span class="view-title">
-        <AppIcon :path="mdiClipboardList" :size="20" />
-        {{ authStore.isAdmin ? 'Pokémon Point Values' : 'Free Agents' }}
-      </span>
-      <span class="meta">{{ valuedCount }} valued · {{ filtered.length }} shown</span>
+  <v-container fluid class="pokemon-view">
+    <PageHeader
+      class="page-hero"
+      :eyebrow="authStore.isAdmin ? 'Commissioner tools' : 'League pool'"
+      :title="authStore.isAdmin ? 'Pokémon Point Values' : 'Free Agents'"
+      :subtitle="`${valuedCount} valued · ${filtered.length} currently shown`"
+    >
+      <template #actions>
+        <div v-if="authStore.isAdmin" class="admin-actions">
+          <v-btn
+            variant="tonal"
+            prepend-icon="mdi-lightning-bolt-outline"
+            :disabled="pokemonStore.isLoading || regulationLoading"
+            @click="applyDefaults"
+          >
+            Apply defaults
+          </v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            prepend-icon="mdi-content-save-outline"
+            :loading="saving"
+            @click="saveToServer"
+          >
+            Save changes
+          </v-btn>
+        </div>
+      </template>
+    </PageHeader>
 
-      <div v-if="authStore.isAdmin" class="admin-actions">
-        <button
-          class="btn btn-sm"
-          style="background: var(--secondary); color: #fff"
-          :disabled="pokemonStore.isLoading || regulationLoading"
-          @click="applyDefaults"
-        >
-          <AppIcon :path="mdiFlash" :size="16" />
-          Apply Defaults
-        </button>
-        <button class="btn btn-primary btn-sm" :disabled="saving" @click="saveToServer">
-          <template v-if="saving">Saving…</template>
-          <template v-else>
-            <AppIcon :path="mdiContentSave" :size="16" />
-            Save to League
-          </template>
-        </button>
-        <span v-if="saveSuccess" class="save-ok">
-          <AppIcon :path="mdiCheck" :size="14" /> Saved!
-        </span>
-        <span v-if="saveError" class="save-err">{{ saveError }}</span>
-      </div>
-    </div>
+    <v-alert v-if="saveSuccess" type="success" variant="tonal" density="compact" class="mb-3">
+      Point values saved to the league.
+    </v-alert>
+    <v-alert v-if="saveError" type="error" variant="tonal" density="compact" class="mb-3">
+      {{ saveError }}
+    </v-alert>
 
-    <!-- Filter bar -->
-    <div class="filter-bar">
-      <input v-model="searchQuery" type="text" placeholder="Search by name…" class="search-input" />
-      <select v-model="selectedRegulation" @change="onRegulationChange">
-        <option v-for="reg in REGULATIONS" :key="reg.id" :value="reg.id">{{ reg.label }}</option>
-      </select>
-      <select v-model="selectedType">
-        <option value="">All Types</option>
-        <option v-for="type in pokemonStore.allTypes" :key="type" :value="type">
-          {{ type.charAt(0).toUpperCase() + type.slice(1) }}
-        </option>
-      </select>
-      <label class="toggle">
-        <input v-model="showOnlyValued" type="checkbox" />
-        Valued only
-      </label>
-      <span v-if="regulationLoading" class="filter-status">Loading regulation…</span>
-      <span v-else-if="regulationError" class="filter-status filter-error">{{
-        regulationError
-      }}</span>
-      <div class="view-toggle">
-        <button
-          :class="{ active: viewMode === 'grid' }"
-          title="Grid view"
-          @click="viewMode = 'grid'"
-        >
-          <AppIcon :path="mdiViewGrid" :size="16" />
-        </button>
-        <button
-          :class="{ active: viewMode === 'tier' }"
-          title="Tier view"
-          @click="viewMode = 'tier'"
-        >
-          <AppIcon :path="mdiViewColumn" :size="16" />
-        </button>
-      </div>
-    </div>
+    <v-card variant="outlined" class="filter-card">
+      <v-card-text class="filter-grid">
+        <v-text-field
+          v-model="searchQuery"
+          label="Search Pokémon"
+          prepend-inner-icon="mdi-magnify"
+          hide-details
+          clearable
+        />
+        <v-select
+          v-model="selectedRegulation"
+          :items="REGULATIONS"
+          item-title="label"
+          item-value="id"
+          label="Regulation"
+          hide-details
+          @update:model-value="onRegulationChange"
+        />
+        <v-select
+          v-model="selectedType"
+          :items="pokemonStore.allTypes"
+          label="Type"
+          hide-details
+          clearable
+        />
+        <v-switch v-model="showOnlyValued" label="Valued only" color="primary" hide-details />
+        <v-btn-toggle v-model="viewMode" mandatory density="comfortable" variant="outlined">
+          <v-btn value="grid" icon="mdi-view-grid-outline" aria-label="Grid view" />
+          <v-btn value="tier" icon="mdi-view-column-outline" aria-label="Tier view" />
+        </v-btn-toggle>
+      </v-card-text>
+      <v-progress-linear v-if="regulationLoading" indeterminate color="primary" />
+      <v-alert v-else-if="regulationError" type="error" variant="tonal" density="compact">
+        {{ regulationError }}
+      </v-alert>
+    </v-card>
 
     <!-- Grid -->
     <div v-if="pokemonStore.isLoading" class="loading">
@@ -246,7 +241,7 @@ async function saveToServer() {
     </div>
     <div v-else-if="pokemonStore.error" class="loading">
       {{ pokemonStore.error }}
-      <button @click="pokemonStore.fetchAllPokemon()">Retry</button>
+      <v-btn variant="tonal" @click="pokemonStore.fetchAllPokemon()">Retry</v-btn>
     </div>
     <div v-else-if="filtered.length === 0" class="loading">No Pokémon match your filters.</div>
 
@@ -301,7 +296,7 @@ async function saveToServer() {
         />
       </div>
     </div>
-  </main>
+  </v-container>
 
   <PokemonDetailModal
     v-if="detailPokemon"
@@ -316,93 +311,57 @@ async function saveToServer() {
 </template>
 
 <style scoped>
-/* ── Top bar ─────────────────────────────────────────────────────────────── */
-.view-title {
+.pokemon-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(1rem, 2vw, 2rem);
+}
+.page-hero {
+  margin-bottom: 12px;
+  flex: 0 0 auto;
+}
+.hero-content {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.95rem;
-  font-weight: 700;
+  justify-content: space-between;
+  gap: 16px;
 }
-
-.meta {
-  font-size: 0.8rem;
+.hero-content h1 {
+  margin-top: 3px;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 800;
+}
+.hero-content p {
   color: var(--text-muted);
+  font-size: 0.82rem;
 }
 
 .admin-actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-left: auto;
 }
 
-.save-ok {
-  color: #4ade80;
-  font-size: 0.82rem;
-  display: flex;
+.filter-card {
+  flex: 0 0 auto;
+  margin-bottom: 12px;
+}
+.filter-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(170px, 1fr) minmax(130px, 0.7fr) auto auto;
   align-items: center;
-  gap: 0.3rem;
-}
-.save-err {
-  color: #f87171;
-  font-size: 0.82rem;
-}
-
-/* ── Filter bar ──────────────────────────────────────────────────────────── */
-.filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0;
-  flex-wrap: wrap;
-  background: var(--bg);
-}
-
-.search-input {
-  flex: 1;
-  min-width: 140px;
-}
-
-select {
-  padding: 0.3rem 0.55rem;
-  font-size: 0.82rem;
-  border-radius: 6px;
-}
-
-.toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.filter-status {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-}
-.filter-error {
-  color: #f87171;
+  gap: 10px;
 }
 
 /* ── Grid ────────────────────────────────────────────────────────────────── */
 .loading {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  justify-content: center;
+  gap: 12px;
   padding: 2rem;
   color: var(--text-muted);
-}
-
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 2rem;
 }
 
 .pokemon-grid {
@@ -428,43 +387,6 @@ select {
   background: var(--input-bg);
   border: 1px solid var(--border-color);
   border-radius: 5px;
-  color: var(--text);
-}
-
-/* ── View toggle ─────────────────────────────────────────────────────────── */
-.view-toggle {
-  display: flex;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  overflow: hidden;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
-.view-toggle button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  padding: 0.3rem 0.5rem;
-  cursor: pointer;
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-
-.view-toggle button:first-child {
-  border-right: 1px solid var(--border-color);
-}
-
-.view-toggle button:hover {
-  background: var(--input-bg);
-  color: var(--text);
-}
-.view-toggle button.active {
-  background: var(--input-bg);
   color: var(--text);
 }
 
@@ -530,16 +452,29 @@ select {
 @media (max-width: 720px) {
   .pokemon-view {
     min-height: 0;
+    padding: 12px;
   }
 
-  .view-header,
-  .filter-bar {
+  .hero-content {
     align-items: stretch;
+    flex-direction: column;
     gap: 8px;
   }
 
-  .filter-bar > * {
-    min-width: 0;
+  .admin-actions {
+    width: 100%;
+  }
+
+  .admin-actions .v-btn {
+    flex: 1;
+  }
+
+  .filter-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .filter-grid > :first-child {
+    grid-column: span 2;
   }
 
   .pokemon-grid {

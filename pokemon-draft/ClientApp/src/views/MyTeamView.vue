@@ -7,6 +7,7 @@ import { usePokemonStore } from '@/stores/pokemon'
 import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import type {
   DraftPick,
   LeaguePlayer,
@@ -273,8 +274,13 @@ onUnmounted(() => unsubscribe(handleLeagueState))
     </v-card>
 
     <template v-else-if="league">
-      <v-card class="hero-card mb-2" variant="outlined">
-        <v-card-text class="hero-content">
+      <PageHeader
+        class="hero-card mb-2"
+        :eyebrow="league.name"
+        :title="displayTeamName"
+        subtitle="Your roster, budget, and league activity."
+      >
+        <template #leading>
           <v-avatar size="72" color="primary" class="hero-avatar">
             <v-img
               v-if="authStore.teamImageUrl && !teamAvatarError"
@@ -285,10 +291,8 @@ onUnmounted(() => unsubscribe(handleLeagueState))
             />
             <span v-else class="text-h6 font-weight-bold">{{ heroInitials }}</span>
           </v-avatar>
-
-          <div class="hero-main">
-            <div class="text-overline text-medium-emphasis">{{ league.name }}</div>
-            <h1 class="text-h4 font-weight-bold">{{ displayTeamName }}</h1>
+        </template>
+        <template #meta>
             <v-btn
               variant="text"
               size="small"
@@ -309,8 +313,9 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                 class="hero-sprite"
               />
             </div>
-          </div>
-
+        </template>
+        <template #actions>
+          <div class="hero-side">
           <div class="hero-stats">
             <div class="stat">
               <strong>{{ myTeam.length }}</strong>
@@ -339,8 +344,9 @@ onUnmounted(() => unsubscribe(handleLeagueState))
               Manage Roster
             </v-btn>
           </div>
-        </v-card-text>
-      </v-card>
+          </div>
+        </template>
+      </PageHeader>
 
       <v-alert
         v-if="!draftComplete"
@@ -354,8 +360,8 @@ onUnmounted(() => unsubscribe(handleLeagueState))
         </template>
       </v-alert>
 
-      <v-row v-else align="start">
-        <v-col cols="12" lg="8">
+      <v-row v-else align="start" class="team-content-row">
+        <v-col cols="12" lg="8" class="main-team-column">
           <v-card variant="outlined" class="mb-2">
             <v-card-title class="section-title">
               <div>
@@ -635,23 +641,23 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 
 <style scoped>
 .team-page {
-  padding: 0;
+  padding: clamp(1rem, 2vw, 2rem);
 }
 
 .team-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  height: 85dvh;
-  max-height: 85dvh;
-  overflow: auto;
-  padding: 8px;
+  gap: 14px;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  padding: 0;
 }
 
 .team-wrapper :deep(.v-card),
 .team-wrapper :deep(.v-expansion-panel) {
   border-color: var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 
 .team-wrapper > :deep(.v-row) {
@@ -663,32 +669,15 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 }
 
 .team-wrapper :deep(.v-card-text) {
-  padding: 8px;
+  padding: 16px;
 }
 
 .team-wrapper :deep(.v-expansion-panel-text__wrapper) {
-  padding: 8px;
-}
-
-.hero-card {
-  background: var(--card-bg);
-}
-
-.hero-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 12px !important;
+  padding: 16px;
 }
 
 .hero-avatar {
   border: 2px solid color-mix(in srgb, var(--primary) 45%, transparent);
-}
-
-.hero-main {
-  flex: 1 1 260px;
-  min-width: 0;
 }
 
 .hero-sprites {
@@ -739,6 +728,12 @@ onUnmounted(() => unsubscribe(handleLeagueState))
   gap: 8px;
 }
 
+.hero-side {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
 .section-title,
 .activity-header {
   display: flex;
@@ -782,8 +777,7 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 }
 
 .activity-column {
-  position: sticky;
-  top: 0;
+  position: static;
 }
 
 .activity-header :deep(.v-tabs) {
@@ -830,6 +824,32 @@ onUnmounted(() => unsubscribe(handleLeagueState))
   }
 }
 
+@media (min-width: 1280px) {
+  .team-content-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.65fr);
+    gap: 14px;
+    margin: 0 !important;
+  }
+
+  .main-team-column {
+    display: contents;
+  }
+
+  .main-team-column > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .main-team-column > :last-child {
+    grid-column: 1;
+  }
+
+  .activity-column {
+    grid-column: 2;
+    padding: 0 !important;
+  }
+}
+
 @media (max-width: 720px) {
   .team-wrapper {
     border-left: 0;
@@ -838,7 +858,7 @@ onUnmounted(() => unsubscribe(handleLeagueState))
     height: auto;
     max-height: none;
     overflow: visible;
-    padding: 6px;
+    padding: 0;
   }
 
   .team-wrapper :deep(.v-card) {
@@ -857,6 +877,12 @@ onUnmounted(() => unsubscribe(handleLeagueState))
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
+  }
+
+  .hero-side {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .activity-header :deep(.v-tabs) {

@@ -3,11 +3,10 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
-import AppIcon from '@/components/AppIcon.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { API_BASE } from '@/services/signalr'
-import { mdiAccountGroup, mdiChevronDown, mdiChevronUp } from '@mdi/js'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -19,7 +18,6 @@ const league = ref<any>(null)
 const standings = ref<any[]>([])
 const isLoading = ref(true)
 const error = ref('')
-const expandedTeams = ref<Set<string>>(new Set())
 const selectedPokemonId = ref<number | null>(null)
 const selectedPokemon = computed(() =>
   selectedPokemonId.value !== null
@@ -50,14 +48,7 @@ onMounted(async () => {
   }
 })
 
-function toggleTeam(playerId: string) {
-  const next = new Set(expandedTeams.value)
-  if (next.has(playerId)) next.delete(playerId)
-  else next.add(playerId)
-  expandedTeams.value = next
-}
-
-const teams = computed(() => {
+const teams = computed<any[]>(() => {
   if (!league.value) return []
   const picks: any[] = league.value.draft?.picks ?? []
   const pointValues: Record<number, number> = league.value.pointValues ?? {}
@@ -93,119 +84,110 @@ const teams = computed(() => {
     })
 })
 
-function typeColor(type: string): string {
-  const colors: Record<string, string> = {
-    normal: '#a8a878',
-    fire: '#f08030',
-    water: '#6890f0',
-    electric: '#f8d030',
-    grass: '#78c850',
-    ice: '#98d8d8',
-    fighting: '#c03028',
-    poison: '#a040a0',
-    ground: '#e0c068',
-    flying: '#a890f0',
-    psychic: '#f85888',
-    bug: '#a8b820',
-    rock: '#b8a038',
-    ghost: '#705898',
-    dragon: '#7038f8',
-    dark: '#705848',
-    steel: '#b8b8d0',
-    fairy: '#ee99ac',
-  }
-  return colors[type.toLowerCase()] ?? '#888'
-}
+const totalDrafted = computed(() => teams.value.reduce((total, team) => total + team.picks.length, 0))
+const leader = computed(() => teams.value[0] ?? null)
 </script>
 
 <template>
-  <main class="teams-page">
-    <div class="page-header">
-      <AppIcon :path="mdiAccountGroup" :size="26" class="header-icon" />
-      <div>
-        <h1>All Teams</h1>
-        <p class="subtitle">{{ league?.name }}</p>
-      </div>
-    </div>
+  <v-container fluid class="teams-page">
+    <PageHeader
+      class="page-hero"
+      eyebrow="League overview"
+      title="All Teams"
+      :subtitle="league?.name || 'Drafted rosters and standings'"
+    >
+      <template #actions>
+        <v-chip color="primary" variant="tonal" prepend-icon="mdi-account-group">
+          {{ teams.length }} teams
+        </v-chip>
+      </template>
+    </PageHeader>
 
-    <div v-if="isLoading" class="loading">
+    <div v-if="isLoading" class="state-panel">
       <PokeballLoader variant="page" label="Loading teams…" />
     </div>
-    <div v-else-if="error" class="error-msg">{{ error }}</div>
-    <div v-else-if="!league?.draft?.picks?.length" class="empty-msg">
-      Teams will appear here once the draft is complete.
-    </div>
+    <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>
+    <v-empty-state
+      v-else-if="!league?.draft?.picks?.length"
+      icon="mdi-pokeball"
+      title="No drafted teams yet"
+      text="Teams will appear here once the draft has started."
+    />
 
-    <div v-else class="team-list">
-      <div
-        v-for="team in teams"
-        :key="team.id"
-        class="team-card"
-        :class="{ 'my-team': team.id === authStore.playerId }"
-      >
-        <!-- Team header row -->
-        <button class="team-header" @click="toggleTeam(team.id)">
-          <div class="rank-badge">
-            <span class="rank-num">#{{ team.rank || '—' }}</span>
-          </div>
-          <div class="team-avatar">
-            <img
-              v-if="team.teamImageUrl"
-              :src="team.teamImageUrl"
-              :alt="team.teamName"
-              class="avatar-img"
-            />
-            <div v-else class="avatar-initials">
-              {{ (team.teamName || team.name).slice(0, 2).toUpperCase() }}
-            </div>
-          </div>
-          <div class="team-info">
-            <span class="team-name">{{ team.teamName || team.name }}</span>
-            <span class="player-name">{{ team.teamName ? team.name : '' }}</span>
-          </div>
-          <div class="team-record">
-            <span class="record">{{ team.wins }}–{{ team.losses }}</span>
-            <span class="mp">{{ team.matchPoints }} pts</span>
-          </div>
-          <div class="team-pts">
-            <span class="pts-label">Draft pts</span>
-            <span class="pts-val">{{ team.totalPoints }}</span>
-          </div>
-          <div class="you-badge" v-if="team.id === authStore.playerId">You</div>
-          <AppIcon
-            :path="expandedTeams.has(team.id) ? mdiChevronUp : mdiChevronDown"
-            :size="20"
-            class="chevron"
-          />
-        </button>
+    <template v-else>
+      <v-row class="summary-grid" dense>
+        <v-col cols="12" sm="4">
+          <v-card variant="outlined" class="summary-card">
+            <v-card-text>
+              <span>League leader</span>
+              <strong>{{ leader?.teamName || leader?.name || '—' }}</strong>
+            </v-card-text>
+          </v-card>
+        </v-col>
+        <v-col cols="6" sm="4">
+          <v-card variant="outlined" class="summary-card">
+            <v-card-text><span>Pokémon drafted</span><strong>{{ totalDrafted }}</strong></v-card-text>
+          </v-card>
+        </v-col>
+        <v-col cols="6" sm="4">
+          <v-card variant="outlined" class="summary-card">
+            <v-card-text><span>Teams competing</span><strong>{{ teams.length }}</strong></v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
 
-        <!-- Expanded roster -->
-        <div v-if="expandedTeams.has(team.id)" class="team-roster">
-          <div v-if="team.picks.length === 0" class="no-picks">No picks yet.</div>
-          <div v-else class="picks-grid">
-            <button
-              v-for="poke in team.picks"
-              :key="poke.id"
-              class="pick-tile"
-              @click="selectedPokemonId = poke.id"
-            >
-              <img :src="poke.spriteUrl" :alt="poke.name" class="pick-sprite" />
-              <div class="pick-name">{{ poke.name }}</div>
-              <div class="pick-types">
-                <span
-                  v-for="t in poke.types"
-                  :key="t"
-                  class="type-badge"
-                  :style="{ background: typeColor(t) }"
-                  >{{ t }}</span
-                >
+      <v-expansion-panels variant="accordion" class="team-list">
+        <v-expansion-panel
+          v-for="team in teams"
+          :key="team.id"
+          :class="{ 'my-team': team.id === authStore.playerId }"
+        >
+          <v-expansion-panel-title>
+            <div class="team-title">
+              <v-chip size="small" variant="tonal">#{{ team.rank || '—' }}</v-chip>
+              <v-avatar size="44" color="surface">
+                <v-img v-if="team.teamImageUrl" :src="team.teamImageUrl" :alt="team.teamName" />
+                <span v-else>{{ (team.teamName || team.name).slice(0, 2).toUpperCase() }}</span>
+              </v-avatar>
+              <div class="team-info">
+                <strong>{{ team.teamName || team.name }}</strong>
+                <span>{{ team.teamName ? team.name : `${team.picks.length} Pokémon` }}</span>
               </div>
-              <div class="pick-pts">{{ poke.points }} pts</div>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+              <v-chip v-if="team.id === authStore.playerId" size="small" color="primary">You</v-chip>
+              <div class="team-metrics">
+                <div><strong>{{ team.wins }}–{{ team.losses }}</strong><span>Record</span></div>
+                <div><strong>{{ team.matchPoints }}</strong><span>Match pts</span></div>
+                <div><strong>{{ team.totalPoints }}</strong><span>Draft pts</span></div>
+              </div>
+            </div>
+          </v-expansion-panel-title>
+          <v-expansion-panel-text>
+            <v-empty-state
+              v-if="team.picks.length === 0"
+              icon="mdi-pokeball-outline"
+              title="No picks yet"
+              size="compact"
+            />
+            <div v-else class="picks-grid">
+              <v-card
+                v-for="poke in team.picks"
+                :key="poke.id"
+                class="pick-tile"
+                variant="tonal"
+                hover
+                @click="selectedPokemonId = poke.id"
+              >
+                <v-img :src="poke.spriteUrl" :alt="poke.name" height="74" contain />
+                <v-card-text>
+                  <strong>{{ poke.name }}</strong>
+                  <span>{{ poke.points }} pts</span>
+                </v-card-text>
+              </v-card>
+            </div>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+      </v-expansion-panels>
+    </template>
 
     <PokemonDetailModal
       v-if="selectedPokemon !== null"
@@ -217,264 +199,117 @@ function typeColor(type: string): string {
       :point-value="league?.pointValues?.[selectedPokemon.id] ?? 0"
       @close="selectedPokemonId = null"
     />
-  </main>
+  </v-container>
 </template>
 
 <style scoped>
 .teams-page {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: 2rem clamp(1rem, 2vw, 2rem);
+  padding: clamp(1rem, 2vw, 2rem);
 }
-
-.page-header {
+.page-hero {
+  margin-bottom: 16px;
+}
+.hero-content {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-  margin-bottom: 1.75rem;
+  justify-content: space-between;
+  gap: 16px;
 }
-
-.header-icon {
-  color: var(--primary);
-  flex-shrink: 0;
-}
-
-h1 {
-  font-size: 1.5rem;
+.hero-content h1 {
+  margin-top: 3px;
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
   font-weight: 800;
 }
-.subtitle {
-  font-size: 0.875rem;
+.hero-content p,
+.summary-card span,
+.team-info span,
+.team-metrics span,
+.pick-tile span {
   color: var(--text-muted);
+  font-size: 0.78rem;
 }
-
-.loading {
+.state-panel {
   display: flex;
   justify-content: center;
-  padding: 3rem 0;
+  padding: 48px;
 }
-.error-msg {
-  color: var(--secondary);
-  padding: 1rem 0;
+.summary-grid {
+  margin-bottom: 12px;
 }
-.empty-msg {
-  text-align: center;
-  color: var(--text-muted);
-  padding: 3rem 0;
-}
-
-.team-list {
+.summary-card .v-card-text {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 4px;
 }
-
-.team-card {
-  background: var(--card-bg);
+.summary-card strong {
+  font-size: 1.15rem;
+}
+.team-list {
+  gap: 8px;
+}
+.team-list :deep(.v-expansion-panel) {
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 16px !important;
   overflow: hidden;
-  transition: border-color 0.15s;
 }
-
-.team-card.my-team {
-  border-color: var(--primary);
+.team-list :deep(.v-expansion-panel.my-team) {
+  border-color: rgba(var(--primary-rgb), 0.65);
 }
-.team-card:hover {
-  border-color: color-mix(in srgb, var(--primary) 60%, transparent);
-}
-
-.team-header {
+.team-title {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 12px;
   width: 100%;
-  padding: 0.85rem 1rem;
-  background: transparent;
-  border: none;
-  color: var(--text);
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.12s;
 }
-
-.team-header:hover {
-  background: var(--input-bg);
-}
-
-.rank-badge {
-  width: 36px;
-  flex-shrink: 0;
-  text-align: center;
-}
-
-.rank-num {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--text-muted);
-}
-
-.team-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  overflow: hidden;
-  background: var(--input-bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.avatar-initials {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--text-muted);
-}
-
 .team-info {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
 }
-
-.team-name {
-  font-weight: 700;
-  font-size: 0.95rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.player-name {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-}
-
-.team-record {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
-  flex-shrink: 0;
-  min-width: 54px;
-}
-
-.record {
-  font-weight: 700;
-  font-size: 0.9rem;
-}
-.mp {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
-
-.team-pts {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
-  flex-shrink: 0;
-  min-width: 54px;
-}
-
-.pts-label {
-  font-size: 0.68rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.pts-val {
-  font-weight: 700;
-  font-size: 0.9rem;
-}
-
-.you-badge {
-  background: var(--primary);
-  color: #fff;
-  border-radius: 4px;
-  padding: 0.15rem 0.4rem;
-  font-size: 0.7rem;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.chevron {
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-/* Expanded roster */
-.team-roster {
-  padding: 0.75rem 1rem 1rem;
-  border-top: 1px solid var(--border-color);
-}
-
-.no-picks {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-}
-
 .picks-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+  gap: 10px;
 }
-
 .pick-tile {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 0.5rem;
+  cursor: pointer;
+}
+.pick-tile .v-card-text {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  cursor: pointer;
-  transition:
-    border-color 0.12s,
-    background 0.12s;
-}
-
-.pick-tile:hover {
-  border-color: var(--primary);
-  background: var(--primary-hover-bg);
-}
-
-.pick-sprite {
-  width: 60px;
-  height: 60px;
-  object-fit: contain;
-}
-.pick-name {
-  font-size: 0.7rem;
-  font-weight: 600;
+  padding: 8px;
   text-align: center;
-  text-transform: capitalize;
 }
-.pick-types {
+.pick-tile strong {
+  text-transform: capitalize;
+  font-size: 0.76rem;
+}
+.team-metrics {
   display: flex;
-  gap: 0.2rem;
-  flex-wrap: wrap;
-  justify-content: center;
+  gap: clamp(14px, 3vw, 34px);
+  margin-left: auto;
 }
-.type-badge {
-  font-size: 0.6rem;
-  font-weight: 700;
-  color: #fff;
-  padding: 0.1rem 0.3rem;
-  border-radius: 3px;
-  text-transform: capitalize;
+.team-metrics div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
-.pick-pts {
-  font-size: 0.68rem;
-  color: var(--text-muted);
+@media (max-width: 700px) {
+  .teams-page {
+    padding: 12px;
+  }
+  .hero-content {
+    align-items: flex-start;
+  }
+  .team-metrics {
+    display: none;
+  }
+  .team-title {
+    gap: 8px;
+  }
+  .picks-grid {
+    grid-template-columns: repeat(auto-fill, minmax(94px, 1fr));
+  }
 }
 </style>

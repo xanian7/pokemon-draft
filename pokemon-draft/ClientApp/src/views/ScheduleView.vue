@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import PageHeader from '@/components/PageHeader.vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import PokeballLoader from '@/components/PokeballLoader.vue'
@@ -277,12 +278,14 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
 
 <template>
   <v-container fluid>
-    <v-card class="page-card">
-      <v-card-title class="page-header">
-        <div>
-          <div class="eyebrow">League</div>
-          <h1>Schedule &amp; Standings</h1>
-        </div>
+    <div class="page-card">
+      <PageHeader
+        class="page-header"
+        eyebrow="League"
+        title="Schedule & Standings"
+        subtitle="Weekly matchups, reported scores, and the current table."
+      >
+        <template #actions>
         <v-btn-toggle
           v-model="showMyMatchesOnly"
           class="match-filter"
@@ -293,9 +296,10 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
           <v-btn :value="false">All Matches</v-btn>
           <v-btn :value="true">My Matches</v-btn>
         </v-btn-toggle>
-      </v-card-title>
+        </template>
+      </PageHeader>
 
-      <v-card-text>
+      <div class="page-content">
         <div v-if="isLoading" class="state-panel">
           <!-- <PokeballLoader variant="page" label="Loading schedule..." /> -->
         </div>
@@ -442,8 +446,8 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
             </v-card>
           </v-col>
         </v-row>
-      </v-card-text>
-    </v-card>
+      </div>
+    </div>
 
     <v-dialog :model-value="activeMatchup !== null" max-width="560" @update:model-value="(value) => !value && closeReport()">
       <v-card v-if="activeMatchup" class="report-card">
@@ -504,31 +508,15 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
 <style scoped>
 
 .page-card {
-  border: 1px solid var(--border-color);
+  padding: clamp(1rem, 2vw, 2rem);
+}
+
+.page-content {
+  padding: 0;
 }
 
 .page-header {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.eyebrow {
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-h1 {
-  color: var(--text);
-  font-size: 1.8rem;
-  font-weight: 800;
-  line-height: 1.2;
-  margin: 0;
+  margin-bottom: 14px;
 }
 
 .state-panel {
@@ -552,9 +540,9 @@ h1 {
 
 .matchup-table,
 .standings-table {
-  background: var(--bg);
+  background: transparent;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -627,8 +615,6 @@ h1 {
 
 .standings-card {
   border: 1px solid var(--border-color);
-  position: sticky;
-  top: 12px;
 }
 
 .standing-team {
@@ -674,12 +660,6 @@ h1 {
   display: grid;
   gap: 10px;
   margin-bottom: 12px;
-}
-
-@media (max-width: 1279px) {
-  .standings-card {
-    position: static;
-  }
 }
 
 @media (max-width: 720px) {
