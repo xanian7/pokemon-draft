@@ -381,7 +381,118 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
           The schedule will appear here once the draft is complete.
         </v-alert>
 
-        <v-row v-else class="schedule-layout">
+        <div v-else>
+          <v-card class="progression-card">
+            <v-card-title class="text-h5">Points Progression</v-card-title>
+            <v-card-subtitle>Cumulative match points by week</v-card-subtitle>
+            <v-card-text>
+              <div v-if="chart.weekCount" class="points-chart">
+                <svg
+                  :viewBox="`0 0 ${chart.width} ${chart.height}`"
+                  role="img"
+                  aria-label="Player points by week"
+                >
+                  <g class="chart-grid">
+                    <line
+                      v-for="tick in chart.yTicks"
+                      :key="`grid-${tick}`"
+                      :x1="chart.margin.left"
+                      :x2="chart.margin.left + chart.plotWidth"
+                      :y1="chart.y(tick)"
+                      :y2="chart.y(tick)"
+                    />
+                  </g>
+
+                  <g class="chart-axis">
+                    <line
+                      :x1="chart.margin.left"
+                      :x2="chart.margin.left"
+                      :y1="chart.margin.top"
+                      :y2="chart.margin.top + chart.plotHeight"
+                    />
+                    <line
+                      :x1="chart.margin.left"
+                      :x2="chart.margin.left + chart.plotWidth"
+                      :y1="chart.margin.top + chart.plotHeight"
+                      :y2="chart.margin.top + chart.plotHeight"
+                    />
+                  </g>
+
+                  <g class="chart-labels">
+                    <text
+                      v-for="tick in chart.yTicks"
+                      :key="`y-${tick}`"
+                      :x="chart.margin.left - 12"
+                      :y="chart.y(tick) + 4"
+                      text-anchor="end"
+                    >
+                      {{ tick }}
+                    </text>
+                    <text
+                      v-for="weekIndex in chart.weekCount"
+                      :key="`x-${weekIndex}`"
+                      :x="chart.x(weekIndex - 1)"
+                      :y="chart.margin.top + chart.plotHeight + 24"
+                      text-anchor="middle"
+                    >
+                      {{ weekIndex }}
+                    </text>
+                    <text
+                      :x="chart.margin.left + chart.plotWidth / 2"
+                      :y="chart.height - 8"
+                      text-anchor="middle"
+                      class="axis-title"
+                    >
+                      Week
+                    </text>
+                    <text
+                      :x="16"
+                      :y="chart.margin.top + chart.plotHeight / 2"
+                      text-anchor="middle"
+                      class="axis-title"
+                      :transform="`rotate(-90 16 ${chart.margin.top + chart.plotHeight / 2})`"
+                    >
+                      Points
+                    </text>
+                  </g>
+
+                  <g v-for="player in chart.series" :key="player.playerId">
+                    <path
+                      :d="player.path"
+                      :stroke="player.color"
+                      :class="{ 'my-chart-line': player.playerId === authStore.playerId }"
+                      class="chart-line"
+                    />
+                    <circle
+                      v-for="(points, weekIndex) in player.values"
+                      :key="`${player.playerId}-${weekIndex}`"
+                      :cx="chart.x(weekIndex)"
+                      :cy="chart.y(points)"
+                      :fill="player.color"
+                      r="3.5"
+                    >
+                      <title>{{ player.label }} - Week {{ weekIndex + 1 }}: {{ points }} points</title>
+                    </circle>
+                  </g>
+                </svg>
+              </div>
+              <div v-else class="chart-empty">The graph will appear after the first score is reported.</div>
+
+              <div class="chart-legend">
+                <div
+                  v-for="player in chart.series"
+                  :key="`legend-${player.playerId}`"
+                  class="legend-item"
+                  :class="{ mine: player.playerId === authStore.playerId }"
+                >
+                  <span class="legend-swatch" :style="{ backgroundColor: player.color }" />
+                  <span>{{ player.label }}</span>
+                </div>
+              </div>
+            </v-card-text>
+          </v-card>
+
+          <v-row class="schedule-layout">
           <v-col cols="12" lg="6" xl="7">
             <v-expansion-panels v-model="openWeeks" multiple>
               <v-expansion-panel v-for="week in filteredWeeks" :key="week.week" :value="week.week">
@@ -517,118 +628,9 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
                 </template>
               </v-data-table>
             </v-card>
-
-            <v-card class="progression-card">
-              <v-card-title class="text-h6">Points Progression</v-card-title>
-              <v-card-subtitle>Cumulative match points by week</v-card-subtitle>
-              <v-card-text>
-                <div v-if="chart.weekCount" class="points-chart">
-                  <svg
-                    :viewBox="`0 0 ${chart.width} ${chart.height}`"
-                    role="img"
-                    aria-label="Player points by week"
-                  >
-                    <g class="chart-grid">
-                      <line
-                        v-for="tick in chart.yTicks"
-                        :key="`grid-${tick}`"
-                        :x1="chart.margin.left"
-                        :x2="chart.margin.left + chart.plotWidth"
-                        :y1="chart.y(tick)"
-                        :y2="chart.y(tick)"
-                      />
-                    </g>
-
-                    <g class="chart-axis">
-                      <line
-                        :x1="chart.margin.left"
-                        :x2="chart.margin.left"
-                        :y1="chart.margin.top"
-                        :y2="chart.margin.top + chart.plotHeight"
-                      />
-                      <line
-                        :x1="chart.margin.left"
-                        :x2="chart.margin.left + chart.plotWidth"
-                        :y1="chart.margin.top + chart.plotHeight"
-                        :y2="chart.margin.top + chart.plotHeight"
-                      />
-                    </g>
-
-                    <g class="chart-labels">
-                      <text
-                        v-for="tick in chart.yTicks"
-                        :key="`y-${tick}`"
-                        :x="chart.margin.left - 12"
-                        :y="chart.y(tick) + 4"
-                        text-anchor="end"
-                      >
-                        {{ tick }}
-                      </text>
-                      <text
-                        v-for="weekIndex in chart.weekCount"
-                        :key="`x-${weekIndex}`"
-                        :x="chart.x(weekIndex - 1)"
-                        :y="chart.margin.top + chart.plotHeight + 24"
-                        text-anchor="middle"
-                      >
-                        {{ weekIndex }}
-                      </text>
-                      <text
-                        :x="chart.margin.left + chart.plotWidth / 2"
-                        :y="chart.height - 8"
-                        text-anchor="middle"
-                        class="axis-title"
-                      >
-                        Week
-                      </text>
-                      <text
-                        :x="16"
-                        :y="chart.margin.top + chart.plotHeight / 2"
-                        text-anchor="middle"
-                        class="axis-title"
-                        :transform="`rotate(-90 16 ${chart.margin.top + chart.plotHeight / 2})`"
-                      >
-                        Points
-                      </text>
-                    </g>
-
-                    <g v-for="player in chart.series" :key="player.playerId">
-                      <path
-                        :d="player.path"
-                        :stroke="player.color"
-                        :class="{ 'my-chart-line': player.playerId === authStore.playerId }"
-                        class="chart-line"
-                      />
-                      <circle
-                        v-for="(points, weekIndex) in player.values"
-                        :key="`${player.playerId}-${weekIndex}`"
-                        :cx="chart.x(weekIndex)"
-                        :cy="chart.y(points)"
-                        :fill="player.color"
-                        r="3.5"
-                      >
-                        <title>{{ player.label }} - Week {{ weekIndex + 1 }}: {{ points }} points</title>
-                      </circle>
-                    </g>
-                  </svg>
-                </div>
-                <div v-else class="chart-empty">The graph will appear after the first score is reported.</div>
-
-                <div class="chart-legend">
-                  <div
-                    v-for="player in chart.series"
-                    :key="`legend-${player.playerId}`"
-                    class="legend-item"
-                    :class="{ mine: player.playerId === authStore.playerId }"
-                  >
-                    <span class="legend-swatch" :style="{ backgroundColor: player.color }" />
-                    <span>{{ player.label }}</span>
-                  </div>
-                </div>
-              </v-card-text>
-            </v-card>
           </v-col>
-        </v-row>
+          </v-row>
+        </div>
       </div>
     </div>
 
@@ -703,6 +705,7 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
 
 .schedule-layout {
   align-items: start;
+  margin-top: 16px;
 }
 
 .week-title {
@@ -795,7 +798,7 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
 
 .progression-card {
   border: 1px solid var(--border-color);
-  margin-top: 16px;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 24%);
 }
 
 .points-chart {
@@ -805,7 +808,8 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
 
 .points-chart svg {
   display: block;
-  min-width: 620px;
+  min-height: 430px;
+  min-width: 720px;
   width: 100%;
 }
 
@@ -853,6 +857,7 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 16px;
+  justify-content: center;
   margin-top: 12px;
 }
 
