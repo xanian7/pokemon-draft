@@ -52,8 +52,8 @@ const league = ref<LeagueState | null>(null)
 const isLoading = ref(true)
 const activeTab = ref<'add-drop' | 'trade'>('add-drop')
 const isSubmitting = ref(false)
-const addPokemonId = ref<number | null>(null)
-const dropPokemonId = ref<number | null>(null)
+const addPokemonIds = ref<number[]>([])
+const dropPokemonIds = ref<number[]>([])
 
 const targetPlayerId = ref('')
 const offeringPokemonIds = ref<number[]>([])
@@ -134,29 +134,31 @@ const rosteredPokemonIds = computed(
   () => new Set((league.value?.draft.picks ?? []).map((pick) => pick.pokemonId)),
 )
 const selectedAddPokemon = computed(() =>
-  addPokemonId.value === null ? null : pokemonStore.getPokemonById(addPokemonId.value),
+  addPokemonIds.value
+    .map((pokemonId) => pokemonStore.getPokemonById(pokemonId))
+    .filter((pokemon): pokemon is Pokemon => Boolean(pokemon)),
 )
-const selectedDrop = computed(
-  () => myTeam.value.find((entry) => entry.pokemonId === dropPokemonId.value) ?? null,
+const selectedDrops = computed(() =>
+  myTeam.value.filter((entry) => dropPokemonIds.value.includes(entry.pokemonId)),
 )
 const resultingPointTotal = computed(
   () =>
     myPointTotal.value -
-    (selectedDrop.value?.points ?? 0) +
-    (addPokemonId.value === null ? 0 : getPointValue(addPokemonId.value)),
+    selectedDrops.value.reduce((total, entry) => total + entry.points, 0) +
+    addPokemonIds.value.reduce((total, pokemonId) => total + getPointValue(pokemonId), 0),
 )
 const resultingRosterCount = computed(
-  () => myTeam.value.length - (dropPokemonId.value === null ? 0 : 1) + (addPokemonId.value === null ? 0 : 1),
+  () => myTeam.value.length - dropPokemonIds.value.length + addPokemonIds.value.length,
 )
 const transactionNeedsDrop = computed(() => {
-  if (!league.value || addPokemonId.value === null) return false
+  if (!league.value || addPokemonIds.value.length === 0) return false
   return (
-    myTeam.value.length >= league.value.rounds ||
-    myPointTotal.value + getPointValue(addPokemonId.value) > league.value.pointLimit
+    resultingRosterCount.value > league.value.rounds ||
+    resultingPointTotal.value > league.value.pointLimit
   )
 })
 const transactionIsValid = computed(() => {
-  if (!league.value || (addPokemonId.value === null && dropPokemonId.value === null)) return false
+  if (!league.value || (!addPokemonIds.value.length && !dropPokemonIds.value.length)) return false
   return (
     resultingPointTotal.value <= league.value.pointLimit &&
     resultingRosterCount.value <= league.value.rounds
@@ -164,11 +166,12 @@ const transactionIsValid = computed(() => {
 })
 const transactionSummary = computed(() => {
   if (!league.value) return ''
-  if (addPokemonId.value === null && dropPokemonId.value === null) {
-    return 'Select a free agent to add, a roster Pokémon to drop, or both.'
+  if (!addPokemonIds.value.length && !dropPokemonIds.value.length) {
+    return 'Select one or more free agents to add, roster Pokémon to drop, or both.'
   }
   if (resultingRosterCount.value > league.value.rounds) {
-    return 'Your roster would be over its slot limit. Select a Pokémon to drop.'
+    const slotsToFree = resultingRosterCount.value - league.value.rounds
+    return `Your roster needs ${slotsToFree} more open ${slotsToFree === 1 ? 'slot' : 'slots'}.`
   }
   if (resultingPointTotal.value > league.value.pointLimit) {
     return `Free ${resultingPointTotal.value - league.value.pointLimit} more points to complete this transaction.`
@@ -194,44 +197,31 @@ async function refreshRoster() {
 }
 
 function canSelectFreeAgent(pokemon: Pokemon) {
-  if (!league.value || pokemonStore.getPointValue(pokemon.id) > league.value.pointLimit) return false
-  const canAddDirectly =
-    myTeam.value.length < league.value.rounds &&
-    myPointTotal.value + getPointValue(pokemon.id) <= league.value.pointLimit
-  if (canAddDirectly) return true
-
-  return myTeam.value.some(
-    (entry) =>
-      myPointTotal.value - entry.points + getPointValue(pokemon.id) <= league.value!.pointLimit,
-  )
+  return Boolean(league.value && getPointValue(pokemon.id) <= league.value.pointLimit)
 }
 
 function freeAgentDisabledReason(pokemon: Pokemon) {
   if (getPointValue(pokemon.id) > (league.value?.pointLimit ?? 0)) {
     return 'Costs more than the roster limit'
   }
-  return 'No valid one-for-one roster transaction'
+  return 'Unavailable for this transaction'
 }
 
 function stageAdd(pokemon: Pokemon) {
-  addPokemonId.value = pokemon.id
-  if (
-    dropPokemonId.value !== null &&
-    resultingPointTotal.value <= (league.value?.pointLimit ?? 0) &&
-    resultingRosterCount.value <= (league.value?.rounds ?? 0)
-  ) {
-    return
-  }
-  if (!transactionNeedsDrop.value) dropPokemonId.value = null
+  addPokemonIds.value = addPokemonIds.value.includes(pokemon.id)
+    ? addPokemonIds.value.filter((pokemonId) => pokemonId !== pokemon.id)
+    : [...addPokemonIds.value, pokemon.id]
 }
 
 function toggleDrop(pokemonId: number) {
-  dropPokemonId.value = dropPokemonId.value === pokemonId ? null : pokemonId
+  dropPokemonIds.value = dropPokemonIds.value.includes(pokemonId)
+    ? dropPokemonIds.value.filter((id) => id !== pokemonId)
+    : [...dropPokemonIds.value, pokemonId]
 }
 
 function clearRosterTransaction() {
-  addPokemonId.value = null
-  dropPokemonId.value = null
+  addPokemonIds.value = []
+  dropPokemonIds.value = []
 }
 
 async function submitRosterTransaction() {
@@ -245,13 +235,17 @@ async function submitRosterTransaction() {
       body: JSON.stringify({
         playerId: currentPlayerId.value,
         pin: authStore.pin,
-        addPokemonId: addPokemonId.value,
-        dropPokemonId: dropPokemonId.value,
+        addPokemonIds: addPokemonIds.value,
+        dropPokemonIds: dropPokemonIds.value,
       }),
     })
     if (!res.ok) throw new Error((await res.text()) || 'Roster transaction failed.')
 
-    enqueueSnackbar('Roster transaction completed.', 'success')
+    const changeCount = addPokemonIds.value.length + dropPokemonIds.value.length
+    enqueueSnackbar(
+      `Roster transaction completed with ${changeCount} ${changeCount === 1 ? 'change' : 'changes'}.`,
+      'success',
+    )
     clearRosterTransaction()
     await refreshRoster()
   } catch (error) {
@@ -399,14 +393,30 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 
               <div class="transaction-preview">
                 <div class="transaction-slot">
-                  <span class="transaction-label">Add</span>
-                  <div v-if="selectedAddPokemon" class="transaction-pokemon">
-                    <img :src="selectedAddPokemon.spriteUrl" :alt="selectedAddPokemon.name" />
-                    <div>
-                      <strong>{{ formatPokemonName(selectedAddPokemon.name) }}</strong>
-                      <span>{{ getPointValue(selectedAddPokemon.id) }} pts</span>
+                  <span class="transaction-label">
+                    Add
+                    <small v-if="selectedAddPokemon.length">
+                      {{ selectedAddPokemon.length }} selected
+                    </small>
+                  </span>
+                  <div v-if="selectedAddPokemon.length" class="transaction-list">
+                    <div
+                      v-for="pokemon in selectedAddPokemon"
+                      :key="`add-${pokemon.id}`"
+                      class="transaction-pokemon"
+                    >
+                      <img :src="pokemon.spriteUrl" :alt="pokemon.name" />
+                      <div>
+                        <strong>{{ formatPokemonName(pokemon.name) }}</strong>
+                        <span>{{ getPointValue(pokemon.id) }} pts</span>
+                      </div>
+                      <v-btn
+                        icon="mdi-close"
+                        size="x-small"
+                        variant="text"
+                        @click="stageAdd(pokemon)"
+                      />
                     </div>
-                    <v-btn icon="mdi-close" size="x-small" variant="text" @click="addPokemonId = null" />
                   </div>
                   <span v-else class="empty-text">Choose a free agent from the grid.</span>
                 </div>
@@ -415,18 +425,32 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                   <span class="transaction-label">
                     Drop
                     <small v-if="transactionNeedsDrop">Required</small>
+                    <small v-else-if="selectedDrops.length">
+                      {{ selectedDrops.length }} selected
+                    </small>
                   </span>
-                  <div v-if="selectedDrop" class="transaction-pokemon">
-                    <img
-                      v-if="selectedDrop.pokemon"
-                      :src="selectedDrop.pokemon.spriteUrl"
-                      :alt="selectedDrop.pokemon.name"
-                    />
-                    <div>
-                      <strong>{{ getPokemonName(selectedDrop.pokemonId) }}</strong>
-                      <span>{{ selectedDrop.points }} pts</span>
+                  <div v-if="selectedDrops.length" class="transaction-list">
+                    <div
+                      v-for="entry in selectedDrops"
+                      :key="`drop-${entry.pokemonId}`"
+                      class="transaction-pokemon"
+                    >
+                      <img
+                        v-if="entry.pokemon"
+                        :src="entry.pokemon.spriteUrl"
+                        :alt="entry.pokemon.name"
+                      />
+                      <div>
+                        <strong>{{ getPokemonName(entry.pokemonId) }}</strong>
+                        <span>{{ entry.points }} pts</span>
+                      </div>
+                      <v-btn
+                        icon="mdi-close"
+                        size="x-small"
+                        variant="text"
+                        @click="toggleDrop(entry.pokemonId)"
+                      />
                     </div>
-                    <v-btn icon="mdi-close" size="x-small" variant="text" @click="dropPokemonId = null" />
                   </div>
                   <span v-else class="empty-text">Optional unless points or roster space require it.</span>
                 </div>
@@ -437,7 +461,7 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                   v-for="entry in myTeam"
                   :key="entry.pokemonId"
                   class="team-row"
-                  :class="{ selected: dropPokemonId === entry.pokemonId }"
+                  :class="{ selected: dropPokemonIds.includes(entry.pokemonId) }"
                   @click="toggleDrop(entry.pokemonId)"
                 >
                   <div class="pokemon-info">
@@ -464,11 +488,11 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                     </div>
                   </div>
                   <v-chip
-                    :color="dropPokemonId === entry.pokemonId ? 'error' : undefined"
+                    :color="dropPokemonIds.includes(entry.pokemonId) ? 'error' : undefined"
                     size="small"
                     variant="tonal"
                   >
-                    {{ dropPokemonId === entry.pokemonId ? 'Dropping' : 'Select drop' }}
+                    {{ dropPokemonIds.includes(entry.pokemonId) ? 'Dropping' : 'Select drop' }}
                   </v-chip>
                 </button>
               </div>
@@ -1052,6 +1076,12 @@ h3 {
   display: flex;
   align-items: center;
   gap: 0.55rem;
+}
+
+.transaction-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .transaction-pokemon img {

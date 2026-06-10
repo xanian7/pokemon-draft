@@ -1022,20 +1022,29 @@ public class LeagueService(DraftDbContext db) : ILeagueService
 
     /// <inheritdoc/>
     public (bool success, string? error) DropPokemon(string leagueCode, string playerId, string pin, int pokemonId)
-        => ApplyRosterTransaction(leagueCode, playerId, pin, null, pokemonId);
+        => ApplyRosterTransaction(leagueCode, playerId, pin, [], [pokemonId]);
 
     /// <inheritdoc/>
     public (bool success, string? error) AddPokemon(string leagueCode, string playerId, string pin, int pokemonId)
-        => ApplyRosterTransaction(leagueCode, playerId, pin, pokemonId, null);
+        => ApplyRosterTransaction(leagueCode, playerId, pin, [pokemonId], []);
 
     /// <inheritdoc/>
     public (bool success, string? error) ApplyRosterTransaction(
-        string leagueCode, string playerId, string pin, int? addPokemonId, int? dropPokemonId)
+        string leagueCode,
+        string playerId,
+        string pin,
+        IReadOnlyCollection<int> addPokemonIds,
+        IReadOnlyCollection<int> dropPokemonIds)
     {
-        if (addPokemonId is null && dropPokemonId is null)
+        var addIds = addPokemonIds.Distinct().ToList();
+        var dropIds = dropPokemonIds.Distinct().ToList();
+
+        if (addIds.Count != addPokemonIds.Count || dropIds.Count != dropPokemonIds.Count)
+            return (false, "A Pokémon can only be selected once per transaction.");
+        if (addIds.Count == 0 && dropIds.Count == 0)
             return (false, "Select a Pokémon to add or drop.");
-        if (addPokemonId == dropPokemonId)
-            return (false, "The added and dropped Pokémon must be different.");
+        if (addIds.Intersect(dropIds).Any())
+            return (false, "The same Pokémon cannot be added and dropped in one transaction.");
 
         var league = LoadLeagueWithDraft(leagueCode);
         if (league is null) return (false, "League not found.");
@@ -1048,26 +1057,19 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             return (false, "Roster changes are only available after the draft is complete.");
 
         var playerPicks = league.Picks.Where(p => p.PlayerId == playerId).ToList();
-        DraftPick? droppedPick = null;
-        if (dropPokemonId is not null)
-        {
-            droppedPick = playerPicks.FirstOrDefault(p => p.PokemonId == dropPokemonId.Value);
-            if (droppedPick is null) return (false, "That Pokémon is not on your team.");
-        }
+        var droppedPicks = playerPicks.Where(p => dropIds.Contains(p.PokemonId)).ToList();
+        if (droppedPicks.Count != dropIds.Count)
+            return (false, "Every dropped Pokémon must be on your team.");
 
-        if (addPokemonId is not null && league.Picks.Any(p => p.PokemonId == addPokemonId.Value))
-            return (false, "That Pokémon is already on a team.");
+        if (league.Picks.Any(p => addIds.Contains(p.PokemonId)))
+            return (false, "Every added Pokémon must be a free agent.");
 
         var pointValues = league.PointValues.ToDictionary(pv => pv.PokemonId, pv => pv.Value);
         var currentPointTotal = playerPicks.Sum(p => pointValues.GetValueOrDefault(p.PokemonId, 0));
-        var droppedPointValue = dropPokemonId is null
-            ? 0
-            : pointValues.GetValueOrDefault(dropPokemonId.Value, 0);
-        var addedPointValue = addPokemonId is null
-            ? 0
-            : pointValues.GetValueOrDefault(addPokemonId.Value, 0);
+        var droppedPointValue = droppedPicks.Sum(p => pointValues.GetValueOrDefault(p.PokemonId, 0));
+        var addedPointValue = addIds.Sum(id => pointValues.GetValueOrDefault(id, 0));
         var resultingPointTotal = currentPointTotal - droppedPointValue + addedPointValue;
-        var resultingRosterCount = playerPicks.Count - (droppedPick is null ? 0 : 1) + (addPokemonId is null ? 0 : 1);
+        var resultingRosterCount = playerPicks.Count - droppedPicks.Count + addIds.Count;
 
         if (resultingRosterCount > league.Rounds)
             return (false, "Your roster is full. Select a Pokémon to drop as part of this transaction.");
@@ -1078,7 +1080,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         }
 
         var timestamp = DateTime.UtcNow;
-        if (droppedPick is not null)
+        foreach (var droppedPick in droppedPicks)
         {
             db.Picks.Remove(droppedPick);
             db.RosterTransactions.Add(new RosterTransaction
@@ -1091,22 +1093,23 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             });
         }
 
-        if (addPokemonId is not null)
+        var nextPickNumber = league.Picks.Count > 0 ? league.Picks.Max(p => p.PickNumber) + 1 : 0;
+        var nextRound = Math.Max(0, playerPicks.Count - droppedPicks.Count);
+        foreach (var addPokemonId in addIds)
         {
-            var nextPickNumber = league.Picks.Count > 0 ? league.Picks.Max(p => p.PickNumber) + 1 : 0;
             league.Picks.Add(new DraftPick
             {
                 LeagueCode = league.Code,
-                PickNumber = nextPickNumber,
-                Round = resultingRosterCount - 1,
+                PickNumber = nextPickNumber++,
+                Round = nextRound++,
                 PlayerId = playerId,
-                PokemonId = addPokemonId.Value,
+                PokemonId = addPokemonId,
             });
             db.RosterTransactions.Add(new RosterTransaction
             {
                 LeagueCode = league.Code,
                 PlayerId = playerId,
-                PokemonId = addPokemonId.Value,
+                PokemonId = addPokemonId,
                 Type = RosterTransactionType.Add,
                 CreatedAt = timestamp,
             });

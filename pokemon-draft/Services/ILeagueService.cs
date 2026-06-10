@@ -91,7 +91,11 @@ public interface ILeagueService
 
     /// <summary>Atomically adds and/or drops Pokémon after validating the resulting roster.</summary>
     (bool success, string? error) ApplyRosterTransaction(
-        string leagueCode, string playerId, string pin, int? addPokemonId, int? dropPokemonId);
+        string leagueCode,
+        string playerId,
+        string pin,
+        IReadOnlyCollection<int> addPokemonIds,
+        IReadOnlyCollection<int> dropPokemonIds);
 
     /// <summary>Returns all add/drop transactions for a league ordered by most-recent first.</summary>
     List<RosterTransactionResponse> GetRosterTransactions(string leagueCode);

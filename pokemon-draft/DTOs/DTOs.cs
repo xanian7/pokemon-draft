@@ -38,8 +38,8 @@ public record RosterChangeRequest(string PlayerId, string Pin, int PokemonId);
 public record RosterTransactionRequest(
     string PlayerId,
     string Pin,
-    int? AddPokemonId,
-    int? DropPokemonId
+    List<int>? AddPokemonIds,
+    List<int>? DropPokemonIds
 );
 
 public record ReportMatchupRequest(string PlayerId, string Pin, int Player1Wins, int Player2Wins, string? ReplayUrl = null, List<string>? ReplayUrls = null);

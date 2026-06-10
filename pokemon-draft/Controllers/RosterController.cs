@@ -18,7 +18,11 @@ public class RosterController(ILeagueService leagueService, IHubContext<DraftHub
     public async Task<IActionResult> ApplyTransaction(string code, RosterTransactionRequest req)
     {
         var (success, error) = LeagueService.ApplyRosterTransaction(
-            code, req.PlayerId, req.Pin, req.AddPokemonId, req.DropPokemonId);
+            code,
+            req.PlayerId,
+            req.Pin,
+            req.AddPokemonIds ?? [],
+            req.DropPokemonIds ?? []);
         if (!success) return BadRequest(error);
         await BroadcastLeague(code);
         return Ok();
