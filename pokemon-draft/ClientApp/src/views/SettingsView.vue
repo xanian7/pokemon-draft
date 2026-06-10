@@ -146,7 +146,18 @@ async function save() {
         eyebrow="Account"
         title="Team Settings"
         subtitle="Manage how your team appears and when other players can schedule matches with you."
-      />
+      >
+        <template #actions>
+          <v-btn
+            color="primary"
+            variant="tonal"
+            prepend-icon="mdi-arrow-left"
+            @click="router.push('/league?tab=home')"
+          >
+            Back to Home
+          </v-btn>
+        </template>
+      </PageHeader>
 
       <v-card-text>
         <v-card class="avatar-card mb-2" variant="outlined">

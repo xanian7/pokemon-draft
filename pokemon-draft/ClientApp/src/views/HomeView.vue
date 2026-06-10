@@ -259,25 +259,45 @@ const outlookStatusLabel = (status: string) => {
     </div>
   </v-container>
 
-  <!-- ── Admin dashboard ─────────────────────────────────────────────────── -->
-  <v-container v-else-if="authStore.isAdmin" class="dashboard admin-dashboard">
+  <!-- ── League dashboard ────────────────────────────────────────────────── -->
+  <v-container v-else class="dashboard player-dashboard">
     <PageHeader
       class="dash-header"
-      eyebrow="Commissioner dashboard"
+      :eyebrow="authStore.isAdmin ? 'Commissioner · League home' : 'League home'"
       :title="league?.name || 'League Home'"
       :subtitle="`Welcome back, ${authStore.playerName}`"
     >
       <template #actions>
-      <v-btn color="primary" variant="flat" prepend-icon="mdi-view-dashboard-variant" @click="router.push('/league?tab=draft')">
-        Draft Board
+      <v-btn
+        v-if="draftStatus === 'active'"
+        :color="isMyTurn ? 'primary' : undefined"
+        :variant="isMyTurn ? 'flat' : 'tonal'"
+        prepend-icon="mdi-view-dashboard-variant"
+        :class="{ pulse: isMyTurn }"
+        @click="router.push('/league?tab=draft')"
+      >
+        {{ isMyTurn ? 'Your Turn!' : 'Draft Board' }}
       </v-btn>
       </template>
     </PageHeader>
 
-    <!-- Setup checklist -->
-    <section class="section" v-if="draftStatus === 'setup'">
-      <h2 class="section-heading">Setup Checklist</h2>
-      <div class="checklist">
+    <section v-if="authStore.isAdmin" class="commissioner-tools">
+      <div class="commissioner-tools-header">
+        <div>
+          <span class="eyebrow">Commissioner tools</span>
+          <h2>{{ draftStatus === 'setup' ? 'Finish league setup' : 'League administration' }}</h2>
+        </div>
+        <div class="action-row">
+          <v-btn variant="tonal" prepend-icon="mdi-cog-outline" @click="router.push('/league?tab=setup')">
+            Configure League
+          </v-btn>
+          <v-btn variant="tonal" prepend-icon="mdi-format-list-numbered" @click="router.push('/league?tab=pokemon')">
+            Point Values
+          </v-btn>
+        </div>
+      </div>
+
+      <div v-if="draftStatus === 'setup'" class="checklist">
         <div
           v-for="step in setupSteps"
           :key="step.label"
@@ -298,85 +318,12 @@ const outlookStatusLabel = (status: string) => {
         </div>
       </div>
 
-      <div v-if="draftReady" class="ready-banner">
+      <div v-if="draftStatus === 'setup' && draftReady" class="ready-banner">
         <AppIcon :path="mdiPlayCircle" :size="20" />
-        Everything is set — head to the Draft Board to start!
+        Everything is set. Head to the Draft Board to start.
         <v-btn color="primary" size="small" @click="router.push('/league?tab=draft')">Start Draft</v-btn>
       </div>
     </section>
-
-    <!-- Draft progress when active/complete -->
-    <section class="section" v-else>
-      <h2 class="section-heading">Draft Status</h2>
-      <div class="draft-status-card">
-        <div class="draft-status-row">
-          <span class="status-dot" :style="{ background: draftStatusColor }" />
-          <span class="status-label" :style="{ color: draftStatusColor }">{{
-            draftStatusLabel
-          }}</span>
-        </div>
-        <div class="progress-bar-wrap">
-          <div class="progress-bar-fill" :style="{ width: draftProgress + '%' }" />
-        </div>
-        <span class="progress-label">Pick {{ currentPickNumber }} of {{ totalPicks }}</span>
-      </div>
-    </section>
-
-    <!-- League at a glance -->
-    <section class="section">
-      <h2 class="section-heading">League Overview</h2>
-      <div class="stat-row">
-        <div class="stat-chip">
-          <span class="stat-n">{{ league?.players?.length ?? 0 }}</span>
-          <span class="stat-lbl">Players</span>
-        </div>
-        <div class="stat-chip">
-          <span class="stat-n">{{ league?.rounds ?? 0 }}</span>
-          <span class="stat-lbl">Rounds</span>
-        </div>
-        <div class="stat-chip">
-          <span class="stat-n">{{ league?.pointLimit ?? 0 }}</span>
-          <span class="stat-lbl">Point Limit</span>
-        </div>
-        <div class="stat-chip">
-          <span class="stat-n">{{ Object.keys(league?.pointValues ?? {}).length }}</span>
-          <span class="stat-lbl">Valued Pokémon</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- Quick actions -->
-    <section class="section">
-      <h2 class="section-heading">Quick Actions</h2>
-      <div class="action-row">
-        <v-btn variant="tonal" prepend-icon="mdi-cog-outline" @click="router.push('/league?tab=setup')">Configure League</v-btn>
-        <v-btn variant="tonal" prepend-icon="mdi-format-list-numbered" @click="router.push('/league?tab=pokemon')">Point Values</v-btn>
-        <v-btn variant="tonal" prepend-icon="mdi-account-group-outline" @click="router.push('/roster')">View Rosters</v-btn>
-      </div>
-    </section>
-  </v-container>
-
-  <!-- ── Player dashboard ────────────────────────────────────────────────── -->
-  <v-container v-else class="dashboard player-dashboard">
-    <PageHeader
-      class="dash-header"
-      eyebrow="League home"
-      :title="league?.name || 'League Home'"
-      :subtitle="`Welcome back, ${authStore.playerName}`"
-    >
-      <template #actions>
-      <v-btn
-        v-if="draftStatus === 'active'"
-        :color="isMyTurn ? 'primary' : undefined"
-        :variant="isMyTurn ? 'flat' : 'tonal'"
-        prepend-icon="mdi-view-dashboard-variant"
-        :class="{ pulse: isMyTurn }"
-        @click="router.push('/league?tab=draft')"
-      >
-        {{ isMyTurn ? 'Your Turn!' : 'Draft Board' }}
-      </v-btn>
-      </template>
-    </PageHeader>
 
     <!-- ── Post-draft hub ──────────────────────────────────────────────── -->
     <template v-if="draftStatus === 'complete'">
@@ -622,26 +569,28 @@ const outlookStatusLabel = (status: string) => {
   padding: clamp(1rem, 2vw, 2rem);
 }
 
-.admin-dashboard {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.admin-dashboard .dash-header {
-  grid-column: 1 / -1;
-}
-
-.admin-dashboard .section {
-  margin-bottom: 0;
-  padding: 1.1rem;
-  border: 1px solid var(--border-color);
+.commissioner-tools {
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.11), rgba(20, 26, 43, 0.58));
+  border: 1px solid rgba(var(--primary-rgb), 0.3);
   border-radius: var(--radius-md);
-  background: rgba(20, 26, 43, 0.56);
+  margin-bottom: 1rem;
+  padding: 1rem;
 }
 
-.admin-dashboard .section:last-child {
-  grid-column: 1 / -1;
+.commissioner-tools-header {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.commissioner-tools-header h2 {
+  font-size: 1rem;
+  margin-top: 2px;
+}
+
+.commissioner-tools .checklist {
+  margin-top: 14px;
 }
 
 /* ── Landing ─────────────────────────────────────────────────────────────── */
@@ -1023,13 +972,13 @@ h1 {
 }
 
 @media (max-width: 540px) {
-  .admin-dashboard {
-    display: flex;
+  .commissioner-tools-header {
+    align-items: flex-start;
     flex-direction: column;
   }
 
-  .admin-dashboard .section {
-    padding: 0.9rem;
+  .commissioner-tools-header .action-row {
+    width: 100%;
   }
 
   .quicknav-grid {
