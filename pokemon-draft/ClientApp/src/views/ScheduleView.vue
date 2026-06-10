@@ -109,7 +109,7 @@ const pointsProgression = computed(() => {
 
   return schedule.value.standings.map((standing) => {
     let total = 0
-    const values = [0]
+    const values: number[] = []
 
     for (const week of reportedWeeks) {
       for (const matchup of week.matchups) {
@@ -128,6 +128,43 @@ const pointsProgression = computed(() => {
       values,
     }
   })
+})
+
+const chart = computed(() => {
+  const width = 760
+  const height = 380
+  const margin = { top: 24, right: 24, bottom: 52, left: 52 }
+  const plotWidth = width - margin.left - margin.right
+  const plotHeight = height - margin.top - margin.bottom
+  const weekCount = pointsProgression.value[0]?.values.length ?? 0
+  const maxPoints = Math.max(3, ...pointsProgression.value.flatMap((player) => player.values))
+  const yMax = Math.ceil(maxPoints / 3) * 3
+  const yTicks = Array.from({ length: yMax / 3 + 1 }, (_, index) => index * 3)
+  const colors = ['#7c6cff', '#2ab6ff', '#35d39a', '#ffca62', '#ff5c7a', '#c084fc', '#fb923c', '#22d3ee']
+
+  const x = (weekIndex: number) =>
+    margin.left + (weekCount <= 1 ? plotWidth / 2 : (weekIndex / (weekCount - 1)) * plotWidth)
+  const y = (points: number) => margin.top + plotHeight - (points / yMax) * plotHeight
+
+  return {
+    width,
+    height,
+    margin,
+    plotWidth,
+    plotHeight,
+    weekCount,
+    yMax,
+    yTicks,
+    x,
+    y,
+    series: pointsProgression.value.map((player, index) => ({
+      ...player,
+      color: colors[index % colors.length],
+      path: player.values
+        .map((points, weekIndex) => `${weekIndex === 0 ? 'M' : 'L'} ${x(weekIndex)} ${y(points)}`)
+        .join(' '),
+    })),
+  }
 })
 
 function isMyMatchup(matchup: MatchupResponse) {
@@ -484,39 +521,109 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
             <v-card class="progression-card">
               <v-card-title class="text-h6">Points Progression</v-card-title>
               <v-card-subtitle>Cumulative match points by week</v-card-subtitle>
-              <v-card-text class="progression-list">
-                <div
-                  v-for="player in pointsProgression"
-                  :key="player.playerId"
-                  class="progression-row"
-                  :class="{ mine: player.playerId === authStore.playerId }"
-                >
-                  <div class="progression-heading">
-                    <span class="progression-name">{{ player.label }}</span>
-                    <strong>{{ player.values.at(-1) ?? 0 }} pts</strong>
-                  </div>
-                  <v-sparkline
-                    :model-value="player.values"
-                    :color="player.playerId === authStore.playerId ? 'primary' : 'info'"
-                    :gradient="
-                      player.playerId === authStore.playerId
-                        ? ['#7c6cff', '#b4aaff']
-                        : ['#2ab6ff', '#35d39a']
-                    "
-                    auto-draw
-                    fill
-                    height="54"
-                    label-size="7"
-                    line-width="2"
-                    padding="8"
-                    show-labels
-                    smooth="8"
-                    width="320"
+              <v-card-text>
+                <div v-if="chart.weekCount" class="points-chart">
+                  <svg
+                    :viewBox="`0 0 ${chart.width} ${chart.height}`"
+                    role="img"
+                    aria-label="Player points by week"
                   >
-                    <template #label="{ index, value }">
-                      W{{ index }}: {{ value }}
-                    </template>
-                  </v-sparkline>
+                    <g class="chart-grid">
+                      <line
+                        v-for="tick in chart.yTicks"
+                        :key="`grid-${tick}`"
+                        :x1="chart.margin.left"
+                        :x2="chart.margin.left + chart.plotWidth"
+                        :y1="chart.y(tick)"
+                        :y2="chart.y(tick)"
+                      />
+                    </g>
+
+                    <g class="chart-axis">
+                      <line
+                        :x1="chart.margin.left"
+                        :x2="chart.margin.left"
+                        :y1="chart.margin.top"
+                        :y2="chart.margin.top + chart.plotHeight"
+                      />
+                      <line
+                        :x1="chart.margin.left"
+                        :x2="chart.margin.left + chart.plotWidth"
+                        :y1="chart.margin.top + chart.plotHeight"
+                        :y2="chart.margin.top + chart.plotHeight"
+                      />
+                    </g>
+
+                    <g class="chart-labels">
+                      <text
+                        v-for="tick in chart.yTicks"
+                        :key="`y-${tick}`"
+                        :x="chart.margin.left - 12"
+                        :y="chart.y(tick) + 4"
+                        text-anchor="end"
+                      >
+                        {{ tick }}
+                      </text>
+                      <text
+                        v-for="weekIndex in chart.weekCount"
+                        :key="`x-${weekIndex}`"
+                        :x="chart.x(weekIndex - 1)"
+                        :y="chart.margin.top + chart.plotHeight + 24"
+                        text-anchor="middle"
+                      >
+                        {{ weekIndex }}
+                      </text>
+                      <text
+                        :x="chart.margin.left + chart.plotWidth / 2"
+                        :y="chart.height - 8"
+                        text-anchor="middle"
+                        class="axis-title"
+                      >
+                        Week
+                      </text>
+                      <text
+                        :x="16"
+                        :y="chart.margin.top + chart.plotHeight / 2"
+                        text-anchor="middle"
+                        class="axis-title"
+                        :transform="`rotate(-90 16 ${chart.margin.top + chart.plotHeight / 2})`"
+                      >
+                        Points
+                      </text>
+                    </g>
+
+                    <g v-for="player in chart.series" :key="player.playerId">
+                      <path
+                        :d="player.path"
+                        :stroke="player.color"
+                        :class="{ 'my-chart-line': player.playerId === authStore.playerId }"
+                        class="chart-line"
+                      />
+                      <circle
+                        v-for="(points, weekIndex) in player.values"
+                        :key="`${player.playerId}-${weekIndex}`"
+                        :cx="chart.x(weekIndex)"
+                        :cy="chart.y(points)"
+                        :fill="player.color"
+                        r="3.5"
+                      >
+                        <title>{{ player.label }} - Week {{ weekIndex + 1 }}: {{ points }} points</title>
+                      </circle>
+                    </g>
+                  </svg>
+                </div>
+                <div v-else class="chart-empty">The graph will appear after the first score is reported.</div>
+
+                <div class="chart-legend">
+                  <div
+                    v-for="player in chart.series"
+                    :key="`legend-${player.playerId}`"
+                    class="legend-item"
+                    :class="{ mine: player.playerId === authStore.playerId }"
+                  >
+                    <span class="legend-swatch" :style="{ backgroundColor: player.color }" />
+                    <span>{{ player.label }}</span>
+                  </div>
                 </div>
               </v-card-text>
             </v-card>
@@ -691,38 +798,81 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
   margin-top: 16px;
 }
 
-.progression-list {
-  display: grid;
-  gap: 18px;
+.points-chart {
+  overflow-x: auto;
+  width: 100%;
 }
 
-.progression-row {
-  border-top: 1px solid var(--border-color);
-  padding-top: 14px;
+.points-chart svg {
+  display: block;
+  min-width: 620px;
+  width: 100%;
 }
 
-.progression-row:first-child {
-  border-top: 0;
-  padding-top: 0;
+.chart-grid line {
+  stroke: var(--border-color);
+  stroke-width: 1;
 }
 
-.progression-row.mine .progression-name {
-  color: var(--primary);
+.chart-axis line {
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
 }
 
-.progression-heading {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-  margin-bottom: 4px;
+.chart-labels text {
+  fill: var(--text-muted);
+  font-size: 12px;
 }
 
-.progression-name {
+.chart-labels .axis-title {
+  fill: var(--text);
+  font-size: 13px;
   font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.chart-line {
+  fill: none;
+  opacity: 0.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.chart-line.my-chart-line {
+  opacity: 1;
+  stroke-width: 5;
+}
+
+.chart-empty {
+  color: var(--text-muted);
+  padding: 24px 0;
+  text-align: center;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 12px;
+}
+
+.legend-item {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  font-size: 0.82rem;
+  gap: 6px;
+}
+
+.legend-item.mine {
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.legend-swatch {
+  border-radius: 999px;
+  height: 4px;
+  width: 20px;
 }
 
 .standing-team {
