@@ -8,6 +8,7 @@ import { usePokemonStore } from '@/stores/pokemon'
 import { useDraftStore } from '@/stores/draft'
 import { enqueueSnackbar } from '@/services/snackbar'
 import PageHeader from '@/components/PageHeader.vue'
+import FormField from '@/components/FormField.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -250,14 +251,15 @@ const snakePreview = computed(() => {
             <v-chip class="ml-auto" color="primary" variant="tonal">{{ leagueCode }}</v-chip>
           </v-card-title>
           <v-card-text>
-            <v-text-field
-              :model-value="inviteLink"
-              label="Registration link"
-              readonly
-              hide-details
-              append-inner-icon="mdi-content-copy"
-              @click:append-inner="copyInviteLink"
-            />
+            <FormField label="Registration Link">
+              <v-text-field
+                :model-value="inviteLink"
+                readonly
+                hide-details
+                append-inner-icon="mdi-content-copy"
+                @click:append-inner="copyInviteLink"
+              />
+            </FormField>
             <div class="field-help">
               {{ linkCopied ? 'Copied to clipboard.' : 'Anyone with this link can register for the league.' }}
             </div>
@@ -267,38 +269,28 @@ const snakePreview = computed(() => {
         <v-card variant="outlined" class="workspace-card">
           <v-card-title><v-icon icon="mdi-tune-variant" start /> League rules</v-card-title>
           <v-card-text class="config-grid">
-            <v-text-field v-model="leagueName" label="League name" @change="saveConfig" />
-            <v-select
-              v-model="regulationSet"
-              :items="REGULATIONS"
-              item-title="label"
-              item-value="id"
-              label="Regulation set"
-              @update:model-value="saveConfig"
-            />
-            <v-number-input
-              v-model="pointLimit"
-              label="Team point limit"
-              :min="1"
-              control-variant="stacked"
-              @change="saveConfig"
-            />
-            <v-number-input
-              v-model="rounds"
-              label="Draft rounds"
-              :min="1"
-              :max="20"
-              control-variant="stacked"
-              @change="saveConfig"
-            />
-            <v-number-input
-              v-model="playoffSpots"
-              label="Playoff spots"
-              :min="2"
-              :max="16"
-              control-variant="stacked"
-              @change="saveConfig"
-            />
+            <FormField label="League Name">
+              <v-text-field v-model="leagueName" hide-details @change="saveConfig" />
+            </FormField>
+            <FormField label="Regulation Set">
+              <v-select
+                v-model="regulationSet"
+                :items="REGULATIONS"
+                item-title="label"
+                item-value="id"
+                hide-details
+                @update:model-value="saveConfig"
+              />
+            </FormField>
+            <FormField label="Team Point Limit">
+              <v-number-input v-model="pointLimit" :min="1" control-variant="stacked" hide-details @change="saveConfig" />
+            </FormField>
+            <FormField label="Draft Rounds">
+              <v-number-input v-model="rounds" :min="1" :max="20" control-variant="stacked" hide-details @change="saveConfig" />
+            </FormField>
+            <FormField label="Playoff Spots">
+              <v-number-input v-model="playoffSpots" :min="2" :max="16" control-variant="stacked" hide-details @change="saveConfig" />
+            </FormField>
           </v-card-text>
         </v-card>
 
@@ -326,18 +318,12 @@ const snakePreview = computed(() => {
           </v-card-title>
           <v-card-text>
             <div class="add-player">
-              <v-text-field
-                v-model="newPlayerName"
-                label="Player name"
-                hide-details
-                @keydown.enter="addPlayer"
-              />
-              <v-text-field
-                v-model="newPlayerPin"
-                label="PIN"
-                hide-details
-                @keydown.enter="addPlayer"
-              />
+              <FormField label="Player Name">
+                <v-text-field v-model="newPlayerName" placeholder="Enter a name" hide-details @keydown.enter="addPlayer" />
+              </FormField>
+              <FormField label="PIN">
+                <v-text-field v-model="newPlayerPin" placeholder="Choose a PIN" hide-details @keydown.enter="addPlayer" />
+              </FormField>
               <v-btn color="primary" prepend-icon="mdi-account-plus" @click="addPlayer">Add</v-btn>
             </div>
             <v-alert v-if="addError" type="error" variant="tonal" density="compact" class="mt-3">

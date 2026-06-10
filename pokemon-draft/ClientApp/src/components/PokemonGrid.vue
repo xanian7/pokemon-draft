@@ -7,6 +7,7 @@ import { useRegulationFilter } from '@/composables/useRegulationFilter'
 import PokemonCard from './PokemonCard.vue'
 import PokemonDetailModal from './PokemonDetailModal.vue'
 import AppIcon from './AppIcon.vue'
+import FormField from './FormField.vue'
 import type { Pokemon } from '@/types'
 import { mdiViewGrid, mdiViewColumn } from '@mdi/js'
 import { formatPokemonName } from '@/utils/format'
@@ -160,28 +161,26 @@ async function handleAction(pokemonId: number) {
       <div class="pokemon-grid-header">
         <v-row>
           <v-col>
-            <v-text-field
-              v-model="searchQuery"
-              placeholder="Search Pokemon"
-              clearable
-              hide-details
-              variant="outlined"
-              density="compact"
-            />
+            <FormField label="Search Pokémon">
+              <v-text-field
+                v-model="searchQuery"
+                placeholder="Name or form"
+                clearable
+                hide-details
+              />
+            </FormField>
           </v-col>
         </v-row>
         <div class="filter-bar">
-          <v-select
-            v-model="selectedType"
-            :items="pokemonStore.allTypes"
-            variant="outlined"
-            clearable
-            label="Types"
-            density="compact"
-            class="type-filter"
-            hide-details
-          >
-          </v-select>
+          <FormField label="Type" class="type-filter">
+            <v-select
+              v-model="selectedType"
+              :items="pokemonStore.allTypes"
+              clearable
+              placeholder="All types"
+              hide-details
+            />
+          </FormField>
 
           <v-checkbox
             v-model="hidePicked"
@@ -445,14 +444,6 @@ async function handleAction(pokemonId: number) {
 
 .type-filter {
   max-width: 200px;
-}
-
-.type-filter :deep(.v-field__input) {
-  padding-inline-start: 12px;
-}
-
-.type-filter :deep(.v-field-label) {
-  left: 12px;
 }
 
 @media (max-width: 720px) {

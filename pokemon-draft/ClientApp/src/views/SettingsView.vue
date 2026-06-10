@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { enqueueSnackbar } from '@/services/snackbar'
 import PageHeader from '@/components/PageHeader.vue'
+import FormField from '@/components/FormField.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -171,23 +172,18 @@ async function save() {
         </v-card>
 
         <v-form class="settings-form" @submit.prevent="save">
-          <v-text-field
-            v-model="teamName"
-            label="Team Name"
-            maxlength="40"
-            :counter="40"
-            variant="outlined"
-          />
+          <FormField label="Team Name">
+            <v-text-field v-model="teamName" placeholder="Choose a team name" maxlength="40" :counter="40" />
+          </FormField>
 
-          <v-text-field
-            v-model="teamImageUrl"
-            label="Team Avatar URL"
-            placeholder="https://example.com/avatar.png"
-            type="url"
-            variant="outlined"
-            hint="Paste a direct image URL."
-            persistent-hint
-          />
+          <FormField label="Team Avatar URL" hint="Paste a direct image URL.">
+            <v-text-field
+              v-model="teamImageUrl"
+              placeholder="https://example.com/avatar.png"
+              type="url"
+              hide-details
+            />
+          </FormField>
 
           <v-divider />
 
@@ -199,15 +195,16 @@ async function save() {
           </div>
 
           <div class="timezone-row">
-            <v-autocomplete
-              v-model="timeZone"
-              :items="timeZoneItems"
-              label="Time Zone"
-              prepend-inner-icon="mdi-clock-outline"
-              variant="outlined"
-              auto-select-first
-              hide-details
-            />
+            <FormField label="Time Zone">
+              <v-autocomplete
+                v-model="timeZone"
+                :items="timeZoneItems"
+                placeholder="Select a time zone"
+                prepend-inner-icon="mdi-clock-outline"
+                auto-select-first
+                hide-details
+              />
+            </FormField>
             <v-btn
               variant="tonal"
               prepend-icon="mdi-crosshairs-gps"
@@ -233,27 +230,25 @@ async function save() {
                 </div>
 
                 <div class="time-range">
-                  <v-text-field
-                    v-model="day.start"
-                    type="time"
-                    label="From"
-                    density="compact"
-                    variant="outlined"
-                    hide-details
-                    :disabled="!day.enabled"
-                    :error="day.enabled && day.start >= day.end"
-                  />
+                  <FormField label="From">
+                    <v-text-field
+                      v-model="day.start"
+                      type="time"
+                      hide-details
+                      :disabled="!day.enabled"
+                      :error="day.enabled && day.start >= day.end"
+                    />
+                  </FormField>
                   <span class="text-medium-emphasis">to</span>
-                  <v-text-field
-                    v-model="day.end"
-                    type="time"
-                    label="Until"
-                    density="compact"
-                    variant="outlined"
-                    hide-details
-                    :disabled="!day.enabled"
-                    :error="day.enabled && day.start >= day.end"
-                  />
+                  <FormField label="Until">
+                    <v-text-field
+                      v-model="day.end"
+                      type="time"
+                      hide-details
+                      :disabled="!day.enabled"
+                      :error="day.enabled && day.start >= day.end"
+                    />
+                  </FormField>
                 </div>
               </v-list-item>
             </v-list>

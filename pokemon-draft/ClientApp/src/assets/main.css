@@ -188,9 +188,7 @@
   color: var(--primary);
 }
 
-input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='button'], [type='submit']),
-select,
-textarea {
+.native-field {
   min-height: 40px;
   padding: 8px 12px;
   color: var(--text);
@@ -203,15 +201,12 @@ textarea {
     box-shadow 0.18s ease;
 }
 
-input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='button'], [type='submit']):focus,
-select:focus,
-textarea:focus {
+.native-field:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12);
 }
 
-input::placeholder,
-textarea::placeholder {
+.native-field::placeholder {
   color: var(--text-subtle);
 }
 
@@ -402,12 +397,4 @@ textarea::placeholder {
 .remove-left-right-padding {
   padding-left: 0 !important;
   padding-right: 0 !important;
-}
-
-.poke-input .v-field__input {
-  padding-inline-start: 12px !important;
-}
-
-.poke-input .v-field-label {
-  left: 12px !important;
 }

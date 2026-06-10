@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
+import FormField from '@/components/FormField.vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import PokeballLoader from '@/components/PokeballLoader.vue'
@@ -455,40 +456,29 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
         <v-card-text>
           <div class="report-grid">
             <div class="report-team">{{ teamLabel(activeMatchup.player1Name, activeMatchup.player1TeamName) }}</div>
-            <v-number-input
-              v-model="reportP1Wins"
-              :min="0"
-              :max="2"
-              class="score-input"
-              density="compact"
-              variant="outlined"
-              hide-details
-            />
+            <FormField label="Wins">
+              <v-number-input v-model="reportP1Wins" :min="0" :max="2" class="score-input" hide-details />
+            </FormField>
             <div class="report-team right">{{ teamLabel(activeMatchup.player2Name, activeMatchup.player2TeamName) }}</div>
-            <v-number-input
-              v-model="reportP2Wins"
-              :min="0"
-              :max="2"
-              class="score-input"
-              density="compact"
-              variant="outlined"
-              hide-details
-            />
+            <FormField label="Wins">
+              <v-number-input v-model="reportP2Wins" :min="0" :max="2" class="score-input" hide-details />
+            </FormField>
           </div>
 
           <div class="replay-inputs">
-            <v-text-field
+            <FormField
               v-for="(_, index) in reportReplayUrls"
               :key="index"
-              v-model="reportReplayUrls[index]"
-              class="replay-input"
-              :label="`Replay link ${index + 1}`"
-              placeholder="https://replay.pokemonshowdown.com/..."
-              variant="outlined"
-              density="compact"
-              clearable
-              hide-details
-            />
+              :label="`Replay Link ${index + 1}`"
+            >
+              <v-text-field
+                v-model="reportReplayUrls[index]"
+                class="replay-input"
+                placeholder="https://replay.pokemonshowdown.com/..."
+                clearable
+                hide-details
+              />
+            </FormField>
           </div>
 
           <v-alert v-if="reportError" type="error" variant="tonal" density="compact">

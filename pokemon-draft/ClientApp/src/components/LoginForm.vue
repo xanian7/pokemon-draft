@@ -3,6 +3,7 @@ import { ref, watch, computed } from 'vue'
 import { API_BASE } from '@/services/signalr'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import FormField from '@/components/FormField.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -160,39 +161,25 @@ const isInLeague = computed(() => authStore.isAuthenticated)
 
           <!-- Join League -->
           <v-tabs-window-item value="join">
-            <v-text-field
-              v-model="joinCode"
-              label="League Code"
-              variant="outlined"
-              density="compact"
-              class="top-btn poke-input"
-              :hint="joinLeagueName || ' '"
-              persistent-hint
-              maxlength="6"
-              @input="joinCode = joinCode.toUpperCase()"
-            />
-            <v-text-field
-              v-model="joinName"
-              label="Your Name"
-              variant="outlined"
-              density="compact"
-              class="poke-input"
-            />
-            <v-text-field
-              v-model="joinTeamName"
-              label="Team Name (optional)"
-              variant="outlined"
-              density="compact"
-              class="poke-input"
-            />
-            <v-text-field
-              v-model="joinTeamImageUrl"
-              label="Team Avatar URL (optional)"
-              variant="outlined"
-              density="compact"
-              class="poke-input"
-              placeholder="https://..."
-            />
+            <FormField label="League Code" :hint="joinLeagueName">
+              <v-text-field
+                v-model="joinCode"
+                class="top-btn"
+                placeholder="ABC123"
+                hide-details
+                maxlength="6"
+                @input="joinCode = joinCode.toUpperCase()"
+              />
+            </FormField>
+            <FormField label="Your Name">
+              <v-text-field v-model="joinName" placeholder="Player name" hide-details />
+            </FormField>
+            <FormField label="Team Name" hint="Optional">
+              <v-text-field v-model="joinTeamName" placeholder="Team name" hide-details />
+            </FormField>
+            <FormField label="Team Avatar URL" hint="Optional">
+              <v-text-field v-model="joinTeamImageUrl" placeholder="https://..." hide-details />
+            </FormField>
             <v-alert v-if="joinError" type="error" density="compact" class="mb-3" :text="joinError" />
             <v-btn block color="primary" :loading="joinLoading" @click="joinLeague">
               Join League
@@ -202,21 +189,12 @@ const isInLeague = computed(() => authStore.isAuthenticated)
           <!-- Create League -->
           <v-tabs-window-item value="create">
             <template v-if="!createdLeague">
-              <v-text-field
-                v-model="createCommissionerName"
-                label="Your Name"
-                variant="outlined"
-                density="compact"
-                class="top-btn poke-input"
-              />
-              <v-text-field
-                v-model="createLeagueName"
-                label="League Name"
-                variant="outlined"
-                density="compact"
-                class="poke-input"
-                placeholder="My Draft League"
-              />
+              <FormField label="Your Name">
+                <v-text-field v-model="createCommissionerName" class="top-btn" placeholder="Commissioner name" hide-details />
+              </FormField>
+              <FormField label="League Name">
+                <v-text-field v-model="createLeagueName" placeholder="My Draft League" hide-details />
+              </FormField>
               <v-alert v-if="createError" type="error" density="compact" class="mb-3" :text="createError" />
               <v-btn block color="primary" :loading="createLoading" @click="createLeague">
                 Create League
@@ -286,11 +264,4 @@ const isInLeague = computed(() => authStore.isAuthenticated)
   margin-top: 16px;
 }
 
-.poke-input :deep(.v-field__input) {
-  padding-inline-start: 12px !important;
-}
-
-.poke-input :deep(.v-field-label) {
-  left: 12px !important;
-}
 </style>

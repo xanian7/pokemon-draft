@@ -4,6 +4,7 @@ import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import FormField from '@/components/FormField.vue'
 import { REGULATIONS, getRegulation } from '@/data/regulations'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
@@ -200,29 +201,34 @@ async function saveToServer() {
 
     <v-card variant="outlined" class="filter-card">
       <v-card-text class="filter-grid">
-        <v-text-field
-          v-model="searchQuery"
-          label="Search Pokémon"
-          prepend-inner-icon="mdi-magnify"
-          hide-details
-          clearable
-        />
-        <v-select
-          v-model="selectedRegulation"
-          :items="REGULATIONS"
-          item-title="label"
-          item-value="id"
-          label="Regulation"
-          hide-details
-          @update:model-value="onRegulationChange"
-        />
-        <v-select
-          v-model="selectedType"
-          :items="pokemonStore.allTypes"
-          label="Type"
-          hide-details
-          clearable
-        />
+        <FormField label="Search Pokémon">
+          <v-text-field
+            v-model="searchQuery"
+            placeholder="Name or form"
+            prepend-inner-icon="mdi-magnify"
+            hide-details
+            clearable
+          />
+        </FormField>
+        <FormField label="Regulation">
+          <v-select
+            v-model="selectedRegulation"
+            :items="REGULATIONS"
+            item-title="label"
+            item-value="id"
+            hide-details
+            @update:model-value="onRegulationChange"
+          />
+        </FormField>
+        <FormField label="Type">
+          <v-select
+            v-model="selectedType"
+            :items="pokemonStore.allTypes"
+            placeholder="All types"
+            hide-details
+            clearable
+          />
+        </FormField>
         <v-switch v-model="showOnlyValued" label="Valued only" color="primary" hide-details />
         <v-btn-toggle v-model="viewMode" mandatory density="comfortable" variant="outlined">
           <v-btn value="grid" icon="mdi-view-grid-outline" aria-label="Grid view" />
@@ -267,7 +273,7 @@ async function saveToServer() {
               min="0"
               :value="pokemon.pointValue || ''"
               placeholder="pts"
-              class="pts-input"
+              class="pts-input native-field"
               @change="onPointInput(pokemon.id, $event)"
             />
           </div>
@@ -291,7 +297,7 @@ async function saveToServer() {
           min="0"
           :value="pokemon.pointValue || ''"
           placeholder="pts"
-          class="pts-input"
+          class="pts-input native-field"
           @change="onPointInput(pokemon.id, $event)"
         />
       </div>

@@ -5,6 +5,7 @@ import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import FormField from '@/components/FormField.vue'
 import { apiGet } from '@/services/api'
 import { enqueueSnackbar } from '@/services/snackbar'
 import { useSignalR } from '@/services/signalr'
@@ -265,14 +266,14 @@ function localTime(timeZone?: string) {
           <v-chip :color="matchupStatus.color" size="small" variant="tonal">
             {{ matchupStatus.label }}
           </v-chip>
-          <v-select
-            v-if="matchupOptions.length > 1"
-            v-model="selectedMatchupId"
-            :items="matchupOptions"
-            label="Matchup"
-            hide-details
-            class="matchup-select"
-          />
+          <FormField v-if="matchupOptions.length > 1" label="Matchup">
+            <v-select
+              v-model="selectedMatchupId"
+              :items="matchupOptions"
+              hide-details
+              class="matchup-select"
+            />
+          </FormField>
         </template>
       </PageHeader>
 

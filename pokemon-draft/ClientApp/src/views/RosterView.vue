@@ -9,6 +9,7 @@ import { formatPokemonName } from '@/utils/format'
 import AppIcon from '@/components/AppIcon.vue'
 import PokemonGrid from '@/components/PokemonGrid.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
+import FormField from '@/components/FormField.vue'
 import { enqueueSnackbar } from '@/services/snackbar'
 import { mdiAccountGroup } from '@mdi/js'
 
@@ -551,16 +552,17 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                   </div>
                 </v-card-title>
                 <v-card-text>
-                  <v-select
-                    v-model="targetPlayerId"
-                    :items="otherPlayers"
-                    item-title="name"
-                    item-value="id"
-                    label="Choose a manager"
-                    prepend-inner-icon="mdi-account-search"
-                    variant="outlined"
-                    hide-details
-                  />
+                  <FormField label="Manager">
+                    <v-select
+                      v-model="targetPlayerId"
+                      :items="otherPlayers"
+                      item-title="name"
+                      item-value="id"
+                      placeholder="Choose a manager"
+                      prepend-inner-icon="mdi-account-search"
+                      hide-details
+                    />
+                  </FormField>
                 </v-card-text>
               </v-card>
 
