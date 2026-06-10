@@ -91,18 +91,48 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
 
 <style>
 :root {
-  --primary: #0facf5;
-  --secondary: #f50f0f;
-  --text: #e8e8e8;
-  --text-muted: #888;
-  --bg: #1a1a1a;
-  --card-bg: #222222;
-  --input-bg: #111111;
-  --border-color: #363636;
-  --primary-hover-bg: #282c30;
-  --secondary-hover-bg: #331e1e;
-  --draft-card-nonuser-bg: #35697e;
+  --primary: #7c6cff;
+  --primary-rgb: 124, 108, 255;
+  --primary-bright: #a99fff;
+  --secondary: #ff5c7a;
+  --secondary-rgb: 255, 92, 122;
+  --success: #35d39a;
+  --warning: #ffca62;
+  --text: #f4f6ff;
+  --text-muted: #9aa4bd;
+  --text-subtle: #6f7890;
+  --bg: #080b14;
+  --bg-elevated: #0d1220;
+  --card-bg: rgba(20, 26, 43, 0.82);
+  --card-bg-solid: #141a2b;
+  --input-bg: rgba(8, 12, 23, 0.72);
+  --border-color: rgba(162, 174, 211, 0.14);
+  --border-strong: rgba(162, 174, 211, 0.24);
+  --primary-hover-bg: rgba(var(--primary-rgb), 0.12);
+  --secondary-hover-bg: rgba(var(--secondary-rgb), 0.12);
+  --draft-card-nonuser-bg: #263d65;
+  --surface-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
+  --surface-shadow-hover: 0 24px 60px rgba(0, 0, 0, 0.34);
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
   color-scheme: light dark;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  background:
+    radial-gradient(circle at 8% -10%, rgba(var(--primary-rgb), 0.18), transparent 34rem),
+    radial-gradient(circle at 94% 10%, rgba(42, 182, 255, 0.1), transparent 30rem),
+    var(--bg);
+}
+
+#app,
+.v-application {
+  background: transparent !important;
 }
 </style>
 

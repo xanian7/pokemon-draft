@@ -72,14 +72,17 @@ const emit = defineEmits<{
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: var(--card-bg);
+  background:
+    radial-gradient(circle at 50% 18%, rgba(var(--primary-rgb), 0.09), transparent 48%),
+    var(--card-bg);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 0.5rem;
+  border-radius: 16px;
+  padding: 0.7rem;
   cursor: pointer;
   transition:
-    transform 0.15s,
-    box-shadow 0.15s,
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
     opacity 0.15s;
   text-align: center;
   min-width: 0;
@@ -87,9 +90,9 @@ const emit = defineEmits<{
 }
 
 .pokemon-card:hover:not(.is-picked, .is-disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  border-color: var(--primary);
+  transform: translateY(-4px);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
+  border-color: rgba(var(--primary-rgb), 0.58);
   z-index: 1;
 }
 
@@ -117,8 +120,15 @@ const emit = defineEmits<{
 }
 
 .sprite {
-  width: 72px;
-  height: 72px;
+  width: 78px;
+  height: 78px;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 10px rgba(0, 0, 0, 0.24));
+  transition: transform 0.2s ease;
+}
+
+.pokemon-card:hover:not(.is-picked, .is-disabled) .sprite {
+  transform: scale(1.06);
 }
 
 .mode-team .sprite {
@@ -135,12 +145,13 @@ const emit = defineEmits<{
 
 .pokemon-id {
   font-size: 0.65rem;
-  color: var(--text-muted);
+  color: var(--text-subtle);
+  font-weight: 700;
 }
 
 .pokemon-name {
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: 750;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -166,8 +177,8 @@ const emit = defineEmits<{
 .type-badge {
   font-size: 0.6rem;
   color: #fff;
-  padding: 1px 5px;
-  border-radius: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
   text-transform: capitalize;
   font-weight: 600;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -176,7 +187,7 @@ const emit = defineEmits<{
 .point-value {
   font-size: 0.7rem;
   font-weight: 700;
-  color: var(--secondary);
+  color: var(--primary-bright);
 }
 
 .picked-overlay {
@@ -221,9 +232,9 @@ const emit = defineEmits<{
 
 @media (max-width: 720px) {
   .pokemon-card {
-    border-radius: 6px;
+    border-radius: 13px;
     min-height: 82px;
-    padding: 0.45rem 0.35rem;
+    padding: 0.55rem 0.4rem;
   }
 
   .pokemon-card:hover:not(.is-picked, .is-disabled) {

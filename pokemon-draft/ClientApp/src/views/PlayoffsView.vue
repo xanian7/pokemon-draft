@@ -208,9 +208,10 @@ const seasonOver = computed(() => outlook.value.every((e) => e.remainingMatchups
 
 <style scoped>
 .playoffs-page {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 2rem 1.25rem;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 2rem clamp(1rem, 2vw, 2rem);
 }
 
 .page-header {

@@ -16,6 +16,24 @@ import { installApiLoadingTracker } from './services/apiLoading'
 const vuetify = createVuetify({
   components,
   directives,
+  theme: {
+    defaultTheme: 'pokeDraftDark',
+    themes: {
+      pokeDraftDark: {
+        dark: true,
+        colors: {
+          background: '#080b14',
+          surface: '#141a2b',
+          primary: '#7c6cff',
+          secondary: '#ff5c7a',
+          success: '#35d39a',
+          warning: '#ffca62',
+          error: '#ff5c7a',
+          info: '#2ab6ff',
+        },
+      },
+    },
+  },
   icons: {
     defaultSet: 'mdi',
   },

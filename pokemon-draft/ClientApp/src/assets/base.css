@@ -9,8 +9,8 @@
 body {
   min-height: 100vh;
   color: var(--text);
-  background: var(--bg);
-  line-height: 1.6;
+  background: transparent;
+  line-height: 1.55;
   font-family:
     Inter,
     -apple-system,
@@ -25,7 +25,20 @@ body {
     'Helvetica Neue',
     sans-serif;
   font-size: 15px;
+  letter-spacing: -0.008em;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  color: #fff;
+  background: rgba(var(--primary-rgb), 0.55);
 }

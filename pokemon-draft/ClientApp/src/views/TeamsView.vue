@@ -222,9 +222,10 @@ function typeColor(type: string): string {
 
 <style scoped>
 .teams-page {
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 2rem 1.25rem;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 2rem clamp(1rem, 2vw, 2rem);
 }
 
 .page-header {
