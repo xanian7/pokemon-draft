@@ -131,9 +131,9 @@ const pointsProgression = computed(() => {
 })
 
 const chart = computed(() => {
-  const width = 760
-  const height = 380
-  const margin = { top: 24, right: 24, bottom: 52, left: 52 }
+  const width = 1000
+  const height = 250
+  const margin = { top: 14, right: 18, bottom: 40, left: 48 }
   const plotWidth = width - margin.left - margin.right
   const plotHeight = height - margin.top - margin.bottom
   const weekCount = pointsProgression.value[0]?.values.length ?? 0
@@ -383,9 +383,9 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
 
         <div v-else>
           <v-card class="progression-card">
-            <v-card-title class="text-h5">Points Progression</v-card-title>
+            <v-card-title class="text-h6">Points Progression</v-card-title>
             <v-card-subtitle>Cumulative match points by week</v-card-subtitle>
-            <v-card-text>
+            <v-card-text class="progression-content">
               <div v-if="chart.weekCount" class="points-chart">
                 <svg
                   :viewBox="`0 0 ${chart.width} ${chart.height}`"
@@ -694,7 +694,7 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
 }
 
 .page-header {
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .state-panel {
@@ -705,7 +705,7 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
 
 .schedule-layout {
   align-items: start;
-  margin-top: 16px;
+  margin-top: 10px;
 }
 
 .week-title {
@@ -798,18 +798,32 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
 
 .progression-card {
   border: 1px solid var(--border-color);
-  box-shadow: 0 18px 50px rgb(0 0 0 / 24%);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 18%);
+}
+
+.progression-card :deep(.v-card-title) {
+  padding-bottom: 0;
+  padding-top: 12px;
+}
+
+.progression-card :deep(.v-card-subtitle) {
+  padding-bottom: 4px;
+}
+
+.progression-content {
+  padding-bottom: 10px;
+  padding-top: 4px;
 }
 
 .points-chart {
-  overflow-x: auto;
   width: 100%;
 }
 
 .points-chart svg {
   display: block;
-  min-height: 430px;
-  min-width: 720px;
+  height: auto;
+  margin: 0 auto;
+  max-width: 1100px;
   width: 100%;
 }
 
@@ -825,12 +839,12 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
 
 .chart-labels text {
   fill: var(--text-muted);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .chart-labels .axis-title {
   fill: var(--text);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -856,16 +870,16 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
 .chart-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
+  gap: 4px 14px;
   justify-content: center;
-  margin-top: 12px;
+  margin-top: 4px;
 }
 
 .legend-item {
   align-items: center;
   color: var(--text-muted);
   display: flex;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   gap: 6px;
 }
 
