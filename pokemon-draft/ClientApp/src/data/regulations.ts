@@ -1,5 +1,7 @@
 import vgcData from './vgc-regulations.json'
 
+const POKEDEX_CACHE_PREFIX = 'pokedex-cache-'
+
 export interface RegulationDef {
   id: string
   label: string
@@ -24,7 +26,7 @@ function createRangeRegulation(
 }
 
 async function fetchPokedexIds(names: string[]): Promise<Set<number>> {
-  const cacheKey = `pokedex-cache-${names.join('-')}`
+  const cacheKey = `${POKEDEX_CACHE_PREFIX}${names.join('-')}`
   const cached = localStorage.getItem(cacheKey)
 
   if (cached) {
@@ -59,6 +61,13 @@ async function fetchPokedexIds(names: string[]): Promise<Set<number>> {
 
   localStorage.setItem(cacheKey, JSON.stringify([...ids].sort((a, b) => a - b)))
   return ids
+}
+
+export function clearRegulationCache() {
+  for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+    const key = localStorage.key(index)
+    if (key?.startsWith(POKEDEX_CACHE_PREFIX)) localStorage.removeItem(key)
+  }
 }
 
 function createVgcRegulation(

@@ -50,10 +50,15 @@ export const usePokemonStore = defineStore('pokemon', () => {
     localStorage.setItem(POINTS_KEY, JSON.stringify(pointValues.value))
   }
 
-  async function fetchAllPokemon() {
-    if (allPokemon.value.length > 0 && allPokemon?.value[0]?.speciesId !== undefined) return
+  async function fetchAllPokemon(forceRefresh = false) {
+    if (
+      !forceRefresh &&
+      allPokemon.value.length > 0 &&
+      allPokemon?.value[0]?.speciesId !== undefined
+    )
+      return
 
-    const cached = localStorage.getItem(CACHE_KEY)
+    const cached = forceRefresh ? null : localStorage.getItem(CACHE_KEY)
     if (cached) {
       try {
         const data: CacheData = JSON.parse(cached)
@@ -84,6 +89,12 @@ export const usePokemonStore = defineStore('pokemon', () => {
     } finally {
       isLoading.value = false
     }
+  }
+
+  function clearPokemonCache() {
+    localStorage.removeItem(CACHE_KEY)
+    allPokemon.value = []
+    error.value = null
   }
 
   function setPointValue(pokemonId: number, value: number) {
@@ -135,6 +146,7 @@ export const usePokemonStore = defineStore('pokemon', () => {
     pokemonWithPoints,
     allTypes,
     fetchAllPokemon,
+    clearPokemonCache,
     setPointValue,
     applyDefaultPoints,
     getPointValue,

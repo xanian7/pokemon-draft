@@ -41,7 +41,7 @@ const authStore = useAuthStore()
 const { xs } = useDisplay()
 
 // ── Filter state ─────────────────────────────────────────────────────────────
-const searchQuery = ref('')
+const searchQuery = ref<string | null>('')
 const selectedType = ref<string | null>(null)
 const hidePicked = ref(props.hidePickedDefault)
 const viewMode = ref<'grid' | 'tier'>('grid')
@@ -56,7 +56,7 @@ const effectivePickedPokemonIds = computed(
 
 // ── Filtered list ─────────────────────────────────────────────────────────────
 const filteredPokemon = computed(() => {
-  const q = searchQuery.value.toLowerCase()
+  const q = (searchQuery.value ?? '').toLowerCase()
   return pokemonStore.pokemonWithPoints.filter((p) => {
     if (
       q &&
@@ -70,6 +70,10 @@ const filteredPokemon = computed(() => {
     return true
   })
 })
+
+function clearSearch() {
+  searchQuery.value = ''
+}
 
 // ── Tier grouping ─────────────────────────────────────────────────────────────
 const tierGroups = computed(() => {
@@ -167,6 +171,7 @@ async function handleAction(pokemonId: number) {
                 placeholder="Name or form"
                 clearable
                 hide-details
+                @click:clear="clearSearch"
               />
             </FormField>
           </v-col>

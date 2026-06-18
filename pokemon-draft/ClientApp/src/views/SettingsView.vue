@@ -2,12 +2,15 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { usePokemonStore } from '@/stores/pokemon'
 import { enqueueSnackbar } from '@/services/snackbar'
+import { clearRegulationCache } from '@/data/regulations'
 import PageHeader from '@/components/PageHeader.vue'
 import FormField from '@/components/FormField.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const pokemonStore = usePokemonStore()
 
 if (!authStore.isAuthenticated) router.replace('/join')
 
@@ -16,6 +19,7 @@ const teamName = ref(authStore.teamName)
 const teamImageUrl = ref(authStore.teamImageUrl)
 const timeZone = ref(browserTimeZone || authStore.timeZone)
 const isSaving = ref(false)
+const isClearingPokemonCache = ref(false)
 const imgError = ref(false)
 
 interface AvailabilityDay {
@@ -110,6 +114,25 @@ function useDetectedTimeZone() {
   timeZone.value = browserTimeZone
 }
 
+async function clearPokemonCache() {
+  isClearingPokemonCache.value = true
+  try {
+    pokemonStore.clearPokemonCache()
+    clearRegulationCache()
+    await pokemonStore.fetchAllPokemon(true)
+    enqueueSnackbar(
+      pokemonStore.error
+        ? 'Pokemon cache cleared, but fresh data could not be loaded.'
+        : 'Pokemon cache cleared.',
+      pokemonStore.error ? 'warning' : 'success',
+    )
+  } catch {
+    enqueueSnackbar('Pokemon cache cleared, but fresh data could not be loaded.', 'warning')
+  } finally {
+    isClearingPokemonCache.value = false
+  }
+}
+
 async function save() {
   if (invalidAvailabilityDays.value.length) {
     enqueueSnackbar('Each available day must end after its start time.', 'error')
@@ -195,6 +218,25 @@ async function save() {
               hide-details
             />
           </FormField>
+
+          <v-divider />
+
+          <div class="maintenance-section">
+            <div>
+              <div class="text-subtitle-1 font-weight-bold">Pokemon Data</div>
+              <div class="text-body-2 text-medium-emphasis">
+                Refresh the Pokemon data stored in this browser.
+              </div>
+            </div>
+            <v-btn
+              variant="tonal"
+              prepend-icon="mdi-cached"
+              :loading="isClearingPokemonCache"
+              @click="clearPokemonCache"
+            >
+              Clear Cache
+            </v-btn>
+          </div>
 
           <v-divider />
 
@@ -344,6 +386,13 @@ async function save() {
   gap: 8px;
 }
 
+.maintenance-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
 .availability-card {
   background: transparent;
 }
@@ -403,6 +452,10 @@ async function save() {
   }
 
   .timezone-row {
+    grid-template-columns: 1fr;
+  }
+
+  .maintenance-section {
     grid-template-columns: 1fr;
   }
 

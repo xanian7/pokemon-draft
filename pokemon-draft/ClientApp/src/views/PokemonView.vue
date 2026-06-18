@@ -16,7 +16,7 @@ const pokemonStore = usePokemonStore()
 const authStore = useAuthStore()
 const { xs } = useDisplay()
 
-const searchQuery = ref('')
+const searchQuery = ref<string | null>('')
 const selectedRegulation = ref('national')
 const selectedType = ref('')
 const showOnlyValued = ref(false)
@@ -61,7 +61,7 @@ onMounted(async () => {
 })
 
 const filtered = computed(() => {
-  const q = searchQuery.value.toLowerCase()
+  const q = (searchQuery.value ?? '').toLowerCase()
   return pokemonStore.pokemonWithPoints.filter((p) => {
     if (q && !p.name.includes(q) && !formatPokemonName(p.name).toLowerCase().includes(q))
       return false
@@ -78,6 +78,10 @@ const filtered = computed(() => {
     return true
   })
 })
+
+function clearSearch() {
+  searchQuery.value = ''
+}
 
 const valuedCount = computed(() => Object.keys(pokemonStore.pointValues).length)
 
@@ -208,6 +212,7 @@ async function saveToServer() {
             prepend-inner-icon="mdi-magnify"
             hide-details
             clearable
+            @click:clear="clearSearch"
           />
         </FormField>
         <FormField label="Regulation">
