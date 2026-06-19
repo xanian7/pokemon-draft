@@ -271,10 +271,24 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         db.Matchups.RemoveRange(league.Matchups);
         league.Picks.Clear();
         league.Matchups.Clear();
-        RandomizePlayerOrder(league);
         league.DraftStatus = DraftStatus.Active;
         league.CurrentPickNumber = 0;
         AdvanceToNextEligiblePick(league);
+        db.SaveChanges();
+        return (true, null);
+    }
+
+    /// <inheritdoc/>
+    public (bool success, string? error) RandomizeDraftOrder(string leagueCode)
+    {
+        var league = LoadLeagueWithPlayers(leagueCode);
+        if (league is null) return (false, null);
+        if (league.DraftStatus != DraftStatus.Setup)
+            return (false, "Draft order can only be randomized before the draft starts.");
+        if (league.Players.Count < 2)
+            return (false, "Need at least 2 players to randomize draft order.");
+
+        RandomizePlayerOrder(league);
         db.SaveChanges();
         return (true, null);
     }

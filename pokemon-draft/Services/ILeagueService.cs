@@ -57,6 +57,10 @@ public interface ILeagueService
     /// <returns>Success flag and optional error. A null error with false success means not found (404).</returns>
     (bool success, string? error) StartDraft(string leagueCode);
 
+    /// <summary>Randomizes draft order while the league is still in setup.</summary>
+    /// <returns>Success flag and optional error. A null error with false success means not found (404).</returns>
+    (bool success, string? error) RandomizeDraftOrder(string leagueCode);
+
     /// <summary>Resets the draft back to the Setup state and clears all picks.</summary>
     /// <returns>Success flag and optional error. A null error with false success means not found (404).</returns>
     (bool success, string? error) ResetDraft(string leagueCode);

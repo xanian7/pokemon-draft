@@ -28,6 +28,15 @@ public class DraftController(ILeagueService leagueService, IHubContext<DraftHub>
         return Ok();
     }
 
+    [HttpPost("randomize-order")]
+    public async Task<IActionResult> RandomizeDraftOrder(string code)
+    {
+        var (success, error) = LeagueService.RandomizeDraftOrder(code);
+        if (!success) return error is null ? NotFound() : BadRequest(error);
+        await BroadcastLeague(code);
+        return Ok();
+    }
+
     [HttpPost("reset")]
     public async Task<IActionResult> ResetDraft(string code)
     {

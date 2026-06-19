@@ -35,12 +35,14 @@ const players = ref<
   }>
 >([])
 const leagueCode = computed(() => authStore.leagueCode ?? '')
+const draftStatus = ref('setup')
 
 const newPlayerName = ref('')
 const newPlayerPin = ref('')
 const addError = ref('')
 const showResetWarning = ref(false)
 const isSaving = ref(false)
+const isRandomizingOrder = ref(false)
 const selfPin = ref('')
 const roleSavingPlayerId = ref<string | null>(null)
 
@@ -50,6 +52,7 @@ function applyState(state: any) {
   rounds.value = state.rounds
   playoffSpots.value = state.playoffSpots ?? 4
   regulationSet.value = state.regulationSet ?? 'national'
+  draftStatus.value = (state.draft?.status ?? 'Setup').toLowerCase()
   players.value = state.players.map((player: (typeof players.value)[number]) => ({
     ...player,
     isCommissioner:
@@ -159,6 +162,27 @@ async function movePlayer(from: number, to: number) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fromIndex: from, toIndex: to }),
   })
+}
+
+async function randomizeDraftOrder() {
+  isRandomizingOrder.value = true
+  try {
+    const res = await fetch(`${API_BASE}/leagues/${leagueCode.value}/draft/randomize-order`, {
+      method: 'POST',
+    })
+
+    if (!res.ok) {
+      const message = await res.text()
+      enqueueSnackbar(message || 'Unable to randomize draft order.', 'error')
+      return
+    }
+
+    enqueueSnackbar('Draft order randomized.', 'success')
+  } catch {
+    enqueueSnackbar('Could not connect to the server.', 'error')
+  } finally {
+    isRandomizingOrder.value = false
+  }
 }
 
 async function toggleCoCommissioner(player: (typeof players.value)[number]) {
@@ -314,7 +338,19 @@ const snakePreview = computed(() => {
         <v-card variant="outlined" class="workspace-card">
           <v-card-title class="players-title">
             <span><v-icon icon="mdi-account-group-outline" start /> Draft order</span>
-            <v-chip size="small" variant="tonal">{{ players.length }} players</v-chip>
+            <div class="draft-order-actions">
+              <v-chip size="small" variant="tonal">{{ players.length }} players</v-chip>
+              <v-btn
+                size="small"
+                variant="tonal"
+                prepend-icon="mdi-shuffle-variant"
+                :loading="isRandomizingOrder"
+                :disabled="players.length < 2 || draftStatus !== 'setup'"
+                @click="randomizeDraftOrder"
+              >
+                Randomize order
+              </v-btn>
+            </div>
           </v-card-title>
           <v-card-text>
             <div class="add-player">
@@ -464,6 +500,16 @@ const snakePreview = computed(() => {
   font-size: 1rem;
   font-weight: 800;
 }
+.players-title {
+  justify-content: space-between;
+}
+.draft-order-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 .config-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -515,6 +561,14 @@ const snakePreview = computed(() => {
   }
   .add-player {
     grid-template-columns: 1fr;
+  }
+  .players-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .draft-order-actions {
+    justify-content: flex-start;
+    width: 100%;
   }
   .player-actions > .v-btn:not(:last-child) {
     display: none;
