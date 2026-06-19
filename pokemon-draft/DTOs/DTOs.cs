@@ -73,11 +73,20 @@ public record PokemonResponse(int Id, int SpeciesId, string Name, string SpriteU
 public record PokemonDetailResponse(
     List<PokemonDetailStat> Stats,
     List<PokemonDetailAbility> Abilities,
-    List<PokemonDetailMove> Moves
+    List<PokemonDetailMove> Moves,
+    List<PokemonMegaFormResponse>? MegaForms = null
 );
 public record PokemonDetailStat(string Name, int BaseStat);
 public record PokemonDetailAbility(string Name, bool IsHidden);
 public record PokemonDetailMove(string Name, string Type, int? Power, int? Pp, string Category);
+public record PokemonMegaFormResponse(
+    string Name,
+    string Label,
+    string? Sprite,
+    List<string> Types,
+    List<PokemonDetailStat> Stats,
+    List<PokemonDetailAbility> Abilities
+);
 
 public record JoinResponse(
     string PlayerId,

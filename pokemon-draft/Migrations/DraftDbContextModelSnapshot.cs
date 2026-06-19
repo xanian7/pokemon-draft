@@ -234,6 +234,50 @@ namespace PokemonDraft.Migrations
                     b.ToTable("Players");
                 });
 
+            modelBuilder.Entity("PokemonDraft.Models.PokemonCache", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Bst")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DetailJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("ImportedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("MegaFormsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("SpeciesId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SpriteUrl")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TypesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name");
+
+                    b.HasIndex("SpeciesId");
+
+                    b.ToTable("PokemonCache");
+                });
+
             modelBuilder.Entity("PokemonDraft.Models.PokemonPointValue", b =>
                 {
                     b.Property<int>("Id")

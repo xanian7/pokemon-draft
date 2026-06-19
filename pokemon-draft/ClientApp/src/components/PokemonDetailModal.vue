@@ -42,6 +42,15 @@ interface ApiPokemonDetail {
   stats: ApiStat[]
   abilities: ApiAbility[]
   moves: ApiMove[]
+  megaForms?: ApiMegaForm[]
+}
+interface ApiMegaForm {
+  name: string
+  label: string
+  sprite: string | null
+  types: string[]
+  stats: ApiStat[]
+  abilities: ApiAbility[]
 }
 
 interface StatEntry {
@@ -191,21 +200,43 @@ function parseDetail(raw: ApiPokemonDetail): PokemonDetail {
   }
 }
 
+function parseMegaForms(raw: ApiMegaForm[] | undefined): MegaForm[] {
+  return (raw ?? []).map((form) => ({
+    name: form.name,
+    label: form.label,
+    sprite: form.sprite,
+    types: form.types,
+    stats: form.stats.map((stat) => ({
+      label: STAT_LABELS[stat.name] ?? stat.name,
+      value: stat.baseStat,
+    })),
+    abilities: form.abilities.map((ability) => ({
+      name: formatPokemonName(ability.name),
+      isHidden: ability.isHidden,
+    })),
+    error: null,
+  }))
+}
+
 async function fetchAbilityDescription(abilityName: string): Promise<string | undefined> {
   if (abilityDescriptionCache.has(abilityName)) return abilityDescriptionCache.get(abilityName)
 
-  const slug = abilityName.toLowerCase().replace(/\s+/g, '-')
-  const res = await fetch(`https://pokeapi.co/api/v2/ability/${slug}`)
-  if (!res.ok) return undefined
+  try {
+    const slug = abilityName.toLowerCase().replace(/\s+/g, '-')
+    const res = await fetch(`https://pokeapi.co/api/v2/ability/${slug}`)
+    if (!res.ok) return undefined
 
-  const json = await res.json()
-  const entry = (
-    json.flavor_text_entries as { flavor_text: string; language: { name: string } }[]
-  ).find((item) => item.language.name === 'en')
+    const json = await res.json()
+    const entry = (
+      json.flavor_text_entries as { flavor_text: string; language: { name: string } }[]
+    ).find((item) => item.language.name === 'en')
 
-  const description = entry?.flavor_text.replace(/\n|\f/g, ' ')
-  if (description) abilityDescriptionCache.set(abilityName, description)
-  return description
+    const description = entry?.flavor_text.replace(/\n|\f/g, ' ')
+    if (description) abilityDescriptionCache.set(abilityName, description)
+    return description
+  } catch {
+    return undefined
+  }
 }
 
 async function hydrateAbilityDescriptions(abilityGroups: AbilityEntry[][]) {
@@ -221,13 +252,17 @@ async function hydrateAbilityDescriptions(abilityGroups: AbilityEntry[][]) {
 }
 
 async function fetchMegaNames(): Promise<string[]> {
-  const res = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${props.pokemon.speciesId}`)
-  if (!res.ok) return []
+  try {
+    const res = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${props.pokemon.speciesId}`)
+    if (!res.ok) return []
 
-  const json = await res.json()
-  return (json.varieties as { pokemon: { name: string } }[])
-    .map((variety) => variety.pokemon.name)
-    .filter((name) => name.includes('-mega'))
+    const json = await res.json()
+    return (json.varieties as { pokemon: { name: string } }[])
+      .map((variety) => variety.pokemon.name)
+      .filter((name) => name.includes('-mega'))
+  } catch {
+    return []
+  }
 }
 
 async function fetchMegaForm(name: string): Promise<MegaForm> {
@@ -284,9 +319,13 @@ async function loadModalData() {
     const detailResponse = await fetch(`/api/pokemon/${props.pokemon.id}/detail`)
     if (!detailResponse.ok) throw new Error(`HTTP ${detailResponse.status}`)
 
-    const parsedDetail = parseDetail(await detailResponse.json())
-    const megaNames = await fetchMegaNames()
-    const forms = await Promise.all(megaNames.map(fetchMegaForm))
+    const rawDetail = (await detailResponse.json()) as ApiPokemonDetail
+    const parsedDetail = parseDetail(rawDetail)
+    const cachedForms = parseMegaForms(rawDetail.megaForms)
+    const forms =
+      cachedForms.length > 0
+        ? cachedForms
+        : await Promise.all((await fetchMegaNames()).map(fetchMegaForm))
 
     await hydrateAbilityDescriptions([
       parsedDetail.abilities,

@@ -83,6 +83,8 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         logger.LogError(ex, "Failed to apply database migrations.");
+        if (app.Environment.IsDevelopment())
+            throw;
     }
 }
 

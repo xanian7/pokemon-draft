@@ -11,6 +11,7 @@ public class DraftDbContext : DbContext
     public DbSet<League> Leagues { get; set; }
     public DbSet<Player> Players { get; set; }
     public DbSet<DraftPick> Picks { get; set; }
+    public DbSet<PokemonCache> PokemonCache { get; set; }
     public DbSet<PokemonPointValue> PointValues { get; set; }
     public DbSet<Trade> Trades { get; set; }
     public DbSet<TradeItem> TradeItems { get; set; }
@@ -48,5 +49,11 @@ public class DraftDbContext : DbContext
         model.Entity<Trade>()
             .HasMany(t => t.Items).WithOne(i => i.Trade)
             .HasForeignKey(i => i.TradeId).OnDelete(DeleteBehavior.Cascade);
+
+        model.Entity<PokemonCache>().HasKey(p => p.Id);
+        model.Entity<PokemonCache>().Property(p => p.Id).ValueGeneratedNever();
+        model.Entity<PokemonCache>().Property(p => p.Name).HasMaxLength(450);
+        model.Entity<PokemonCache>().HasIndex(p => p.SpeciesId);
+        model.Entity<PokemonCache>().HasIndex(p => p.Name);
     }
 }

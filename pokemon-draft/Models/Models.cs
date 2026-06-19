@@ -70,6 +70,19 @@ public class PokemonPointValue
     public int Value { get; set; }
 }
 
+public class PokemonCache
+{
+    public int Id { get; set; }
+    public int SpeciesId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string SpriteUrl { get; set; } = string.Empty;
+    public string TypesJson { get; set; } = "[]";
+    public int Bst { get; set; }
+    public string DetailJson { get; set; } = string.Empty;
+    public string MegaFormsJson { get; set; } = "[]";
+    public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
+}
+
 public class Trade
 {
     public int Id { get; set; }
