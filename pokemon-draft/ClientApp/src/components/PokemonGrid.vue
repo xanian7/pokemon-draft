@@ -65,6 +65,9 @@ const filteredPokemon = computed(() => {
     )
       return false
     if (!isLegalPokemon(p)) return false
+    // A Pokémon that costs more than the league's full budget can never be drafted.
+    // Keep this draft-only so the point-values page and roster tools still list it.
+    if (props.mode === 'draft' && p.pointValue > draftStore.pointLimit) return false
     if (selectedType.value && !p.types.includes(selectedType.value)) return false
     if (hidePicked.value && effectivePickedPokemonIds.value.has(p.id)) return false
     return true
