@@ -64,4 +64,24 @@ public class DraftController(ILeagueService leagueService, IHubContext<DraftHub>
         await BroadcastLeague(code);
         return Ok();
     }
+
+    [HttpPost("pick-for")]
+    public async Task<IActionResult> MakeCommissionerPick(string code, CommissionerMakePickRequest req)
+    {
+        var (success, error, draftCompleted) = LeagueService.MakeCommissionerPick(
+            code, req.CommissionerPlayerId, req.CommissionerPin, req.PokemonId);
+        if (!success) return BadRequest(error);
+        if (draftCompleted) LeagueService.GenerateSchedule(code);
+
+        var state = LeagueService.GetLeagueResponse(code);
+        if (state?.Draft.CurrentPickerId is not null)
+        {
+            var picker = state.Players.FirstOrDefault(p => p.Id == state.Draft.CurrentPickerId);
+            var mention = picker?.DiscordId is not null ? $"<@{picker.DiscordId}>" : picker?.Name ?? "Next player";
+            await discord.SendMessageAsync($"{mention} is on the clock!");
+        }
+
+        await BroadcastLeague(code);
+        return Ok();
+    }
 }

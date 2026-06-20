@@ -12,6 +12,8 @@ const props = withDefaults(
     actionLabel?: string
     draftDisabledReason?: string
     showDraftAction?: boolean
+    canCommissionerDraft?: boolean
+    commissionerActionLabel?: string
   }>(),
   {
     showDraftAction: true,
@@ -21,6 +23,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   close: []
   draft: [pokemonId: number]
+  draftFor: [pokemonId: number]
 }>()
 
 interface ApiStat {
@@ -160,6 +163,10 @@ function closeModal() {
 
 function handleDraft() {
   emit('draft', props.pokemon.id)
+}
+
+function handleCommissionerDraft() {
+  emit('draftFor', props.pokemon.id)
 }
 
 function statColor(value: number): string {
@@ -568,6 +575,13 @@ onMounted(loadModalData)
             {{ canDraft ? (actionLabel ?? 'Draft') : (draftDisabledReason ?? 'Not Your Turn') }}
           </v-btn>
         </template>
+        <v-btn
+          v-if="!isPicked && props.canCommissionerDraft"
+          class="btn-primary"
+          @click="handleCommissionerDraft"
+        >
+          {{ props.commissionerActionLabel ?? 'Draft for current player' }}
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

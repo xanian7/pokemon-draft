@@ -16,6 +16,8 @@ public record SetPointValuesRequest(Dictionary<int, int> Values);
 
 public record MakePickRequest(string PlayerId, string Pin, int PokemonId);
 
+public record CommissionerMakePickRequest(string CommissionerPlayerId, string CommissionerPin, int PokemonId);
+
 public record RegisterPlayerRequest(string Name, string? Pin, string? TeamName, string? TeamImageUrl, Guid? UserId = null);
 
 public record JoinRequest(string LeagueCode, string Pin);

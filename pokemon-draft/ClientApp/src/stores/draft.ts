@@ -101,6 +101,20 @@ export const useDraftStore = defineStore('draft', () => {
     return null
   }
 
+  /** Lets a commissioner make the current player's pick when they are unavailable. */
+  async function makeCommissionerPick(pokemonId: number): Promise<string | null> {
+    const authStore = useAuthStore()
+    if (!authStore.leagueCode || !authStore.playerId || !authStore.pin) return 'Not authenticated.'
+
+    const result = await apiPost(`/leagues/${authStore.leagueCode}/draft/pick-for`, {
+      commissionerPlayerId: authStore.playerId,
+      commissionerPin: authStore.pin,
+      pokemonId,
+    })
+
+    return result.error ?? null
+  }
+
   function getPlayerPicks(playerId: string): ServerDraftPick[] {
     return picks.value
       .filter((p) => p.playerId === playerId)
@@ -132,6 +146,7 @@ export const useDraftStore = defineStore('draft', () => {
     isPlayerAtPointLimit,
     playerCanAffordPokemon,
     makePick,
+    makeCommissionerPick,
     getPlayerPicks,
   }
 })

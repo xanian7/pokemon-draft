@@ -371,6 +371,63 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     }
 
     /// <inheritdoc/>
+    public (bool success, string? error, bool draftCompleted) MakeCommissionerPick(
+        string leagueCode, string commissionerPlayerId, string commissionerPin, int pokemonId)
+    {
+        var league = LoadLeagueWithDraft(leagueCode);
+        if (league is null)
+            return (false, "League not found.", false);
+
+        if (league.DraftStatus != DraftStatus.Active)
+            return (false, "Draft is not active.", false);
+
+        var commissioner = league.Players.FirstOrDefault(p => p.Id == commissionerPlayerId);
+        if (commissioner is null || !VerifyPin(commissioner, commissionerPin) ||
+            (commissioner.Id != league.CommissionerPlayerId && !commissioner.IsCoCommissioner))
+            return (false, "Only a commissioner can draft for another player.", false);
+
+        AdvanceToNextEligiblePick(league);
+        if (league.DraftStatus == DraftStatus.Complete)
+        {
+            db.SaveChanges();
+            return (false, "Draft is complete.", true);
+        }
+
+        var playerId = GetPlayerIdAtPick(league, league.CurrentPickNumber);
+        if (league.Picks.Any(p => p.PokemonId == pokemonId))
+            return (false, "That Pok\u00e9mon has already been drafted.", false);
+
+        var pointValues = league.PointValues.ToDictionary(pv => pv.PokemonId, pv => pv.Value);
+        var currentPointTotal = league.Picks
+            .Where(p => p.PlayerId == playerId)
+            .Sum(p => pointValues.GetValueOrDefault(p.PokemonId, 0));
+        var requestedPointValue = pointValues.GetValueOrDefault(pokemonId, 0);
+        if (currentPointTotal + requestedPointValue > league.PointLimit)
+        {
+            var remainingPoints = Math.Max(0, league.PointLimit - currentPointTotal);
+            return (false, $"That Pok\u00e9mon costs {requestedPointValue} points, but the current player only has {remainingPoints} points remaining.", false);
+        }
+
+        var orderedPlayers = GetOrderedPlayers(league);
+        var round = league.CurrentPickNumber / orderedPlayers.Count;
+        league.Picks.Add(new DraftPick
+        {
+            LeagueCode = league.Code,
+            PickNumber = league.CurrentPickNumber,
+            Round = round,
+            PlayerId = playerId,
+            PokemonId = pokemonId,
+        });
+
+        league.CurrentPickNumber++;
+        AdvanceToNextEligiblePick(league);
+        var justCompleted = league.DraftStatus == DraftStatus.Complete;
+
+        db.SaveChanges();
+        return (true, null, justCompleted);
+    }
+
+    /// <inheritdoc/>
     private LeagueResponse ToResponse(League league)
     {
         var players = GetOrderedPlayers(league);

@@ -68,6 +68,9 @@ public interface ILeagueService
     /// <summary>Records a draft pick for the current picker.</summary>
     (bool success, string? error, bool draftCompleted) MakePick(string leagueCode, string playerId, string pin, int pokemonId);
 
+    /// <summary>Records the current player's pick on behalf of a commissioner or co-commissioner.</summary>
+    (bool success, string? error, bool draftCompleted) MakeCommissionerPick(string leagueCode, string commissionerPlayerId, string commissionerPin, int pokemonId);
+
     // ── Schedule ───────────────────────────────────────────────────────────────
 
     /// <summary>Generates round-robin schedule. Called automatically when draft completes.</summary>

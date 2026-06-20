@@ -94,6 +94,16 @@ const tierGroups = computed(() => {
 const canDraft = computed(
   () => !draftStore.isDraftComplete && draftStore.playerCanDraft(authStore.playerId ?? ''),
 )
+const canCommissionerDraft = computed(
+  () =>
+    authStore.isAdmin &&
+    draftStore.status === 'active' &&
+    !!draftStore.currentPickerId &&
+    draftStore.currentPickerId !== authStore.playerId,
+)
+const commissionerActionLabel = computed(() =>
+  draftStore.currentPickerName ? `Draft for ${draftStore.currentPickerName}` : 'Draft for current player',
+)
 const pointsRemaining = computed(() =>
   authStore.playerId ? draftStore.getPlayerPointsRemaining(authStore.playerId) : 0,
 )
@@ -154,6 +164,29 @@ async function handleAction(pokemonId: number) {
   const error = await draftStore.makePick(pokemonId)
   if (error) {
     console.error('Draft pick failed:', error)
+    enqueueSnackbar(error, 'error')
+    return
+  }
+  selectedPokemon.value = null
+}
+
+async function handleCommissionerAction(pokemonId: number) {
+  const draftee = draftStore.currentPicker
+  if (!draftee) return
+
+  if (!draftStore.playerCanAffordPokemon(draftee.id, pokemonId)) {
+    const pointValue = pokemonStore.getPointValue(pokemonId)
+    const remaining = draftStore.getPlayerPointsRemaining(draftee.id)
+    enqueueSnackbar(
+      `That Pok\u00e9mon costs ${pointValue} points, but ${draftee.name} only has ${remaining} points remaining.`,
+      'error',
+    )
+    return
+  }
+
+  const error = await draftStore.makeCommissionerPick(pokemonId)
+  if (error) {
+    console.error('Commissioner draft pick failed:', error)
     enqueueSnackbar(error, 'error')
     return
   }
@@ -271,8 +304,11 @@ async function handleAction(pokemonId: number) {
       :point-value="pokemonStore.getPointValue(selectedPokemon.id)"
       :action-label="props.mode === 'select' ? props.actionLabel : undefined"
       :draft-disabled-reason="selectedDisabledReason"
+      :can-commissioner-draft="props.mode === 'draft' && canCommissionerDraft"
+      :commissioner-action-label="commissionerActionLabel"
       @close="selectedPokemon = null"
       @draft="handleAction"
+      @draft-for="handleCommissionerAction"
     />
   </v-container>
 </template>
