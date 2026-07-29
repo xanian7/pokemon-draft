@@ -30,11 +30,12 @@ public class PlayerController(ILeagueService leagueService, IHubContext<DraftHub
     }
 
     [HttpDelete("{playerId}")]
-    public async Task<IActionResult> RemovePlayer(string code, string playerId)
+    public async Task<IActionResult> RemovePlayer(string code, string playerId, RemovePlayerRequest? req)
     {
-        var (success, error) = LeagueService.RemovePlayer(code, playerId);
+        var (success, error) = LeagueService.RemovePlayer(code, playerId, req?.CommissionerPin ?? string.Empty);
         if (!success) return error is null ? NotFound() : BadRequest(error);
         await BroadcastLeague(code);
+        await Hub.Clients.Group(code.ToUpperInvariant()).SendAsync("ScheduleUpdate", LeagueService.GetSchedule(code));
         return Ok();
     }
 

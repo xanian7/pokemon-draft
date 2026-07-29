@@ -10,6 +10,8 @@ public record AddPlayerRequest(string Name, string Pin);
 
 public record MovePlayerRequest(int FromIndex, int ToIndex);
 
+public record RemovePlayerRequest(string CommissionerPin);
+
 public record SetCoCommissionerRequest(string CommissionerPin, bool IsCoCommissioner);
 
 public record SetPointValuesRequest(Dictionary<int, int> Values);

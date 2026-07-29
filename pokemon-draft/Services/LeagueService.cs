@@ -142,18 +142,63 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     }
 
     /// <inheritdoc/>
-    public (bool success, string? error) RemovePlayer(string leagueCode, string playerId)
+    public (bool success, string? error) RemovePlayer(string leagueCode, string playerId, string commissionerPin)
     {
-        var league = LoadLeagueWithPlayers(leagueCode);
+        var league = LoadLeague(leagueCode);
         if (league is null) return (false, null);
+        if (string.IsNullOrWhiteSpace(commissionerPin) || !VerifyAdminPin(league, commissionerPin))
+            return (false, "Only the league commissioner can drop a player.");
 
         var player = league.Players.FirstOrDefault(p => p.Id == playerId);
         if (player is null) return (false, null);
         if (player.Id == league.CommissionerPlayerId)
-            return (false, "The league commissioner cannot be removed.");
+            return (false, "The league commissioner cannot be dropped.");
 
+        var playerPicks = league.Picks.Where(p => p.PlayerId == playerId).ToList();
+        var playerMatchups = league.Matchups
+            .Where(m => m.Player1Id == playerId || m.Player2Id == playerId)
+            .ToList();
+        var playerTransactions = league.RosterTransactions
+            .Where(t => t.PlayerId == playerId)
+            .ToList();
+        var playerTrades = league.Trades
+            .Where(t =>
+                t.InitiatorPlayerId == playerId ||
+                t.TargetPlayerId == playerId ||
+                t.Items.Any(i => i.FromPlayerId == playerId))
+            .ToList();
+
+        db.Picks.RemoveRange(playerPicks);
+        db.Matchups.RemoveRange(playerMatchups);
+        db.RosterTransactions.RemoveRange(playerTransactions);
+        db.Trades.RemoveRange(playerTrades);
         db.Players.Remove(player);
-        ReindexPlayers(league.Players.Where(p => p.Id != playerId).OrderBy(p => p.SortOrder).ToList());
+        league.Players = league.Players.Where(p => p.Id != playerId).OrderBy(p => p.SortOrder).ToList();
+        league.Picks = league.Picks.Where(p => p.PlayerId != playerId).OrderBy(p => p.PickNumber).ToList();
+        league.Matchups = league.Matchups
+            .Where(m => m.Player1Id != playerId && m.Player2Id != playerId)
+            .OrderBy(m => m.Week)
+            .ThenBy(m => m.Id)
+            .ToList();
+        league.RosterTransactions = league.RosterTransactions
+            .Where(t => t.PlayerId != playerId)
+            .OrderBy(t => t.CreatedAt)
+            .ToList();
+        league.Trades = league.Trades
+            .Where(t => !playerTrades.Contains(t))
+            .OrderByDescending(t => t.ProposedAt)
+            .ToList();
+
+        ReindexPlayers(league.Players);
+        ReindexDraftPicks(league);
+
+        if (league.DraftStatus == DraftStatus.Active)
+        {
+            var totalPicks = GetOrderedPlayers(league).Count * league.Rounds;
+            league.CurrentPickNumber = Math.Min(league.Picks.Count, totalPicks);
+            AdvanceToNextEligiblePick(league);
+        }
+
         db.SaveChanges();
         return (true, null);
     }
@@ -884,6 +929,7 @@ public class LeagueService(DraftDbContext db) : ILeagueService
             .Include(l => l.Picks)
             .Include(l => l.PointValues)
             .Include(l => l.Trades).ThenInclude(t => t.Items)
+            .Include(l => l.RosterTransactions)
             .Include(l => l.Matchups)
             .FirstOrDefault(l => l.Code == normalizedCode);
 
@@ -1075,6 +1121,19 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     {
         for (var i = 0; i < players.Count; i++)
             players[i].SortOrder = i;
+    }
+
+    private static void ReindexDraftPicks(League league)
+    {
+        var players = GetOrderedPlayers(league);
+        var playerCount = players.Count;
+        var picks = league.Picks.OrderBy(p => p.PickNumber).ToList();
+
+        for (var i = 0; i < picks.Count; i++)
+        {
+            picks[i].PickNumber = i;
+            picks[i].Round = playerCount == 0 ? 0 : i / playerCount;
+        }
     }
 
     private static void RandomizePlayerOrder(League league)

@@ -41,8 +41,10 @@ const newPlayerName = ref('')
 const newPlayerPin = ref('')
 const addError = ref('')
 const showResetWarning = ref(false)
+const playerPendingDrop = ref<(typeof players.value)[number] | null>(null)
 const isSaving = ref(false)
 const isRandomizingOrder = ref(false)
+const isDroppingPlayer = ref(false)
 const selfPin = ref('')
 const roleSavingPlayerId = ref<string | null>(null)
 
@@ -134,6 +136,42 @@ async function removePlayer(id: string) {
     players.value = players.value.filter((p) => p.id !== id)
   } else {
     addError.value = 'Failed to remove player.'
+  }
+}
+
+function queueDropPlayer(player: (typeof players.value)[number]) {
+  if (!authStore.isCommissioner) {
+    enqueueSnackbar('Only the league commissioner can drop a player.', 'error')
+    return
+  }
+  playerPendingDrop.value = player
+}
+
+async function confirmDropPlayer() {
+  const player = playerPendingDrop.value
+  if (!player) return
+
+  isDroppingPlayer.value = true
+  try {
+    const res = await fetch(`${API_BASE}/leagues/${leagueCode.value}/players/${player.id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commissionerPin: authStore.pin }),
+    })
+
+    if (!res.ok) {
+      const message = await res.text()
+      enqueueSnackbar(message || 'Unable to drop player.', 'error')
+      return
+    }
+
+    players.value = players.value.filter((p) => p.id !== player.id)
+    playerPendingDrop.value = null
+    enqueueSnackbar(`${player.name} was dropped from the league.`, 'success')
+  } catch {
+    enqueueSnackbar('Could not connect to the server.', 'error')
+  } finally {
+    isDroppingPlayer.value = false
   }
 }
 
@@ -393,7 +431,7 @@ const snakePreview = computed(() => {
                     :disabled="index === players.length - 1"
                     @click="movePlayer(index, index + 1)"
                   />
-                  <v-menu v-if="!player.isCommissioner">
+                  <v-menu v-if="authStore.isCommissioner && !player.isCommissioner">
                     <template #activator="{ props }">
                       <v-btn v-bind="props" icon="mdi-dots-vertical" size="small" variant="text" />
                     </template>
@@ -406,10 +444,10 @@ const snakePreview = computed(() => {
                         @click="toggleCoCommissioner(player)"
                       />
                       <v-list-item
-                        prepend-icon="mdi-account-remove-outline"
-                        title="Remove player"
+                        prepend-icon="mdi-account-cancel-outline"
+                        title="Drop player from league"
                         base-color="error"
-                        @click="removePlayer(player.id)"
+                        @click="queueDropPlayer(player)"
                       />
                     </v-list>
                   </v-menu>
@@ -458,6 +496,26 @@ const snakePreview = computed(() => {
           <v-spacer />
           <v-btn variant="text" @click="showResetWarning = false">Cancel</v-btn>
           <v-btn color="error" variant="flat" @click="resetDraft">Reset draft</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog
+      :model-value="playerPendingDrop !== null"
+      max-width="520"
+      @update:model-value="!$event && (playerPendingDrop = null)"
+    >
+      <v-card>
+        <v-card-title>Drop {{ playerPendingDrop?.name }}?</v-card-title>
+        <v-card-text>
+          This removes the player from the league, deletes their schedule matchups, and releases every Pokemon on their roster.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" :disabled="isDroppingPlayer" @click="playerPendingDrop = null">Cancel</v-btn>
+          <v-btn color="error" variant="flat" :loading="isDroppingPlayer" @click="confirmDropPlayer">
+            Drop player
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

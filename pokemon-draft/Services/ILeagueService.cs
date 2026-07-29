@@ -33,9 +33,9 @@ public interface ILeagueService
     /// <summary>Adds a player to the league (admin-managed).</summary>
     (PlayerCreatedResponse? result, string? error) AddPlayer(string leagueCode, AddPlayerRequest req);
 
-    /// <summary>Removes a player from the league and reorders remaining players.</summary>
+    /// <summary>Commissioner-only player removal that also clears player picks and matchups.</summary>
     /// <returns>Success flag and optional error. A null error with false success means not found (404).</returns>
-    (bool success, string? error) RemovePlayer(string leagueCode, string playerId);
+    (bool success, string? error) RemovePlayer(string leagueCode, string playerId, string commissionerPin);
 
     /// <summary>Moves a player from one draft-order position to another.</summary>
     /// <returns>Success flag and optional error. A null error with false success means not found (404).</returns>
