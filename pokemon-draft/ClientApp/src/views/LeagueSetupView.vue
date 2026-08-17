@@ -325,13 +325,6 @@ const snakePreview = computed(() => {
   })
 })
 
-const playerOptions = computed(() =>
-  players.value.map((player) => ({
-    title: teamLabel(player),
-    value: player.id,
-  })),
-)
-
 const scheduleWeeks = computed(() => schedule.value?.weeks ?? [])
 const nextScheduleWeek = computed(() =>
   Math.max(1, ...scheduleWeeks.value.map((week) => week.week), 0),
@@ -344,6 +337,35 @@ const scoredMatchupCount = computed(() =>
     (total, week) => total + week.matchups.filter((matchup) => hasScore(matchup)).length,
     0,
   ),
+)
+const playerByeCounts = computed(() => {
+  const counts = new Map(players.value.map((player) => [player.id, 0]))
+  const playerIds = players.value.map((player) => player.id)
+
+  for (const week of scheduleWeeks.value) {
+    const playingIds = new Set(
+      week.matchups.flatMap((matchup) => [matchup.player1Id, matchup.player2Id]),
+    )
+    for (const playerId of playerIds) {
+      if (!playingIds.has(playerId)) counts.set(playerId, (counts.get(playerId) ?? 0) + 1)
+    }
+  }
+
+  return counts
+})
+const byeRows = computed(() =>
+  players.value
+    .map((player) => ({
+      playerId: player.id,
+      name: teamLabel(player),
+      byeCount: playerByeCounts.value.get(player.id) ?? 0,
+    }))
+    .sort((a, b) => b.byeCount - a.byeCount || a.name.localeCompare(b.name)),
+)
+const player1Options = computed(() => buildPlayerOptions(scheduleForm.value.player2Id))
+const player2Options = computed(() => buildPlayerOptions(scheduleForm.value.player1Id))
+const selectedRematchCount = computed(() =>
+  rematchCount(scheduleForm.value.player1Id, scheduleForm.value.player2Id),
 )
 
 function teamLabel(player: { name: string; teamName?: string }) {
@@ -363,6 +385,37 @@ function hasScore(matchup: MatchupResponse) {
 function matchupScoreLabel(matchup: MatchupResponse) {
   if (matchup.player1Wins === null || matchup.player2Wins === null) return 'Unplayed'
   return `${matchup.player1Wins}-${matchup.player2Wins}`
+}
+
+function buildPlayerOptions(opponentId: string) {
+  return players.value.map((player) => ({
+    title: teamLabel(player),
+    value: player.id,
+    byeCount: playerByeCounts.value.get(player.id) ?? 0,
+    rematchCount: rematchCount(player.id, opponentId),
+    hasRematchWarning: rematchCount(player.id, opponentId) > 0,
+  }))
+}
+
+function matchupHasPlayers(matchup: MatchupResponse, player1Id: string, player2Id: string) {
+  return (
+    (matchup.player1Id === player1Id && matchup.player2Id === player2Id) ||
+    (matchup.player1Id === player2Id && matchup.player2Id === player1Id)
+  )
+}
+
+function rematchCount(playerId: string, opponentId: string) {
+  if (!playerId || !opponentId || playerId === opponentId) return 0
+
+  return scheduleWeeks.value.reduce(
+    (count, week) =>
+      count +
+      week.matchups.filter(
+        (matchup) =>
+          matchup.id !== editingMatchup.value?.id && matchupHasPlayers(matchup, playerId, opponentId),
+      ).length,
+    0,
+  )
 }
 
 function openAddMatchup(week = nextScheduleWeek.value) {
@@ -699,60 +752,71 @@ async function confirmDeleteMatchup() {
               text="The schedule editor will appear once the schedule exists. You can also add matchups manually."
             />
 
-            <v-expansion-panels v-else multiple class="schedule-editor-weeks">
-              <v-expansion-panel v-for="week in scheduleWeeks" :key="week.week" :value="week.week">
-                <v-expansion-panel-title>
-                  <div class="week-editor-title">
-                    <span>Week {{ week.week }}</span>
-                    <div>
-                      <v-chip size="x-small" variant="tonal">{{ week.matchups.length }} matchups</v-chip>
-                      <v-btn
-                        icon="mdi-plus"
-                        size="x-small"
-                        variant="text"
-                        class="ml-1"
-                        @click.stop="openAddMatchup(week.week)"
-                      />
-                    </div>
-                  </div>
-                </v-expansion-panel-title>
-                <v-expansion-panel-text>
-                  <v-list density="compact" class="schedule-editor-list">
-                    <v-list-item v-for="matchup in week.matchups" :key="matchup.id">
-                      <v-list-item-title>
-                        {{ matchupTeamLabel(matchup, 1) }} vs {{ matchupTeamLabel(matchup, 2) }}
-                      </v-list-item-title>
-                      <v-list-item-subtitle>
-                        <v-chip
+            <template v-else>
+              <div class="bye-summary">
+                <div v-for="row in byeRows" :key="row.playerId" class="bye-summary-row">
+                  <span>{{ row.name }}</span>
+                  <v-chip size="x-small" :color="row.byeCount ? 'warning' : 'success'" variant="tonal">
+                    {{ row.byeCount }} {{ row.byeCount === 1 ? 'bye' : 'byes' }}
+                  </v-chip>
+                </div>
+              </div>
+
+              <v-expansion-panels multiple class="schedule-editor-weeks">
+                <v-expansion-panel v-for="week in scheduleWeeks" :key="week.week" :value="week.week">
+                  <v-expansion-panel-title>
+                    <div class="week-editor-title">
+                      <span>Week {{ week.week }}</span>
+                      <div>
+                        <v-chip size="x-small" variant="tonal">{{ week.matchups.length }} matchups</v-chip>
+                        <v-btn
+                          icon="mdi-plus"
                           size="x-small"
-                          :color="hasScore(matchup) ? 'primary' : undefined"
-                          variant="tonal"
-                        >
-                          {{ matchupScoreLabel(matchup) }}
-                        </v-chip>
-                      </v-list-item-subtitle>
-                      <template #append>
-                        <div class="schedule-row-actions">
-                          <v-btn
-                            icon="mdi-pencil"
-                            size="small"
-                            variant="text"
-                            @click="openEditMatchup(matchup)"
-                          />
-                          <v-btn
-                            icon="mdi-delete-outline"
-                            size="small"
-                            variant="text"
-                            color="error"
-                            @click="queueDeleteMatchup(matchup)"
-                          />
-                        </div>
-                      </template>
-                    </v-list-item>
-                  </v-list>
-                </v-expansion-panel-text>
-              </v-expansion-panel>
-            </v-expansion-panels>
+                          variant="text"
+                          class="ml-1"
+                          @click.stop="openAddMatchup(week.week)"
+                        />
+                      </div>
+                    </div>
+                  </v-expansion-panel-title>
+                  <v-expansion-panel-text>
+                    <v-list density="compact" class="schedule-editor-list">
+                      <v-list-item v-for="matchup in week.matchups" :key="matchup.id">
+                        <v-list-item-title>
+                          {{ matchupTeamLabel(matchup, 1) }} vs {{ matchupTeamLabel(matchup, 2) }}
+                        </v-list-item-title>
+                        <v-list-item-subtitle>
+                          <v-chip
+                            size="x-small"
+                            :color="hasScore(matchup) ? 'primary' : undefined"
+                            variant="tonal"
+                          >
+                            {{ matchupScoreLabel(matchup) }}
+                          </v-chip>
+                        </v-list-item-subtitle>
+                        <template #append>
+                          <div class="schedule-row-actions">
+                            <v-btn
+                              icon="mdi-pencil"
+                              size="small"
+                              variant="text"
+                              @click="openEditMatchup(matchup)"
+                            />
+                            <v-btn
+                              icon="mdi-delete-outline"
+                              size="small"
+                              variant="text"
+                              color="error"
+                              @click="queueDeleteMatchup(matchup)"
+                            />
+                          </div>
+                        </template>
+                      </v-list-item>
+                    </v-list>
+                  </v-expansion-panel-text>
+                </v-expansion-panel>
+              </v-expansion-panels>
+            </template>
           </v-card-text>
         </v-card>
       </v-col>
@@ -800,17 +864,59 @@ async function confirmDeleteMatchup() {
           <FormField label="Player 1">
             <v-select
               v-model="scheduleForm.player1Id"
-              :items="playerOptions"
+              :items="player1Options"
               hide-details
-            />
+            >
+              <template #item="{ props, item }">
+                <v-list-item v-bind="props">
+                  <template #append>
+                    <div class="player-option-meta">
+                      <v-chip size="x-small" variant="tonal">{{ item.byeCount }} byes</v-chip>
+                      <v-chip v-if="item.hasRematchWarning" size="x-small" color="warning" variant="tonal">
+                        Played {{ item.rematchCount }}x
+                      </v-chip>
+                    </div>
+                  </template>
+                </v-list-item>
+              </template>
+              <template #selection="{ item }">
+                <span>{{ item.title }}</span>
+                <v-chip v-if="item.hasRematchWarning" size="x-small" color="warning" variant="tonal" class="ml-2">
+                  Rematch
+                </v-chip>
+              </template>
+            </v-select>
           </FormField>
           <FormField label="Player 2">
             <v-select
               v-model="scheduleForm.player2Id"
-              :items="playerOptions"
+              :items="player2Options"
               hide-details
-            />
+            >
+              <template #item="{ props, item }">
+                <v-list-item v-bind="props">
+                  <template #append>
+                    <div class="player-option-meta">
+                      <v-chip size="x-small" variant="tonal">{{ item.byeCount }} byes</v-chip>
+                      <v-chip v-if="item.hasRematchWarning" size="x-small" color="warning" variant="tonal">
+                        Played {{ item.rematchCount }}x
+                      </v-chip>
+                    </div>
+                  </template>
+                </v-list-item>
+              </template>
+              <template #selection="{ item }">
+                <span>{{ item.title }}</span>
+                <v-chip v-if="item.hasRematchWarning" size="x-small" color="warning" variant="tonal" class="ml-2">
+                  Rematch
+                </v-chip>
+              </template>
+            </v-select>
           </FormField>
+
+          <v-alert v-if="selectedRematchCount" type="warning" variant="tonal" density="compact">
+            These players already have {{ selectedRematchCount }} matchup{{ selectedRematchCount === 1 ? '' : 's' }} on the schedule.
+          </v-alert>
 
           <v-alert v-if="editingMatchup && hasScore(editingMatchup)" type="warning" variant="tonal" density="compact">
             This matchup already has a score. Changing the teams or week can alter standings and playoff results.
@@ -976,6 +1082,29 @@ async function confirmDeleteMatchup() {
   border-radius: var(--radius-md);
   overflow: hidden;
 }
+.bye-summary {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.bye-summary-row {
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 8px 10px;
+}
+.bye-summary-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .schedule-editor-list {
   background: transparent;
 }
@@ -985,6 +1114,13 @@ async function confirmDeleteMatchup() {
 .schedule-dialog-body {
   display: grid;
   gap: 12px;
+}
+.player-option-meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
 }
 @media (max-width: 720px) {
   .league-setup {
@@ -1015,6 +1151,12 @@ async function confirmDeleteMatchup() {
   .schedule-editor-actions {
     justify-content: flex-start;
     width: 100%;
+  }
+  .bye-summary {
+    grid-template-columns: 1fr;
+  }
+  .player-option-meta {
+    justify-content: flex-start;
   }
   .player-actions > .v-btn:not(:last-child) {
     display: none;
