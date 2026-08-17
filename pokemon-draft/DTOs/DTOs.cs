@@ -48,6 +48,9 @@ public record RosterTransactionRequest(
 
 public record ReportMatchupRequest(string PlayerId, string Pin, int Player1Wins, int Player2Wins, string? ReplayUrl = null, List<string>? ReplayUrls = null);
 public record EditMatchupRequest(string AdminPin, int Player1Wins, int Player2Wins, string? ReplayUrl = null, List<string>? ReplayUrls = null);
+public record CreateScheduleMatchupRequest(string AdminPin, int Week, string Player1Id, string Player2Id);
+public record UpdateScheduleMatchupRequest(string AdminPin, int Week, string Player1Id, string Player2Id, bool ForceScoredChange = false);
+public record DeleteScheduleMatchupRequest(string AdminPin, bool ForceScoredChange = false);
 
 // --- Auth ---
 

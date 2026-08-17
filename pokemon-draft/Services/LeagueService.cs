@@ -668,6 +668,81 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     }
 
     /// <inheritdoc/>
+    public (bool success, string? error) CreateScheduleMatchup(
+        string leagueCode, string adminPin, int week, string player1Id, string player2Id)
+    {
+        var league = LoadLeagueWithSchedule(leagueCode);
+        if (league is null) return (false, "League not found.");
+
+        var authError = ValidateScheduleAdmin(league, adminPin);
+        if (authError is not null) return (false, authError);
+
+        var validationError = ValidateScheduleMatchup(league, null, week, player1Id, player2Id);
+        if (validationError is not null) return (false, validationError);
+
+        league.Matchups.Add(new Matchup
+        {
+            LeagueCode = league.Code,
+            Week = week,
+            Player1Id = player1Id,
+            Player2Id = player2Id,
+        });
+
+        db.SaveChanges();
+        return (true, null);
+    }
+
+    /// <inheritdoc/>
+    public (bool success, string? error) UpdateScheduleMatchup(
+        string leagueCode, int matchupId, string adminPin, int week, string player1Id, string player2Id, bool forceScoredChange)
+    {
+        var league = LoadLeagueWithSchedule(leagueCode);
+        if (league is null) return (false, "League not found.");
+
+        var authError = ValidateScheduleAdmin(league, adminPin);
+        if (authError is not null) return (false, authError);
+
+        var matchup = league.Matchups.FirstOrDefault(m => m.Id == matchupId);
+        if (matchup is null) return (false, "Matchup not found.");
+
+        if (IsScored(matchup) && !forceScoredChange)
+            return (false, "This matchup already has a score. Confirm the scored-match override to edit it.");
+
+        var validationError = ValidateScheduleMatchup(league, matchupId, week, player1Id, player2Id);
+        if (validationError is not null) return (false, validationError);
+
+        matchup.Week = week;
+        matchup.Player1Id = player1Id;
+        matchup.Player2Id = player2Id;
+        if (IsScored(matchup))
+            matchup.ReportedAt = DateTime.UtcNow;
+
+        db.SaveChanges();
+        return (true, null);
+    }
+
+    /// <inheritdoc/>
+    public (bool success, string? error) DeleteScheduleMatchup(
+        string leagueCode, int matchupId, string adminPin, bool forceScoredChange)
+    {
+        var league = LoadLeagueWithSchedule(leagueCode);
+        if (league is null) return (false, "League not found.");
+
+        var authError = ValidateScheduleAdmin(league, adminPin);
+        if (authError is not null) return (false, authError);
+
+        var matchup = league.Matchups.FirstOrDefault(m => m.Id == matchupId);
+        if (matchup is null) return (false, "Matchup not found.");
+
+        if (IsScored(matchup) && !forceScoredChange)
+            return (false, "This matchup already has a score. Confirm the scored-match override to delete it.");
+
+        db.Matchups.Remove(matchup);
+        db.SaveChanges();
+        return (true, null);
+    }
+
+    /// <inheritdoc/>
     public List<PlayoffOutlookEntry>? GetPlayoffOutlook(string leagueCode)
     {
         var league = LoadLeagueScheduleReadOnly(leagueCode);
@@ -1385,6 +1460,43 @@ public class LeagueService(DraftDbContext db) : ILeagueService
     private static bool VerifyLeagueAdminCredential(League league, string input) =>
         VerifyAdminPin(league, input) ||
         league.Players.Any(player => player.IsCoCommissioner && VerifyPin(player, input));
+
+    private static string? ValidateScheduleAdmin(League league, string adminPin)
+    {
+        if (string.IsNullOrWhiteSpace(adminPin) || !VerifyLeagueAdminCredential(league, adminPin))
+            return "Invalid admin PIN.";
+
+        return null;
+    }
+
+    private static string? ValidateScheduleMatchup(
+        League league, int? matchupId, int week, string player1Id, string player2Id)
+    {
+        if (week < 1) return "Week must be 1 or greater.";
+        if (string.IsNullOrWhiteSpace(player1Id) || string.IsNullOrWhiteSpace(player2Id))
+            return "Select two players for the matchup.";
+        if (player1Id == player2Id) return "A player cannot play themselves.";
+
+        var playerIds = league.Players.Select(p => p.Id).ToHashSet();
+        if (!playerIds.Contains(player1Id) || !playerIds.Contains(player2Id))
+            return "One or more selected players are not in this league.";
+
+        var conflict = league.Matchups.FirstOrDefault(matchup =>
+            matchup.Id != matchupId &&
+            matchup.Week == week &&
+            (matchup.Player1Id == player1Id ||
+             matchup.Player2Id == player1Id ||
+             matchup.Player1Id == player2Id ||
+             matchup.Player2Id == player2Id));
+
+        if (conflict is not null)
+            return "One of those players already has a matchup that week.";
+
+        return null;
+    }
+
+    private static bool IsScored(Matchup matchup) =>
+        matchup.Player1Wins.HasValue || matchup.Player2Wins.HasValue;
 
     private string GenerateCode()
     {

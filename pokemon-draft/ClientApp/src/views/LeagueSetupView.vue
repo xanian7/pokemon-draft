@@ -9,6 +9,7 @@ import { useDraftStore } from '@/stores/draft'
 import { enqueueSnackbar } from '@/services/snackbar'
 import PageHeader from '@/components/PageHeader.vue'
 import FormField from '@/components/FormField.vue'
+import type { MatchupResponse, ScheduleData } from '@/types'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -30,10 +31,13 @@ const players = ref<
   Array<{
     id: string
     name: string
+    teamName: string
+    teamImageUrl: string
     isCommissioner: boolean
     isCoCommissioner: boolean
   }>
 >([])
+const schedule = ref<ScheduleData | null>(null)
 const leagueCode = computed(() => authStore.leagueCode ?? '')
 const draftStatus = ref('setup')
 
@@ -47,6 +51,18 @@ const isRandomizingOrder = ref(false)
 const isDroppingPlayer = ref(false)
 const selfPin = ref('')
 const roleSavingPlayerId = ref<string | null>(null)
+const scheduleError = ref('')
+const scheduleSaving = ref(false)
+const scheduleDialogOpen = ref(false)
+const scheduleDeleteDialogOpen = ref(false)
+const editingMatchup = ref<MatchupResponse | null>(null)
+const deletingMatchup = ref<MatchupResponse | null>(null)
+const scheduleForm = ref({
+  week: 1,
+  player1Id: '',
+  player2Id: '',
+  forceScoredChange: false,
+})
 
 function applyState(state: any) {
   leagueName.value = state.name
@@ -57,6 +73,8 @@ function applyState(state: any) {
   draftStatus.value = (state.draft?.status ?? 'Setup').toLowerCase()
   players.value = state.players.map((player: (typeof players.value)[number]) => ({
     ...player,
+    teamName: player.teamName ?? '',
+    teamImageUrl: player.teamImageUrl ?? '',
     isCommissioner:
       player.isCommissioner ??
       (authStore.isCommissioner && player.id === authStore.playerId),
@@ -76,6 +94,7 @@ onMounted(async () => {
       pokemonStore.setPointValue(Number(id), pts)
     }
   }
+  await fetchSchedule()
 })
 
 onUnmounted(() => unsubscribe(applyState))
@@ -89,6 +108,23 @@ async function patch(path: string, body: object) {
     body: JSON.stringify(body),
   })
   isSaving.value = false
+}
+
+async function fetchSchedule() {
+  if (!leagueCode.value) return
+
+  try {
+    scheduleError.value = ''
+    const res = await fetch(`${API_BASE}/leagues/${leagueCode.value}/schedule`)
+    if (!res.ok) {
+      schedule.value = null
+      return
+    }
+
+    schedule.value = (await res.json()) as ScheduleData
+  } catch {
+    scheduleError.value = 'Could not load the schedule editor.'
+  }
 }
 
 async function saveConfig() {
@@ -266,6 +302,7 @@ async function startDraft() {
 async function resetDraft() {
   await fetch(`${API_BASE}/leagues/${leagueCode.value}/draft/reset`, { method: 'POST' })
   showResetWarning.value = false
+  await fetchSchedule()
 }
 
 const inviteLink = computed(() => `${window.location.origin}/register?code=${leagueCode.value}`)
@@ -287,6 +324,152 @@ const snakePreview = computed(() => {
     return { pickNumber: i, round, player: players.value[idx] }
   })
 })
+
+const playerOptions = computed(() =>
+  players.value.map((player) => ({
+    title: teamLabel(player),
+    value: player.id,
+  })),
+)
+
+const scheduleWeeks = computed(() => schedule.value?.weeks ?? [])
+const nextScheduleWeek = computed(() =>
+  Math.max(1, ...scheduleWeeks.value.map((week) => week.week), 0),
+)
+const scheduleMatchupCount = computed(() =>
+  scheduleWeeks.value.reduce((total, week) => total + week.matchups.length, 0),
+)
+const scoredMatchupCount = computed(() =>
+  scheduleWeeks.value.reduce(
+    (total, week) => total + week.matchups.filter((matchup) => hasScore(matchup)).length,
+    0,
+  ),
+)
+
+function teamLabel(player: { name: string; teamName?: string }) {
+  return player.teamName?.trim() || player.name
+}
+
+function matchupTeamLabel(matchup: MatchupResponse, side: 1 | 2) {
+  return side === 1
+    ? matchup.player1TeamName?.trim() || matchup.player1Name
+    : matchup.player2TeamName?.trim() || matchup.player2Name
+}
+
+function hasScore(matchup: MatchupResponse) {
+  return matchup.player1Wins !== null || matchup.player2Wins !== null
+}
+
+function matchupScoreLabel(matchup: MatchupResponse) {
+  if (matchup.player1Wins === null || matchup.player2Wins === null) return 'Unplayed'
+  return `${matchup.player1Wins}-${matchup.player2Wins}`
+}
+
+function openAddMatchup(week = nextScheduleWeek.value) {
+  editingMatchup.value = null
+  scheduleForm.value = {
+    week,
+    player1Id: '',
+    player2Id: '',
+    forceScoredChange: false,
+  }
+  scheduleError.value = ''
+  scheduleDialogOpen.value = true
+}
+
+function openEditMatchup(matchup: MatchupResponse) {
+  editingMatchup.value = matchup
+  scheduleForm.value = {
+    week: matchup.week,
+    player1Id: matchup.player1Id,
+    player2Id: matchup.player2Id,
+    forceScoredChange: false,
+  }
+  scheduleError.value = ''
+  scheduleDialogOpen.value = true
+}
+
+function queueDeleteMatchup(matchup: MatchupResponse) {
+  deletingMatchup.value = matchup
+  scheduleForm.value.forceScoredChange = false
+  scheduleError.value = ''
+  scheduleDeleteDialogOpen.value = true
+}
+
+async function submitScheduleMatchup() {
+  if (!leagueCode.value) return
+
+  const editing = editingMatchup.value
+  scheduleSaving.value = true
+  scheduleError.value = ''
+
+  try {
+    const body = {
+      adminPin: authStore.pin,
+      week: scheduleForm.value.week,
+      player1Id: scheduleForm.value.player1Id,
+      player2Id: scheduleForm.value.player2Id,
+      forceScoredChange: scheduleForm.value.forceScoredChange,
+    }
+    const url = editing
+      ? `${API_BASE}/leagues/${leagueCode.value}/schedule/${editing.id}/matchup`
+      : `${API_BASE}/leagues/${leagueCode.value}/schedule`
+    const res = await fetch(url, {
+      method: editing ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    if (!res.ok) {
+      scheduleError.value = (await res.text()) || 'Unable to save schedule matchup.'
+      return
+    }
+
+    scheduleDialogOpen.value = false
+    editingMatchup.value = null
+    await fetchSchedule()
+    enqueueSnackbar('Schedule updated.', 'success')
+  } catch {
+    scheduleError.value = 'Could not connect to the server.'
+  } finally {
+    scheduleSaving.value = false
+  }
+}
+
+async function confirmDeleteMatchup() {
+  if (!leagueCode.value || !deletingMatchup.value) return
+
+  scheduleSaving.value = true
+  scheduleError.value = ''
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/leagues/${leagueCode.value}/schedule/${deletingMatchup.value.id}`,
+      {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminPin: authStore.pin,
+          forceScoredChange: scheduleForm.value.forceScoredChange,
+        }),
+      },
+    )
+
+    if (!res.ok) {
+      scheduleError.value = (await res.text()) || 'Unable to delete schedule matchup.'
+      return
+    }
+
+    scheduleDeleteDialogOpen.value = false
+    deletingMatchup.value = null
+    await fetchSchedule()
+    enqueueSnackbar('Matchup removed from the schedule.', 'success')
+  } catch {
+    scheduleError.value = 'Could not connect to the server.'
+  } finally {
+    scheduleSaving.value = false
+  }
+}
 </script>
 
 <template>
@@ -485,6 +668,93 @@ const snakePreview = computed(() => {
             </v-btn>
           </v-card-actions>
         </v-card>
+
+        <v-card variant="outlined" class="workspace-card schedule-editor-card">
+          <v-card-title class="schedule-editor-title">
+            <span><v-icon icon="mdi-calendar-edit" start /> Schedule editor</span>
+            <div class="schedule-editor-actions">
+              <v-chip size="small" variant="tonal">{{ scheduleMatchupCount }} matchups</v-chip>
+              <v-chip v-if="scoredMatchupCount" size="small" color="warning" variant="tonal">
+                {{ scoredMatchupCount }} scored
+              </v-chip>
+              <v-btn
+                size="small"
+                color="primary"
+                variant="flat"
+                prepend-icon="mdi-plus"
+                :disabled="players.length < 2"
+                @click="openAddMatchup()"
+              >
+                Add matchup
+              </v-btn>
+            </div>
+          </v-card-title>
+          <v-card-text>
+            <v-alert v-if="scheduleError && !scheduleDialogOpen && !scheduleDeleteDialogOpen" type="error" variant="tonal" density="compact" class="mb-3">
+              {{ scheduleError }}
+            </v-alert>
+
+            <DraftGateNotice
+              v-if="!schedule || !scheduleWeeks.length"
+              text="The schedule editor will appear once the schedule exists. You can also add matchups manually."
+            />
+
+            <v-expansion-panels v-else multiple class="schedule-editor-weeks">
+              <v-expansion-panel v-for="week in scheduleWeeks" :key="week.week" :value="week.week">
+                <v-expansion-panel-title>
+                  <div class="week-editor-title">
+                    <span>Week {{ week.week }}</span>
+                    <div>
+                      <v-chip size="x-small" variant="tonal">{{ week.matchups.length }} matchups</v-chip>
+                      <v-btn
+                        icon="mdi-plus"
+                        size="x-small"
+                        variant="text"
+                        class="ml-1"
+                        @click.stop="openAddMatchup(week.week)"
+                      />
+                    </div>
+                  </div>
+                </v-expansion-panel-title>
+                <v-expansion-panel-text>
+                  <v-list density="compact" class="schedule-editor-list">
+                    <v-list-item v-for="matchup in week.matchups" :key="matchup.id">
+                      <v-list-item-title>
+                        {{ matchupTeamLabel(matchup, 1) }} vs {{ matchupTeamLabel(matchup, 2) }}
+                      </v-list-item-title>
+                      <v-list-item-subtitle>
+                        <v-chip
+                          size="x-small"
+                          :color="hasScore(matchup) ? 'primary' : undefined"
+                          variant="tonal"
+                        >
+                          {{ matchupScoreLabel(matchup) }}
+                        </v-chip>
+                      </v-list-item-subtitle>
+                      <template #append>
+                        <div class="schedule-row-actions">
+                          <v-btn
+                            icon="mdi-pencil"
+                            size="small"
+                            variant="text"
+                            @click="openEditMatchup(matchup)"
+                          />
+                          <v-btn
+                            icon="mdi-delete-outline"
+                            size="small"
+                            variant="text"
+                            color="error"
+                            @click="queueDeleteMatchup(matchup)"
+                          />
+                        </div>
+                      </template>
+                    </v-list-item>
+                  </v-list>
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+            </v-expansion-panels>
+          </v-card-text>
+        </v-card>
       </v-col>
     </v-row>
 
@@ -515,6 +785,83 @@ const snakePreview = computed(() => {
           <v-btn variant="text" :disabled="isDroppingPlayer" @click="playerPendingDrop = null">Cancel</v-btn>
           <v-btn color="error" variant="flat" :loading="isDroppingPlayer" @click="confirmDropPlayer">
             Drop player
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="scheduleDialogOpen" max-width="560">
+      <v-card>
+        <v-card-title>{{ editingMatchup ? 'Edit matchup' : 'Add matchup' }}</v-card-title>
+        <v-card-text class="schedule-dialog-body">
+          <FormField label="Week">
+            <v-number-input v-model="scheduleForm.week" :min="1" control-variant="stacked" hide-details />
+          </FormField>
+          <FormField label="Player 1">
+            <v-select
+              v-model="scheduleForm.player1Id"
+              :items="playerOptions"
+              hide-details
+            />
+          </FormField>
+          <FormField label="Player 2">
+            <v-select
+              v-model="scheduleForm.player2Id"
+              :items="playerOptions"
+              hide-details
+            />
+          </FormField>
+
+          <v-alert v-if="editingMatchup && hasScore(editingMatchup)" type="warning" variant="tonal" density="compact">
+            This matchup already has a score. Changing the teams or week can alter standings and playoff results.
+          </v-alert>
+          <v-checkbox
+            v-if="editingMatchup && hasScore(editingMatchup)"
+            v-model="scheduleForm.forceScoredChange"
+            density="compact"
+            hide-details
+            label="I understand this changes a scored matchup"
+          />
+          <v-alert v-if="scheduleError && scheduleDialogOpen" type="error" variant="tonal" density="compact">
+            {{ scheduleError }}
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" :disabled="scheduleSaving" @click="scheduleDialogOpen = false">Cancel</v-btn>
+          <v-btn color="primary" variant="flat" :loading="scheduleSaving" @click="submitScheduleMatchup">
+            Save matchup
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="scheduleDeleteDialogOpen" max-width="520">
+      <v-card>
+        <v-card-title>Remove matchup?</v-card-title>
+        <v-card-text>
+          <p v-if="deletingMatchup">
+            Week {{ deletingMatchup.week }}: {{ matchupTeamLabel(deletingMatchup, 1) }} vs {{ matchupTeamLabel(deletingMatchup, 2) }}
+          </p>
+          <v-alert v-if="deletingMatchup && hasScore(deletingMatchup)" type="warning" variant="tonal" density="compact" class="mt-3">
+            This matchup already has a score. Removing it will remove that result from standings.
+          </v-alert>
+          <v-checkbox
+            v-if="deletingMatchup && hasScore(deletingMatchup)"
+            v-model="scheduleForm.forceScoredChange"
+            density="compact"
+            hide-details
+            label="I understand this removes a scored matchup"
+          />
+          <v-alert v-if="scheduleError && scheduleDeleteDialogOpen" type="error" variant="tonal" density="compact" class="mt-3">
+            {{ scheduleError }}
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" :disabled="scheduleSaving" @click="scheduleDeleteDialogOpen = false">Cancel</v-btn>
+          <v-btn color="error" variant="flat" :loading="scheduleSaving" @click="confirmDeleteMatchup">
+            Remove matchup
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -606,6 +953,39 @@ const snakePreview = computed(() => {
   display: flex;
   flex-wrap: wrap;
 }
+.schedule-editor-title {
+  justify-content: space-between;
+}
+.schedule-editor-actions,
+.week-editor-title,
+.schedule-row-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+.schedule-editor-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.week-editor-title {
+  justify-content: space-between;
+  width: 100%;
+}
+.schedule-editor-weeks {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.schedule-editor-list {
+  background: transparent;
+}
+.schedule-editor-list :deep(.v-list-item) {
+  border-bottom: 1px solid var(--border-color);
+}
+.schedule-dialog-body {
+  display: grid;
+  gap: 12px;
+}
 @media (max-width: 720px) {
   .league-setup {
     padding: 12px;
@@ -625,6 +1005,14 @@ const snakePreview = computed(() => {
     flex-direction: column;
   }
   .draft-order-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+  .schedule-editor-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .schedule-editor-actions {
     justify-content: flex-start;
     width: 100%;
   }

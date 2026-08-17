@@ -79,6 +79,18 @@ public interface ILeagueService
     /// <summary>Returns full schedule and current standings.</summary>
     ScheduleResponse? GetSchedule(string leagueCode);
 
+    /// <summary>Commissioner override - creates a manual schedule matchup.</summary>
+    (bool success, string? error) CreateScheduleMatchup(
+        string leagueCode, string adminPin, int week, string player1Id, string player2Id);
+
+    /// <summary>Commissioner override - edits matchup teams/week, with extra confirmation for scored matchups.</summary>
+    (bool success, string? error) UpdateScheduleMatchup(
+        string leagueCode, int matchupId, string adminPin, int week, string player1Id, string player2Id, bool forceScoredChange);
+
+    /// <summary>Commissioner override - removes a matchup, with extra confirmation for scored matchups.</summary>
+    (bool success, string? error) DeleteScheduleMatchup(
+        string leagueCode, int matchupId, string adminPin, bool forceScoredChange);
+
     /// <summary>Returns per-team playoff outlook (clinched/in-contention/eliminated, magic numbers).</summary>
     List<PlayoffOutlookEntry>? GetPlayoffOutlook(string leagueCode);
 

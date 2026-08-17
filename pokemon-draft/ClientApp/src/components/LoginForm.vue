@@ -66,7 +66,7 @@ async function joinLeague() {
     }
     const err = await authStore.enterLeague(code)
     if (err) { joinError.value = err; return }
-    router.push('/league')
+    router.push('/league?tab=home')
   } catch {
     joinError.value = 'Could not connect to server.'
   } finally {

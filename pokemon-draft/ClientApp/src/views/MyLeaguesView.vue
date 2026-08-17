@@ -42,7 +42,7 @@ async function enterLeague(code: string) {
   if (err) {
     enqueueSnackbar(err, 'error')
   } else {
-    router.push('/league')
+    router.push('/league?tab=home')
   }
 }
 </script>

@@ -66,7 +66,7 @@ function canAccessTab(tabValue: LeagueTab) {
 
 function tabFromRoute(): LeagueTab {
   const tabQuery = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab
-  let tab: LeagueTab = 'draft'
+  let tab: LeagueTab = 'home'
   if (isLeagueTab(tabQuery)) tab = tabQuery
   else if (route.path === '/') tab = 'home'
   else if (route.path === '/team') tab = 'team'
@@ -78,7 +78,7 @@ function tabFromRoute(): LeagueTab {
   else if (route.path === '/league/setup') tab = 'setup'
   else if (route.path === '/pokemon') tab = 'pokemon'
 
-  return canAccessTab(tab) ? tab : 'draft'
+  return canAccessTab(tab) ? tab : 'home'
 }
 
 const activeTab = ref<LeagueTab>(tabFromRoute())

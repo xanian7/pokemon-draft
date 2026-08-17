@@ -24,6 +24,36 @@ public class ScheduleController(ILeagueService leagueService, IHubContext<DraftH
         return outlook is null ? NotFound() : Ok(outlook);
     }
 
+    [HttpPost("schedule")]
+    public async Task<IActionResult> CreateScheduleMatchup(string code, CreateScheduleMatchupRequest req)
+    {
+        var (success, error) = LeagueService.CreateScheduleMatchup(
+            code, req.AdminPin, req.Week, req.Player1Id, req.Player2Id);
+        if (!success) return error is null ? NotFound() : BadRequest(error);
+        await BroadcastSchedule(code);
+        return Ok();
+    }
+
+    [HttpPatch("schedule/{matchupId}/matchup")]
+    public async Task<IActionResult> UpdateScheduleMatchup(string code, int matchupId, UpdateScheduleMatchupRequest req)
+    {
+        var (success, error) = LeagueService.UpdateScheduleMatchup(
+            code, matchupId, req.AdminPin, req.Week, req.Player1Id, req.Player2Id, req.ForceScoredChange);
+        if (!success) return error is null ? NotFound() : BadRequest(error);
+        await BroadcastSchedule(code);
+        return Ok();
+    }
+
+    [HttpDelete("schedule/{matchupId}")]
+    public async Task<IActionResult> DeleteScheduleMatchup(string code, int matchupId, DeleteScheduleMatchupRequest? req)
+    {
+        var (success, error) = LeagueService.DeleteScheduleMatchup(
+            code, matchupId, req?.AdminPin ?? string.Empty, req?.ForceScoredChange ?? false);
+        if (!success) return error is null ? NotFound() : BadRequest(error);
+        await BroadcastSchedule(code);
+        return Ok();
+    }
+
     [HttpPost("schedule/{matchupId}/report")]
     public async Task<IActionResult> ReportMatchup(string code, int matchupId, ReportMatchupRequest req)
     {
@@ -40,5 +70,11 @@ public class ScheduleController(ILeagueService leagueService, IHubContext<DraftH
         if (!success) return BadRequest(error);
         await Hub.Clients.Group(code.ToUpperInvariant()).SendAsync("ScheduleUpdate", LeagueService.GetSchedule(code));
         return Ok();
+    }
+
+    private async Task BroadcastSchedule(string code)
+    {
+        await BroadcastLeague(code);
+        await Hub.Clients.Group(code.ToUpperInvariant()).SendAsync("ScheduleUpdate", LeagueService.GetSchedule(code));
     }
 }
