@@ -857,7 +857,7 @@ onUnmounted(() => unsubscribe(handleLeagueState))
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   padding: 0;
   gap: 8px;
 }

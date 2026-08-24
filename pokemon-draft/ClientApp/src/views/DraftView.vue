@@ -142,7 +142,6 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
 
 <template>
   <v-container fluid class="page-card-large">
-    <v-card class="wrapper-card">
       <v-row class="upcoming-picks-row">
         <v-col cols="12" md="12">
           <div v-if="picksByRound.length > 0" class="upcoming-picks">
@@ -185,15 +184,16 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
           </div>
         </v-col>
       </v-row>
-      <v-row class="draft-main-row">
-        <v-col cols="12" md="2" class="draft-grid-col">
+      <v-row>
+        <v-col cols="12" md="12">
           <DraftRoster />
         </v-col>
-        <v-col cols="12" md="10" class="draft-grid-col">
+      </v-row>
+      <v-row >
+        <v-col cols="12" md="12">
           <PokemonGrid />
         </v-col>
       </v-row>
-    </v-card>
   </v-container>
 </template>
 
@@ -250,34 +250,14 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
   height: 100%;
 }
 
-.wrapper-card {
-  max-height: 85dvh;
-  height: 85dvh;
-  display: flex;
-  flex-direction: column;
-  padding: 8px;
-}
-
-.upcoming-picks-row {
+/* .upcoming-picks-row {
   flex: 0 0 auto;
   margin-bottom: 4px;
-}
+} */
 
 .upcoming-picks-row > .v-col {
   padding-bottom: 4px;
 }
-
-.draft-main-row {
-  flex: 1 1 auto;
-  min-height: 0;
-  margin-top: 0;
-}
-
-.draft-grid-col {
-  min-height: 0;
-  display: flex;
-}
-
 @media (max-width: 720px) {
   .wrapper-card {
     border-left: 0;
@@ -302,11 +282,6 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
 
   .current-upcoming-pick-card {
     flex-basis: 220px;
-  }
-
-  .draft-main-row {
-    display: block;
-    min-height: auto;
   }
 
   .draft-grid-col {

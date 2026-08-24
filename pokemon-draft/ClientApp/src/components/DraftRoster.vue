@@ -1,17 +1,16 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useDraftStore } from '@/stores/draft'
 import { usePokemonStore } from '@/stores/pokemon'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
-import type { Pokemon } from '@/types'
+import type { Pokemon, ServerPlayerResponse } from '@/types'
 import PokemonCard from '@/components/PokemonCard.vue'
 
 const authStore = useAuthStore()
 const draftStore = useDraftStore()
 const pokemonStore = usePokemonStore()
 
-// ── Detail modal ──────────────────────────────────────────────────────────────
 const detailPokemon = ref<Pokemon | null>(null)
 
 function openDetail(pokemon: Pokemon) {
@@ -22,7 +21,6 @@ function closeDetail() {
   detailPokemon.value = null
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function getPlayerPokemon(playerId: string): Pokemon[] {
   return draftStore
     .getPlayerPicks(playerId)
@@ -45,89 +43,113 @@ function getInitials(name: string): string {
     .toUpperCase()
 }
 
-// ── My team ───────────────────────────────────────────────────────────────────
-const myPlayer = computed(
-  () => draftStore.players.find((p: any) => p.id === authStore.playerId) ?? null,
-)
-const myPokemon = computed(() => (authStore.playerId ? getPlayerPokemon(authStore.playerId) : []))
-const myPoints = computed(() => (authStore.playerId ? getPlayerPoints(authStore.playerId) : 0))
-
-// ── Other teams ───────────────────────────────────────────────────────────────
-const otherPlayers = computed(() =>
-  draftStore.players.filter((p: any) => p.id !== authStore.playerId),
-)
-
-const openTeams = ref<Set<string>>(new Set())
-
-function toggleTeam(playerId: string) {
-  const s = new Set(openTeams.value)
-  if (s.has(playerId)) s.delete(playerId)
-  else s.add(playerId)
-  openTeams.value = s
+function getDisplayName(player: ServerPlayerResponse): string {
+  return player.teamName || player.name
 }
+
+const activePlayerId = ref<string | null>(authStore.playerId ?? null)
+
+const playerRosters = computed(() => {
+  const myId = authStore.playerId
+  const players = [...draftStore.players].sort((a, b) => {
+    if (a.id === myId) return -1
+    if (b.id === myId) return 1
+    return 0
+  })
+
+  return players.map((player) => {
+    const pokemon = getPlayerPokemon(player.id)
+    const displayName = getDisplayName(player)
+
+    return {
+      player,
+      pokemon,
+      displayName,
+      initials: getInitials(displayName),
+      isMe: player.id === myId,
+      points: getPlayerPoints(player.id),
+    }
+  })
+})
+
+watch(
+  playerRosters,
+  (rosters) => {
+    const activeStillExists = rosters.some((roster) => roster.player.id === activePlayerId.value)
+    if (activeStillExists) return
+    activePlayerId.value =
+      rosters.find((roster) => roster.player.id === authStore.playerId)?.player.id ??
+      rosters[0]?.player.id ??
+      null
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
-  <v-container fluid class="pa-0 roster-shell">
+  <v-container fluid class="pa-0 pb-3 roster-shell">
     <v-card class="team-outline">
-      <v-card color="var(--primary)">
-        <v-card-title class="text-subtitle-1">
-          <v-row>
-            <v-col> My Team </v-col>
-            <v-spacer />
-            <v-col class="text-subtitle-1"> {{ myPoints }} pts </v-col>
-          </v-row>
-        </v-card-title>
-        <v-card-text>
-          <v-row class="pokemon-grid">
-            <div v-for="p in myPokemon" :key="p.id" cols="6" md="4" lg="3" >
-              <PokemonCard
-                :pokemon="p"
-                :pointValue="pokemonStore.getPointValue(p.id)"
-                :canDraft="false"
-                :isPicked="false"
-                @click="openDetail(p)"
-              />
+      <template v-if="playerRosters.length > 0">
+        <v-tabs
+          v-model="activePlayerId"
+          class="roster-tabs"
+          density="compact"
+          show-arrows
+          grow
+        >
+          <v-tab
+            v-for="roster in playerRosters"
+            :key="roster.player.id"
+            :value="roster.player.id"
+            class="roster-tab"
+          >
+            <v-avatar size="24" class="roster-tab-avatar" v-if="roster.player.teamImageUrl">
+              <v-img :src="roster.player.teamImageUrl" />
+            </v-avatar>
+            <v-avatar size="24" class="roster-tab-avatar" v-else>
+              <span>{{ roster.initials }}</span>
+            </v-avatar>
+            <span class="roster-tab-label">{{ roster.isMe ? 'My Team' : roster.displayName }}</span>
+          </v-tab>
+        </v-tabs>
+
+        <v-divider />
+
+        <v-window v-model="activePlayerId" class="roster-window">
+          <v-window-item
+            v-for="roster in playerRosters"
+            :key="roster.player.id"
+            :value="roster.player.id"
+          >
+            <div class="roster-header">
+              <div class="text-subtitle-1 points">{{ roster.points }} pts</div>
             </div>
-          </v-row>
-          <div v-if="myPokemon.length === 0" class="text-center">No picks yet</div>
-        </v-card-text>
-      </v-card>
-      <v-divider />
-      <v-expansion-panels v-model="openTeams" multiple>
-        <v-expansion-panel v-for="player in otherPlayers" :key="player.id">
-          <v-expansion-panel-title class="text-subtitle-1">
-            {{ player.teamName || player.name }}
-            <span class="text-subtitle-1 points">{{ getPlayerPoints(player.id) }} pts</span>
-          </v-expansion-panel-title>
-          <v-expansion-panel-text>
-            <v-row class="pokemon-grid">
-              <div
-                v-for="p in getPlayerPokemon(player.id)"
-                :key="p.id"
-                cols="6"
-                md="4"
-                lg="3"
-              >
-                <PokemonCard
-                  :pokemon="p"
-                  :pointValue="pokemonStore.getPointValue(p.id)"
-                  :canDraft="false"
-                  :isPicked="false"
-                  @click="openDetail(p)"
-                />
+
+            <v-card-text class="roster-content">
+              <v-row class="pokemon-grid">
+                <div v-for="p in roster.pokemon" :key="p.id">
+                  <PokemonCard
+                    :pokemon="p"
+                    :pointValue="pokemonStore.getPointValue(p.id)"
+                    :canDraft="false"
+                    :isPicked="false"
+                    :show-sprite="true"
+                    @click="openDetail(p)"
+                  />
+                </div>
+              </v-row>
+              <div v-if="roster.pokemon.length === 0" class="text-center empty-roster">
+                No picks yet
               </div>
-            </v-row>
-            <div v-if="getPlayerPokemon(player.id).length === 0" class="text-center">
-              No picks yet
-            </div>
-          </v-expansion-panel-text>
-        </v-expansion-panel>
-      </v-expansion-panels>
+            </v-card-text>
+          </v-window-item>
+        </v-window>
+      </template>
+
+      <div v-else class="text-center empty-roster">No players yet</div>
     </v-card>
   </v-container>
 
-  <!-- Detail modal (view-only, no draft action) -->
   <PokemonDetailModal
     v-if="detailPokemon"
     :pokemon="detailPokemon"
@@ -148,44 +170,69 @@ function toggleTeam(playerId: string) {
   align-content: start;
 }
 
-.roster-shell {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  max-height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  padding-bottom: 0;
-  padding-top: 0;
+
+.v-divider {
+  flex: 0 0 auto;
 }
 
-.v-expansion-panels {
-  padding-top: 12px;
-}
-.points {
-  margin-left: auto;
-  padding-right: 12px;
-}
-.v-divider {
-  margin-top: 12px;
-}
 .team-outline {
   border: 1px solid var(--border-color);
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
   width: 100%;
-  height: 0;
   max-height: 100%;
-  min-height: 0;
-  overflow-y: auto;
   padding: 8px;
 }
 
-.team-outline > .v-card {
+.roster-tabs {
   flex: 0 0 auto;
+}
+
+.roster-tab {
+  min-width: 92px;
+  max-width: 150px;
+}
+
+.roster-tab-avatar {
+  flex: 0 0 auto;
+  margin-right: 6px;
+}
+
+.roster-tab-avatar span {
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.roster-tab-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-window {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.roster-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px 6px;
+}
+
+.roster-subtitle {
+  color: var(--text-muted);
+}
+
+.roster-content {
+  padding: 6px 0 0;
+}
+
+.empty-roster {
+  padding: 20px 8px;
 }
 
 @media (max-width: 720px) {
@@ -204,6 +251,10 @@ function toggleTeam(playerId: string) {
     min-height: 220px;
     overflow: visible;
     padding: 6px;
+  }
+
+  .roster-window {
+    min-height: 160px;
   }
 
   .pokemon-grid {

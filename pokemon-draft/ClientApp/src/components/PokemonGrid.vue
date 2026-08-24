@@ -44,7 +44,7 @@ const { xs } = useDisplay()
 const searchQuery = ref<string | null>('')
 const selectedType = ref<string | null>(null)
 const hidePicked = ref(props.hidePickedDefault)
-const viewMode = ref<'grid' | 'tier'>('grid')
+const viewMode = ref<'grid' | 'tier'>('tier')
 
 // ── Regulation filter (respects league's regulation set automatically) ────────
 const { isLegalPokemon, regulationLoading } = useRegulationFilter(
@@ -195,7 +195,11 @@ async function handleCommissionerAction(pokemonId: number) {
 </script>
 
 <template>
-  <v-container fluid class="remove-left-right-padding pokemon-grid-shell">
+  <v-container
+    fluid
+    class="remove-left-right-padding pokemon-grid-shell"
+    :class="{ 'tier-mode': viewMode === 'tier' }"
+  >
     <v-card class="grid-container">
       <!-- ── Filter bar ─────────────────────────────────────────────────────── -->
       <div class="pokemon-grid-header">
@@ -254,6 +258,7 @@ async function handleCommissionerAction(pokemonId: number) {
 
       <!-- ── Tier view ──────────────────────────────────────────────────────── -->
       <div class="grid-view-container">
+        <div class="inner-grid-contents">
         <div v-if="viewMode === 'tier'" class="tier-view">
           <div v-for="group in tierGroups" :key="group.pts" class="tier-col">
             <div class="tier-col-header">
@@ -291,6 +296,7 @@ async function handleCommissionerAction(pokemonId: number) {
             :point-value="pokemonStore.getPointValue(pokemon.id)"
             @click="selectPokemon(pokemon)"
           />
+        </div>
         </div>
       </div>
     </v-card>
@@ -351,7 +357,7 @@ async function handleCommissionerAction(pokemonId: number) {
 .view-toggle {
   display: flex;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 4px;
   overflow: hidden;
   margin-left: auto;
 }
@@ -393,36 +399,51 @@ async function handleCommissionerAction(pokemonId: number) {
 }
 
 /* Tier view */
+.grid-view-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: hidden;
+  padding-top: 6px;
+  transform: rotateX(180deg);
+}
+
+.inner-grid-contents {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transform: rotateX(180deg);
+}
+
 .tier-view {
   display: flex;
   flex-direction: row;
-  gap: 0.65rem;
+  gap: 0.2rem;
   padding-right: 8px;
-  align-items: flex-start;
+  align-items: stretch;
   min-width: max-content;
 }
 
 .tier-col {
   display: flex;
+  position: relative;
   flex-direction: column;
   flex-shrink: 0;
-  width: 120px;
+  width: 100px;
 }
 
 .tier-col-header {
+  position: sticky;
+  top: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0.45rem 0.6rem;
   margin-bottom: 0.5rem;
-  position: sticky;
-  top: 0;
   z-index: 10;
-  background: var(--card-bg);
+  background: var(--card-bg-solid);
   border: 1px solid var(--border-color);
   border-top: 2px solid var(--primary);
-  border-radius: 6px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
 }
 
 .tier-badge {
@@ -473,18 +494,14 @@ async function handleCommissionerAction(pokemonId: number) {
   width: 100%;
 }
 
-.grid-view-container {
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  display: block;
-  flex: 1 1 auto;
-  height: 0;
-  min-height: 0;
-  padding: 8px;
-  margin-top: 8px;
-  overflow: auto;
-  background: var(--bg);
+.pokemon-grid-shell.tier-mode,
+.pokemon-grid-shell.tier-mode .grid-container {
+  height: auto;
+  max-height: none;
+  overflow: visible;
 }
+
+
 
 .type-filter {
   max-width: 200px;
@@ -501,7 +518,6 @@ async function handleCommissionerAction(pokemonId: number) {
   .grid-container {
     border-left: 0;
     border-right: 0;
-    border-radius: 0;
     height: auto;
     max-height: none;
     overflow: visible;
@@ -509,10 +525,7 @@ async function handleCommissionerAction(pokemonId: number) {
   }
 
   .pokemon-grid-header {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    background: var(--card-bg);
+    position: static;
     padding-bottom: 0px;
   }
 
@@ -533,8 +546,9 @@ async function handleCommissionerAction(pokemonId: number) {
     border-left: 0;
     border-right: 0;
     height: auto;
+    max-height: none;
     margin-top: 6px;
-    overflow: visible;
+    overflow: hidden;
     padding: 6px 0;
   }
 
@@ -545,7 +559,7 @@ async function handleCommissionerAction(pokemonId: number) {
 
   .tier-view {
     min-width: 0;
-    overflow-x: auto;
+    overflow: visible;
     padding-bottom: 8px;
   }
 

@@ -92,18 +92,6 @@ const leader = computed(() => teams.value[0] ?? null)
 
 <template>
   <v-container fluid class="page-card-large">
-    <PageHeader
-      eyebrow="League overview"
-      title="All Teams"
-      :subtitle="league?.name || 'Drafted rosters and standings'"
-    >
-      <template #actions>
-        <v-chip color="primary" variant="tonal" prepend-icon="mdi-account-group">
-          {{ teams.length }} teams
-        </v-chip>
-      </template>
-    </PageHeader>
-
     <div v-if="isLoading" class="page-state">
     </div>
     <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>

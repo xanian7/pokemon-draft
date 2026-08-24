@@ -78,7 +78,8 @@ const emit = defineEmits<{
     var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  padding: 0.7rem;
+  padding-bottom: 0.7rem;
+  padding-top: 0.7rem;
   cursor: pointer;
   transition:
     transform 0.2s ease,

@@ -25,7 +25,7 @@ const activeTab = computed({
 </script>
 
 <template>
-  <v-app-bar app :height="showLeagueTabs ? 94 : 64" class="top-bar" flat scroll-behavior="hide">
+  <v-app-bar app :height="showLeagueTabs ? 94 : 64" class="top-bar" flat>
     <div class="top-bar__content">
       <div class="top-bar__inner">
         <div class="brand">
