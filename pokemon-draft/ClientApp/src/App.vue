@@ -3,11 +3,9 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppIcon from '@/components/AppIcon.vue'
-import ConnectionBanner from '@/components/ConnectionBanner.vue'
 import { useSignalR } from '@/services/signalr'
 import { isApiLoading } from '@/services/apiLoading'
 import { mdiPokeball, mdiLogout, mdiCog, mdiTrophy } from '@mdi/js'
-import LeftNav from '@/components/LeftNav.vue'
 import TopBar from './components/TopBar.vue'
 import PokeballLoader from '@/components/PokeballLoader.vue'
 import SnackbarQueue from '@/components/SnackbarQueue.vue'
@@ -71,11 +69,9 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
   <v-app>
     <v-layout>
       <TopBar />
-      <!-- <LeftNav /> -->
-      <v-main scrollable>
+      <v-main>
         <RouterView />
       </v-main>
-      <ConnectionBanner />
       <SnackbarQueue />
       <v-overlay
         :model-value="isApiLoading"
@@ -101,34 +97,64 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick, true
   --text: #f4f6ff;
   --text-muted: #9aa4bd;
   --text-subtle: #6f7890;
-  --bg: #080b14;
-  --bg-elevated: #0d1220;
-  --card-bg: rgba(20, 26, 43, 0.82);
-  --card-bg-solid: #141a2b;
-  --input-bg: rgba(8, 12, 23, 0.72);
-  --border-color: rgba(162, 174, 211, 0.14);
-  --border-strong: rgba(162, 174, 211, 0.24);
+  --bg: #111111;
+  --bg-elevated: #4e4e4e;
+  --card-bg: rgba(0, 0, 0, 0.82);
+  --card-bg-solid: #1b1a1f;
+  --input-bg: rgb(0, 0, 0);
+  --border-color: rgb(56, 56, 56);
+  --border-strong: rgba(71, 71, 71, 0.24);
   --primary-hover-bg: rgba(var(--primary-rgb), 0.12);
   --secondary-hover-bg: rgba(var(--secondary-rgb), 0.12);
   --draft-card-nonuser-bg: #263d65;
-  --surface-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
+  --top-bar-bg: #000000;
+  --top-bar-tab-hover: rgba(255, 255, 255, 0.04);
+  --surface-shadow: 0 0px 0px rgba(0, 0, 0, 0.24);
   --surface-shadow-hover: 0 24px 60px rgba(0, 0, 0, 0.34);
   --radius-sm: 10px;
   --radius-md: 16px;
   --radius-lg: 22px;
-  color-scheme: light dark;
+  color-scheme: dark;
+}
+
+:root[data-app-theme='light'] {
+  --primary: #5a48e8;
+  --primary-rgb: 90, 72, 232;
+  --primary-bright: #4935d4;
+  --secondary: #d9365b;
+  --secondary-rgb: 217, 54, 91;
+  --success: #16845d;
+  --warning: #a56500;
+  --text: #17191f;
+  --text-muted: #626b7d;
+  --text-subtle: #7b8495;
+  --bg: #f5f7fb;
+  --bg-elevated: #e9edf5;
+  --card-bg: rgba(255, 255, 255, 0.94);
+  --card-bg-solid: #ffffff;
+  --input-bg: #ffffff;
+  --border-color: #d9deea;
+  --border-strong: rgba(33, 42, 64, 0.18);
+  --primary-hover-bg: rgba(var(--primary-rgb), 0.09);
+  --secondary-hover-bg: rgba(var(--secondary-rgb), 0.09);
+  --draft-card-nonuser-bg: #dbe7f8;
+  --top-bar-bg: rgba(255, 255, 255, 0.98);
+  --top-bar-tab-hover: rgba(20, 25, 40, 0.05);
+  --surface-shadow: 0 0px 0px rgba(33, 42, 64, 0.12);
+  --surface-shadow-hover: 0 18px 44px rgba(33, 42, 64, 0.16);
+  color-scheme: light;
 }
 
 html {
   background: var(--bg);
 }
 
-body {
+/* body {
   background:
     radial-gradient(circle at 8% -10%, rgba(var(--primary-rgb), 0.18), transparent 34rem),
     radial-gradient(circle at 94% 10%, rgba(42, 182, 255, 0.1), transparent 30rem),
     var(--bg);
-}
+} */
 
 #app,
 .v-application {

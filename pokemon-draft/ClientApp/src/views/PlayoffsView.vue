@@ -2,7 +2,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import PokeballLoader from '@/components/PokeballLoader.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import DraftGateNotice from '@/components/DraftGateNotice.vue'
 import { API_BASE } from '@/services/signalr'
@@ -101,7 +100,6 @@ const headers = [
     </PageHeader>
 
     <div v-if="isLoading" class="state-panel">
-      <!-- <PokeballLoader variant="page" label="Loading outlook…" /> -->
     </div>
     <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>
     <DraftGateNotice

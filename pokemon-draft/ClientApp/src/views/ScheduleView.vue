@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
-import FormField from '@/components/FormField.vue'
 import DraftGateNotice from '@/components/DraftGateNotice.vue'
+import PointsProgressionChart from '@/components/PointsProgressionChart.vue'
+import ScoreReportDialog from '@/components/ScoreReportDialog.vue'
+import SectionHeader from '@/components/SectionHeader.vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import PokeballLoader from '@/components/PokeballLoader.vue'
 import type { MatchupResponse, ScheduleData, StandingRow, WeekGroup } from '@/types'
 
 const router = useRouter()
@@ -19,7 +20,7 @@ const schedule = ref<ScheduleData | null>(null)
 const isLoading = ref(true)
 const error = ref('')
 const showMyMatchesOnly = ref(false)
-const openWeeks = ref<number[]>([])
+const activeWeek = ref<number | null>(null)
 
 const activeMatchup = ref<MatchupResponse | null>(null)
 const reportP1Wins = ref(2)
@@ -38,14 +39,6 @@ const standingsHeaders = [
   { title: 'Games', key: 'games', align: 'end' as const, width: 96 },
 ]
 
-const matchupHeaders = [
-  { title: 'Matchup', key: 'matchup' },
-  { title: 'Score', key: 'score', align: 'center' as const, width: 150 },
-  { title: 'Pts', key: 'points', align: 'center' as const, width: 120 },
-  { title: 'Replay', key: 'replay', align: 'center' as const, width: 110 },
-  { title: '', key: 'actions', align: 'end' as const, sortable: false, width: 150 },
-]
-
 async function fetchSchedule() {
   if (!authStore.leagueCode) return
 
@@ -62,7 +55,7 @@ async function fetchSchedule() {
     const currentWeek = schedule.value.weeks.find((week) =>
       week.matchups.some((matchup) => matchup.player1Wins === null),
     )?.week
-    openWeeks.value = currentWeek ? [currentWeek] : schedule.value.weeks.slice(0, 1).map((w) => w.week)
+    activeWeek.value = currentWeek ?? schedule.value.weeks[0]?.week ?? null
   } catch {
     error.value = 'Could not connect to server.'
   } finally {
@@ -85,6 +78,12 @@ const filteredWeeks = computed<WeekGroup[]>(() => {
       ),
     }))
     .filter((week) => week.matchups.length > 0)
+})
+
+watch(filteredWeeks, (weeks) => {
+  if (!weeks.some((week) => week.week === activeWeek.value)) {
+    activeWeek.value = weeks[0]?.week ?? null
+  }
 })
 
 const standingsRows = computed(() =>
@@ -131,49 +130,12 @@ const pointsProgression = computed(() => {
   })
 })
 
-const chart = computed(() => {
-  const width = 1000
-  const height = 250
-  const margin = { top: 14, right: 18, bottom: 40, left: 48 }
-  const plotWidth = width - margin.left - margin.right
-  const plotHeight = height - margin.top - margin.bottom
-  const weekCount = pointsProgression.value[0]?.values.length ?? 0
-  const maxPoints = Math.max(3, ...pointsProgression.value.flatMap((player) => player.values))
-  const yMax = Math.ceil(maxPoints / 3) * 3
-  const yTicks = Array.from({ length: yMax / 3 + 1 }, (_, index) => index * 3)
-  const colors = ['#7c6cff', '#2ab6ff', '#35d39a', '#ffca62', '#ff5c7a', '#c084fc', '#fb923c', '#22d3ee']
-
-  const x = (weekIndex: number) =>
-    margin.left + (weekCount <= 1 ? plotWidth / 2 : (weekIndex / (weekCount - 1)) * plotWidth)
-  const y = (points: number) => margin.top + plotHeight - (points / yMax) * plotHeight
-
-  return {
-    width,
-    height,
-    margin,
-    plotWidth,
-    plotHeight,
-    weekCount,
-    yMax,
-    yTicks,
-    x,
-    y,
-    series: pointsProgression.value.map((player, index) => ({
-      ...player,
-      color: colors[index % colors.length],
-      path: player.values
-        .map((points, weekIndex) => `${weekIndex === 0 ? 'M' : 'L'} ${x(weekIndex)} ${y(points)}`)
-        .join(' '),
-    })),
-  }
-})
-
 function isMyMatchup(matchup: MatchupResponse) {
   return matchup.player1Id === authStore.playerId || matchup.player2Id === authStore.playerId
 }
 
 function canReport(matchup: MatchupResponse) {
-  return isMyMatchup(matchup) && matchup.player1Wins === null
+  return (isMyMatchup(matchup) || authStore.isAdmin) && matchup.player1Wins === null
 }
 
 function canEdit(matchup: MatchupResponse) {
@@ -352,30 +314,9 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
 
 <template>
   <v-container fluid>
-    <div class="page-card">
-      <PageHeader
-        class="page-header"
-        eyebrow="League"
-        title="Schedule & Standings"
-        subtitle="Weekly matchups, reported scores, and the current table."
-      >
-        <template #actions>
-        <v-btn-toggle
-          v-model="showMyMatchesOnly"
-          class="match-filter"
-          mandatory
-          density="compact"
-          variant="outlined"
-        >
-          <v-btn :value="false">All Matches</v-btn>
-          <v-btn :value="true">My Matches</v-btn>
-        </v-btn-toggle>
-        </template>
-      </PageHeader>
-
+    <div class="page-card-small">
       <div class="page-content">
-        <div v-if="isLoading" class="state-panel">
-          <!-- <PokeballLoader variant="page" label="Loading schedule..." /> -->
+        <div v-if="isLoading" class="page-state">
         </div>
         <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>
         <DraftGateNotice
@@ -384,300 +325,230 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
         />
 
         <div v-else>
-          <v-card class="progression-card">
-            <v-card-title class="text-h6">Points Progression</v-card-title>
-            <v-card-subtitle>Cumulative match points by week</v-card-subtitle>
-            <v-card-text class="progression-content">
-              <div v-if="chart.weekCount" class="points-chart">
-                <svg
-                  :viewBox="`0 0 ${chart.width} ${chart.height}`"
-                  role="img"
-                  aria-label="Player points by week"
+          <v-row>
+            <v-col cols="12" lg="6" xl="7">
+              <v-card class="progression-card section-card">
+                <SectionHeader
+                  eyebrow="Season performance"
+                  title="Points Progression"
+                  subtitle="Cumulative match points by week"
+                  icon="mdi-chart-line"
+                />
+                <v-card-text class="progression-content">
+                  <PointsProgressionChart
+                    v-if="pointsProgression.length && pointsProgression[0]?.values.length"
+                    :series="pointsProgression"
+                    :current-player-id="authStore.playerId"
+                  />
+                  <div v-else class="chart-empty">
+                    The graph will appear after the first score is reported.
+                  </div>
+                </v-card-text>
+              </v-card>
+            </v-col>
+            <v-col cols="12" lg="6" xl="5">
+              <v-card class="standings-card section-card">
+                <SectionHeader
+                  eyebrow="League table"
+                  title="Standings"
+                  subtitle="Current record and match points"
+                  icon="mdi-podium"
+                />
+                <v-data-table
+                  :headers="standingsHeaders"
+                  :items="standingsRows"
+                  :items-per-page="-1"
+                  class="standings-table"
+                  density="compact"
+                  hide-default-footer
+                  item-value="playerId"
                 >
-                  <g class="chart-grid">
-                    <line
-                      v-for="tick in chart.yTicks"
-                      :key="`grid-${tick}`"
-                      :x1="chart.margin.left"
-                      :x2="chart.margin.left + chart.plotWidth"
-                      :y1="chart.y(tick)"
-                      :y2="chart.y(tick)"
-                    />
-                  </g>
+                  <template #item.team="{ item }">
+                    <div class="standing-team" :class="{ mine: item.playerId === authStore.playerId }">
+                      <v-avatar size="28">
+                        <v-img v-if="item.teamImageUrl" :src="item.teamImageUrl" :alt="item.team" />
+                        <span v-else>{{ avatarInitials(item.playerName, item.teamName) }}</span>
+                      </v-avatar>
+                      <span>{{ item.team }}</span>
+                    </div>
+                  </template>
+                </v-data-table>
+              </v-card>
+            </v-col>
+          </v-row>
 
-                  <g class="chart-axis">
-                    <line
-                      :x1="chart.margin.left"
-                      :x2="chart.margin.left"
-                      :y1="chart.margin.top"
-                      :y2="chart.margin.top + chart.plotHeight"
-                    />
-                    <line
-                      :x1="chart.margin.left"
-                      :x2="chart.margin.left + chart.plotWidth"
-                      :y1="chart.margin.top + chart.plotHeight"
-                      :y2="chart.margin.top + chart.plotHeight"
-                    />
-                  </g>
-
-                  <g class="chart-labels">
-                    <text
-                      v-for="tick in chart.yTicks"
-                      :key="`y-${tick}`"
-                      :x="chart.margin.left - 12"
-                      :y="chart.y(tick) + 4"
-                      text-anchor="end"
-                    >
-                      {{ tick }}
-                    </text>
-                    <text
-                      v-for="weekIndex in chart.weekCount"
-                      :key="`x-${weekIndex}`"
-                      :x="chart.x(weekIndex - 1)"
-                      :y="chart.margin.top + chart.plotHeight + 24"
-                      text-anchor="middle"
-                    >
-                      {{ weekIndex }}
-                    </text>
-                    <text
-                      :x="chart.margin.left + chart.plotWidth / 2"
-                      :y="chart.height - 8"
-                      text-anchor="middle"
-                      class="axis-title"
-                    >
-                      Week
-                    </text>
-                    <text
-                      :x="16"
-                      :y="chart.margin.top + chart.plotHeight / 2"
-                      text-anchor="middle"
-                      class="axis-title"
-                      :transform="`rotate(-90 16 ${chart.margin.top + chart.plotHeight / 2})`"
-                    >
-                      Points
-                    </text>
-                  </g>
-
-                  <g v-for="player in chart.series" :key="player.playerId">
-                    <path
-                      :d="player.path"
-                      :stroke="player.color"
-                      :class="{ 'my-chart-line': player.playerId === authStore.playerId }"
-                      class="chart-line"
-                    />
-                    <circle
-                      v-for="(points, weekIndex) in player.values"
-                      :key="`${player.playerId}-${weekIndex}`"
-                      :cx="chart.x(weekIndex)"
-                      :cy="chart.y(points)"
-                      :fill="player.color"
-                      r="3.5"
-                    >
-                      <title>{{ player.label }} - Week {{ weekIndex + 1 }}: {{ points }} points</title>
-                    </circle>
-                  </g>
-                </svg>
-              </div>
-              <div v-else class="chart-empty">The graph will appear after the first score is reported.</div>
-
-              <div class="chart-legend">
-                <div
-                  v-for="player in chart.series"
-                  :key="`legend-${player.playerId}`"
-                  class="legend-item"
-                  :class="{ mine: player.playerId === authStore.playerId }"
-                >
-                  <span class="legend-swatch" :style="{ backgroundColor: player.color }" />
-                  <span>{{ player.label }}</span>
-                </div>
-              </div>
-            </v-card-text>
-          </v-card>
+          <v-row class="content-divider">
+            <v-col cols="12">
+              <v-divider class="border-opacity-25"></v-divider>
+            </v-col>
+          </v-row>
 
           <v-row class="schedule-layout">
-          <v-col cols="12" lg="6" xl="7">
-            <v-expansion-panels v-model="openWeeks" multiple>
-              <v-expansion-panel v-for="week in filteredWeeks" :key="week.week" :value="week.week">
-                <v-expansion-panel-title>
-                  <div class="week-title">
-                    <span>Week {{ week.week }}</span>
-                    <v-chip size="small" variant="tonal">
-                      {{ completedCount(week) }}/{{ week.matchups.length }} played
-                    </v-chip>
-                  </div>
-                </v-expansion-panel-title>
-                <v-expansion-panel-text>
-                  <v-data-table
-                    :headers="matchupHeaders"
-                    :items="week.matchups"
-                    :items-per-page="-1"
-                    class="matchup-table"
-                    density="comfortable"
-                    hide-default-footer
-                    item-value="id"
-                  >
-                    <template #item.matchup="{ item }">
-                      <div class="matchup-cell" :class="{ 'my-matchup': isMyMatchup(item) }">
-                        <div class="team-pill" :class="{ winner: isWinner(item, 1) }">
-                          <v-avatar size="34">
-                            <v-img
-                              v-if="item.player1TeamImageUrl"
-                              :src="item.player1TeamImageUrl"
-                              :alt="item.player1TeamName"
-                            />
-                            <span v-else>{{ avatarInitials(item.player1Name, item.player1TeamName) }}</span>
-                          </v-avatar>
-                          <span>{{ teamLabel(item.player1Name, item.player1TeamName) }}</span>
-                        </div>
-                        <span class="versus">vs</span>
-                        <div class="team-pill right" :class="{ winner: isWinner(item, 2) }">
-                          <span>{{ teamLabel(item.player2Name, item.player2TeamName) }}</span>
-                          <v-avatar size="34">
-                            <v-img
-                              v-if="item.player2TeamImageUrl"
-                              :src="item.player2TeamImageUrl"
-                              :alt="item.player2TeamName"
-                            />
-                            <span v-else>{{ avatarInitials(item.player2Name, item.player2TeamName) }}</span>
-                          </v-avatar>
-                        </div>
-                      </div>
-                    </template>
+            <v-col cols="12">
+            <div class="week-schedule">
+              <v-tabs v-model="activeWeek" class="week-tabs" density="comfortable" show-arrows>
+                <v-tab v-for="week in filteredWeeks" :key="week.week" :value="week.week">
+                  Week {{ week.week }}
+                </v-tab>
+              </v-tabs>
 
-                    <template #item.score="{ item }">
-                      <v-chip :color="item.player1Wins === null ? undefined : 'primary'" size="small" variant="tonal">
-                        {{ scoreLabel(item) }}
-                      </v-chip>
-                    </template>
+              <v-tabs-window v-model="activeWeek" class="week-window">
+                <v-tabs-window-item
+                  v-for="week in filteredWeeks"
+                  :key="week.week"
+                  :value="week.week"
+                >
+                  <section class="week-panel">
+                    <SectionHeader
+                      class="week-section-header"
+                      eyebrow="Schedule"
+                      :title="'Week ' + week.week"
+                      subtitle="League matchups and reported results"
+                    >
+                      <template #actions>
+                        <v-chip size="small" variant="tonal">
+                          {{ completedCount(week) }}/{{ week.matchups.length }} played
+                        </v-chip>
+                      </template>
+                    </SectionHeader>
 
-                    <template #item.points="{ item }">
-                      <span class="points-label">{{ pointsLabel(item) }}</span>
-                    </template>
+                    <div class="matchup-grid">
+                      <v-card
+                        v-for="matchup in week.matchups"
+                        :key="matchup.id"
+                        class="matchup-card section-card"
+                        :class="{ 'matchup-card--mine': isMyMatchup(matchup) }"
+                      >
+                        <v-card-text class="matchup-card__content">
+                          <div class="matchup-card__status">
+                            <v-chip
+                              :color="matchup.player1Wins === null ? undefined : 'success'"
+                              size="x-small"
+                              variant="tonal"
+                            >
+                              {{ matchup.player1Wins === null ? 'Upcoming' : 'Final' }}
+                            </v-chip>
+                          </div>
 
-                    <template #item.replay="{ item }">
-                      <div v-if="getMatchupReplayUrls(item).length === 1" class="replay-links">
-                        <v-btn
-                          v-for="replayUrl in getMatchupReplayUrls(item)"
-                          :key="replayUrl"
-                          :href="replayUrl"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          size="small"
-                          variant="tonal"
-                        >
-                          {{ replayHost(replayUrl) }}
-                        </v-btn>
-                      </div>
-                      <v-menu v-else-if="getMatchupReplayUrls(item).length > 1">
-                        <template #activator="{ props }">
-                          <v-btn v-bind="props" size="small" variant="tonal">
-                            {{ getMatchupReplayUrls(item).length }} replays
-                          </v-btn>
-                        </template>
-                        <v-list density="compact">
-                          <v-list-item
-                            v-for="(replayUrl, index) in getMatchupReplayUrls(item)"
-                            :key="replayUrl"
-                            :href="replayUrl"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <v-list-item-title>
-                              Game {{ index + 1 }} - {{ replayHost(replayUrl) }}
-                            </v-list-item-title>
-                          </v-list-item>
-                        </v-list>
-                      </v-menu>
-                      <span v-else class="muted">-</span>
-                    </template>
+                          <div class="matchup-card__teams">
+                            <div
+                              class="matchup-team"
+                              :class="{ 'matchup-team--winner': isWinner(matchup, 1) }"
+                            >
+                              <v-avatar size="48" class="matchup-team__avatar">
+                                <v-img
+                                  v-if="matchup.player1TeamImageUrl"
+                                  :src="matchup.player1TeamImageUrl"
+                                  :alt="matchup.player1TeamName"
+                                />
+                                <span v-else>
+                                  {{ avatarInitials(matchup.player1Name, matchup.player1TeamName) }}
+                                </span>
+                              </v-avatar>
+                              <strong>{{ teamLabel(matchup.player1Name, matchup.player1TeamName) }}</strong>
+                              <small v-if="matchup.player1TeamName">{{ matchup.player1Name }}</small>
+                            </div>
 
-                    <template #item.actions="{ item }">
-                      <div class="table-actions">
-                        <v-btn v-if="canReport(item)" size="small" variant="tonal" @click="openReport(item)">
-                          Report
-                        </v-btn>
-                        <v-btn v-if="canEdit(item)" size="small" variant="text" @click="openEdit(item)">
-                          Edit
-                        </v-btn>
-                      </div>
-                    </template>
-                  </v-data-table>
-                </v-expansion-panel-text>
-              </v-expansion-panel>
-            </v-expansion-panels>
+                            <div class="matchup-score">
+                              <strong>{{ scoreLabel(matchup) }}</strong>
+                              <span v-if="matchup.player1MatchPoints !== null">
+                                {{ pointsLabel(matchup) }} pts
+                              </span>
+                            </div>
+
+                            <div
+                              class="matchup-team matchup-team--right"
+                              :class="{ 'matchup-team--winner': isWinner(matchup, 2) }"
+                            >
+                              <v-avatar size="48" class="matchup-team__avatar">
+                                <v-img
+                                  v-if="matchup.player2TeamImageUrl"
+                                  :src="matchup.player2TeamImageUrl"
+                                  :alt="matchup.player2TeamName"
+                                />
+                                <span v-else>
+                                  {{ avatarInitials(matchup.player2Name, matchup.player2TeamName) }}
+                                </span>
+                              </v-avatar>
+                              <strong>{{ teamLabel(matchup.player2Name, matchup.player2TeamName) }}</strong>
+                              <small v-if="matchup.player2TeamName">{{ matchup.player2Name }}</small>
+                            </div>
+                          </div>
+
+                          <v-divider />
+
+                          <div class="matchup-card__footer">
+                            <div class="matchup-replays">
+                              <v-btn
+                                v-for="(replayUrl, index) in getMatchupReplayUrls(matchup)"
+                                :key="replayUrl"
+                                :href="replayUrl"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                size="small"
+                                variant="text"
+                                append-icon="mdi-open-in-new"
+                              >
+                                {{ getMatchupReplayUrls(matchup).length > 1 ? `Game ${index + 1}` : replayHost(replayUrl) }}
+                              </v-btn>
+                              <span v-if="!getMatchupReplayUrls(matchup).length" class="muted">
+                                No replay submitted
+                              </span>
+                            </div>
+
+                            <div class="matchup-actions">
+                              <v-btn
+                                v-if="canReport(matchup)"
+                                size="small"
+                                color="primary"
+                                variant="tonal"
+                                @click="openReport(matchup)"
+                              >
+                                Report score
+                              </v-btn>
+                              <v-btn
+                                v-if="canEdit(matchup)"
+                                size="small"
+                                variant="text"
+                                @click="openEdit(matchup)"
+                              >
+                                Edit
+                              </v-btn>
+                            </div>
+                          </div>
+                        </v-card-text>
+                      </v-card>
+                    </div>
+                  </section>
+                </v-tabs-window-item>
+              </v-tabs-window>
+            </div>
           </v-col>
 
-          <v-col cols="12" lg="6" xl="5">
-            <v-card class="standings-card">
-              <v-card-title class="text-h6">Standings</v-card-title>
-              <v-data-table
-                :headers="standingsHeaders"
-                :items="standingsRows"
-                :items-per-page="-1"
-                class="standings-table"
-                density="compact"
-                hide-default-footer
-                item-value="playerId"
-              >
-                <template #item.team="{ item }">
-                  <div class="standing-team" :class="{ mine: item.playerId === authStore.playerId }">
-                    <v-avatar size="28">
-                      <v-img v-if="item.teamImageUrl" :src="item.teamImageUrl" :alt="item.team" />
-                      <span v-else>{{ avatarInitials(item.playerName, item.teamName) }}</span>
-                    </v-avatar>
-                    <span>{{ item.team }}</span>
-                  </div>
-                </template>
-              </v-data-table>
-            </v-card>
-          </v-col>
           </v-row>
         </div>
       </div>
     </div>
 
-    <v-dialog :model-value="activeMatchup !== null" max-width="560" @update:model-value="(value) => !value && closeReport()">
-      <v-card v-if="activeMatchup" class="report-card">
-        <v-card-title>{{ isEditing ? 'Edit Score' : 'Report Score' }}</v-card-title>
-        <v-card-text>
-          <div class="report-grid">
-            <div class="report-team">{{ teamLabel(activeMatchup.player1Name, activeMatchup.player1TeamName) }}</div>
-            <FormField label="Wins">
-              <v-number-input v-model="reportP1Wins" :min="0" :max="2" class="score-input" hide-details />
-            </FormField>
-            <div class="report-team right">{{ teamLabel(activeMatchup.player2Name, activeMatchup.player2TeamName) }}</div>
-            <FormField label="Wins">
-              <v-number-input v-model="reportP2Wins" :min="0" :max="2" class="score-input" hide-details />
-            </FormField>
-          </div>
-
-          <div class="replay-inputs">
-            <FormField
-              v-for="(_, index) in reportReplayUrls"
-              :key="index"
-              :label="`Replay Link ${index + 1}`"
-            >
-              <v-text-field
-                v-model="reportReplayUrls[index]"
-                class="replay-input"
-                placeholder="https://replay.pokemonshowdown.com/..."
-                clearable
-                hide-details
-              />
-            </FormField>
-          </div>
-
-          <v-alert v-if="reportError" type="error" variant="tonal" density="compact">
-            {{ reportError }}
-          </v-alert>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn class="btn-secondary" @click="closeReport">Cancel</v-btn>
-          <v-btn class="btn-primary" :loading="reportLoading" @click="submitReport">Save</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <ScoreReportDialog
+      v-if="activeMatchup"
+      :model-value="activeMatchup !== null"
+      :title="isEditing ? 'Edit Score' : 'Report Score'"
+      :subtitle="'Week ' + activeMatchup.week"
+      :left-label="teamLabel(activeMatchup.player1Name, activeMatchup.player1TeamName) + ' wins'"
+      :right-label="teamLabel(activeMatchup.player2Name, activeMatchup.player2TeamName) + ' wins'"
+      :left-wins="reportP1Wins"
+      :right-wins="reportP2Wins"
+      :replay-urls="reportReplayUrls"
+      :error="reportError"
+      :loading="reportLoading"
+      :submit-label="isEditing ? 'Save changes' : 'Submit score'"
+      @update:model-value="(value) => !value && closeReport()"
+      @update:left-wins="reportP1Wins = $event"
+      @update:right-wins="reportP2Wins = $event"
+      @update:replay-urls="reportReplayUrls = $event"
+      @submit="submitReport"
+    />
   </v-container>
 </template>
 
@@ -687,111 +558,168 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
   padding: 0;
 }
 
-.page-card {
-  padding: 0 clamp(1rem, 2vw, 2rem);
-}
-
 .page-content {
   padding: 0;
 }
 
-.page-header {
-  margin-bottom: 10px;
-}
 
-.state-panel {
-  display: flex;
-  justify-content: center;
-  padding: 48px 0;
-}
 
 .schedule-layout {
   align-items: start;
   margin-top: 10px;
 }
 
-.week-title {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  gap: 12px;
-  font-weight: 800;
-}
-
-.matchup-table,
-.standings-table {
-  background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.matchup-table :deep(th),
-.standings-table :deep(th) {
-  background: var(--input-bg) !important;
-  color: var(--text-muted) !important;
-  font-size: 0.7rem;
-  font-weight: 800 !important;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.matchup-cell {
-  align-items: center;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr);
-  padding: 4px 0;
-}
-
-.matchup-cell.my-matchup {
-  color: var(--primary);
-}
-
-.team-pill {
-  align-items: center;
-  display: flex;
-  gap: 8px;
+.week-schedule {
   min-width: 0;
 }
 
-.team-pill.right {
-  justify-content: flex-end;
-  text-align: right;
+.week-tabs {
+  border-bottom: 1px solid var(--border-color);
 }
 
-.team-pill span:last-child,
-.team-pill span:first-child {
+.week-tabs :deep(.v-tab) {
+  min-width: max-content;
+  color: var(--text-muted);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.week-tabs :deep(.v-tab.v-tab--selected) {
+  color: var(--primary-bright);
+  background: rgba(var(--primary-rgb), 0.1);
+}
+
+.week-window {
+  margin-top: 10px;
+}
+
+.week-panel {
+  min-width: 0;
+}
+
+.week-section-header {
+  margin-bottom: 12px;
+}
+
+
+.matchup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 12px;
+}
+
+.matchup-card {
+  min-width: 0;
+  height: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 8px !important;
+}
+
+.matchup-card--mine {
+  border-color: rgba(var(--primary-rgb), 0.62);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.matchup-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+  padding: 14px;
+}
+
+.matchup-card__status {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 24px;
+}
+
+.matchup-card__teams {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.matchup-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  text-align: center;
+}
+
+.matchup-team strong,
+.matchup-team small {
+  width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.team-pill.winner {
+.matchup-team strong {
   color: var(--text);
-  font-weight: 800;
+  font-size: 0.9rem;
+  font-weight: 750;
 }
 
-.versus,
-.muted {
+.matchup-team small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.matchup-team--winner strong {
+  color: var(--success);
+}
+
+.matchup-team__avatar {
+  flex: 0 0 auto;
+  border: 1px solid var(--border-color);
+}
+
+.matchup-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 52px;
   color: var(--text-muted);
 }
 
-.points-label {
+.matchup-score strong {
   color: var(--text);
-  font-weight: 700;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.1;
 }
 
-.table-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
+.matchup-score span {
+  margin-top: 4px;
+  font-size: 0.7rem;
+  white-space: nowrap;
 }
 
-.replay-links {
+.matchup-card__footer {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 32px;
+  margin-top: auto;
+}
+
+.matchup-replays,
+.matchup-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 0.76rem;
 }
 
 .standings-card {
@@ -800,100 +728,18 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
 
 .progression-card {
   border: 1px solid var(--border-color);
-  box-shadow: 0 10px 30px rgb(0 0 0 / 18%);
 }
 
-.progression-card :deep(.v-card-title) {
-  padding-bottom: 0;
-  padding-top: 12px;
-}
-
-.progression-card :deep(.v-card-subtitle) {
-  padding-bottom: 4px;
-}
 
 .progression-content {
   padding-bottom: 10px;
   padding-top: 4px;
 }
 
-.points-chart {
-  width: 100%;
-}
-
-.points-chart svg {
-  display: block;
-  height: auto;
-  margin: 0 auto;
-  max-width: 1100px;
-  width: 100%;
-}
-
-.chart-grid line {
-  stroke: var(--border-color);
-  stroke-width: 1;
-}
-
-.chart-axis line {
-  stroke: var(--text-muted);
-  stroke-width: 1.5;
-}
-
-.chart-labels text {
-  fill: var(--text-muted);
-  font-size: 11px;
-}
-
-.chart-labels .axis-title {
-  fill: var(--text);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.chart-line {
-  fill: none;
-  opacity: 0.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 3;
-}
-
-.chart-line.my-chart-line {
-  opacity: 1;
-  stroke-width: 5;
-}
-
 .chart-empty {
   color: var(--text-muted);
-  padding: 24px 0;
+  padding: 48px 0;
   text-align: center;
-}
-
-.chart-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  justify-content: center;
-  margin-top: 4px;
-}
-
-.legend-item {
-  align-items: center;
-  color: var(--text-muted);
-  display: flex;
-  font-size: 0.76rem;
-  gap: 6px;
-}
-
-.legend-item.mine {
-  color: var(--primary);
-  font-weight: 800;
-}
-
-.legend-swatch {
-  border-radius: 999px;
-  height: 4px;
-  width: 20px;
 }
 
 .standing-team {
@@ -914,46 +760,29 @@ function getMatchupReplayUrls(matchup: MatchupResponse) {
   font-weight: 800;
 }
 
-.report-grid {
-  align-items: center;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: 1fr 140px;
-  margin-bottom: 16px;
-}
-
-.score-input {
-  width: 140px;
-}
-
-.report-team {
-  color: var(--text);
-  font-weight: 700;
-}
-
-.report-team.right {
-  grid-column: 1;
-}
-
-.replay-inputs {
-  display: grid;
-  gap: 10px;
-  margin-bottom: 12px;
-}
 
 @media (max-width: 720px) {
-  .matchup-cell {
-    align-items: stretch;
+
+  .matchup-grid {
     grid-template-columns: 1fr;
   }
 
-  .team-pill.right {
-    justify-content: flex-start;
-    text-align: left;
+  .matchup-card__content {
+    padding: 12px;
   }
 
-  .versus {
-    display: none;
+  .matchup-card__teams {
+    gap: 8px;
+  }
+
+  .matchup-card__footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .matchup-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 }
 </style>

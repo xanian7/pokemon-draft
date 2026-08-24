@@ -3,7 +3,6 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { apiGet } from '@/services/api'
-import PokeballLoader from '@/components/PokeballLoader.vue'
 import type { AuthUser } from '@/stores/auth'
 
 const router = useRouter()
@@ -62,10 +61,6 @@ onMounted(async () => {
       <p class="error-msg">{{ errorMsg }}</p>
       <RouterLink to="/login" class="btn btn-primary">Back to Login</RouterLink>
     </div>
-    <!-- <div v-else class="loading-wrap">
-      <PokeballLoader />
-      <p>Signing you in…</p>
-    </div> -->
   </div>
 </template>
 

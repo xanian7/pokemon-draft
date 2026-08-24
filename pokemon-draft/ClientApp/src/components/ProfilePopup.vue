@@ -95,7 +95,6 @@ const avatarInitials = computed(() => {
   font-weight: 800;
   background: linear-gradient(135deg, var(--primary), #2ab6ff);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 20px rgba(var(--primary-rgb), 0.2);
 }
 
 .profile-menu {

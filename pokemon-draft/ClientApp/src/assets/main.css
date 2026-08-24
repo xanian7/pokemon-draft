@@ -1,286 +1,5 @@
 @import './base.css';
 
-/* ── Button system ──────────────────────────────────────────────────────────── */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  min-height: 40px;
-  padding: 0.58rem 1.1rem;
-  border-radius: 12px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  border: none;
-  cursor: pointer;
-  transition:
-    transform 0.18s ease,
-    border-color 0.18s ease,
-    background 0.18s ease,
-    box-shadow 0.18s ease;
-  white-space: nowrap;
-  text-decoration: none;
-  font-family: inherit;
-}
-
-.btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, var(--primary-bright), var(--primary));
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 10px 24px rgba(var(--primary-rgb), 0.24);
-}
-.btn-secondary {
-  background: rgba(255, 255, 255, 0.045);
-  color: var(--text);
-  border: 1px solid var(--border-color);
-}
-.btn-danger {
-  background: #dc2626;
-  color: #fff;
-}
-.btn-ghost {
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-}
-
-.btn-sm {
-  padding: 0.35rem 0.75rem;
-  font-size: 0.82rem;
-  border-radius: 6px;
-}
-.btn-lg {
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-}
-.btn-full {
-  width: 100%;
-}
-
-/* ── Card surface ───────────────────────────────────────────────────────────── */
-.card {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--surface-shadow);
-}
-
-/* ── Eyebrow / section label ────────────────────────────────────────────────── */
-.eyebrow {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.11em;
-  color: var(--text-muted);
-}
-
-/* ── Pill badge ─────────────────────────────────────────────────────────────── */
-.badge {
-  display: inline-block;
-  padding: 0.2rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-.badge-primary {
-  background: rgba(var(--primary-rgb), 0.16);
-  border: 1px solid rgba(var(--primary-rgb), 0.28);
-  color: var(--primary-bright);
-}
-.badge-muted {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-muted);
-  border: 1px solid var(--border-color);
-}
-
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(162, 174, 211, 0.2);
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background-clip: padding-box;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(162, 174, 211, 0.34);
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-.v-main {
-  background: transparent;
-}
-
-.v-card,
-.v-dialog > .v-overlay__content > .v-card {
-  background: var(--card-bg-solid) !important;
-  border: 1px solid var(--border-color) !important;
-  border-radius: var(--radius-md) !important;
-  box-shadow: var(--surface-shadow) !important;
-}
-
-/* Page-level shells should let the app background remain visible. */
-.v-card.wrapper-card,
-.v-card.team-wrapper,
-.v-card.page-card,
-.v-card.settings-card {
-  background: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-
-.v-field {
-  border-radius: 12px !important;
-  background: var(--input-bg) !important;
-}
-
-.app-field .v-field,
-.v-text-field .v-field,
-.v-select .v-field,
-.v-autocomplete .v-field,
-.v-number-input .v-field,
-.v-textarea .v-field {
-  min-height: 40px;
-  border-radius: 10px !important;
-  background: rgba(8, 12, 23, 0.78) !important;
-}
-
-.app-field .v-field__input,
-.v-text-field .v-field__input,
-.v-select .v-field__input,
-.v-autocomplete .v-field__input,
-.v-number-input .v-field__input,
-.v-textarea .v-field__input {
-  min-height: 40px;
-  padding-block: 8px;
-  padding-inline: 12px;
-}
-
-.app-field .v-field:hover .v-field__outline,
-.v-text-field .v-field:hover .v-field__outline,
-.v-select .v-field:hover .v-field__outline,
-.v-autocomplete .v-field:hover .v-field__outline,
-.v-number-input .v-field:hover .v-field__outline,
-.v-textarea .v-field:hover .v-field__outline {
-  color: var(--border-strong);
-}
-
-.v-field__outline {
-  --v-field-border-opacity: 0.65;
-  color: var(--border-strong);
-}
-
-.v-field--focused .v-field__outline {
-  color: var(--primary);
-}
-
-.native-field {
-  min-height: 40px;
-  padding: 8px 12px;
-  color: var(--text);
-  background: rgba(8, 12, 23, 0.78);
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  outline: none;
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease;
-}
-
-.native-field:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12);
-}
-
-.native-field::placeholder {
-  color: var(--text-subtle);
-}
-
-.v-btn {
-  text-transform: none !important;
-  letter-spacing: 0 !important;
-  font-weight: 700 !important;
-  border-radius: 11px !important;
-}
-
-.v-chip {
-  font-weight: 700;
-}
-
-.v-table {
-  background: transparent !important;
-}
-
-.v-table thead th {
-  color: var(--text-muted) !important;
-  font-size: 0.72rem !important;
-  letter-spacing: 0.06em !important;
-  text-transform: uppercase;
-}
-
-.v-table tbody tr {
-  transition: background 0.16s ease;
-}
-
-.v-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.025) !important;
-}
-
-.v-overlay__scrim {
-  backdrop-filter: blur(5px);
-}
-
-.v-menu > .v-overlay__content > .v-card {
-  border-radius: 16px !important;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.42) !important;
-}
-
-.v-container {
-  width: 100%;
-  max-width: none;
-}
-
-@media (max-width: 720px) {
-  .v-container {
-    padding-inline: 12px;
-  }
-
-  .btn {
-    min-height: 42px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-  }
-}
-
-/* ── Scrollbars ─────────────────────────────────────────────────────────── */
-/* ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--bg); border-radius: 3px; }
-::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-muted); } */
-
 /* ── Spinner ────────────────────────────────────────────────────────────── */
 .spinner {
   width: 16px;
@@ -298,30 +17,6 @@
   }
 }
 
-/* ── Error message ──────────────────────────────────────────────────────── */
-.error-msg {
-  background: rgba(220, 38, 38, 0.12);
-  border: 1px solid rgba(220, 38, 38, 0.35);
-  color: #f87171;
-  border-radius: 12px;
-  padding: 0.6rem 0.75rem;
-  font-size: 0.85rem;
-}
-
-/* ── Form field ─────────────────────────────────────────────────────────── */
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.field label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
 
 /* ── Page center layout (auth pages) ────────────────────────────────────── */
 .page-center {
@@ -348,6 +43,32 @@
   box-shadow: var(--surface-shadow);
 }
 
+/* ── Page width layouts ────────────────────────────────────────────────── */
+.page-card-small,
+.page-card-large {
+  width: 100%;
+  margin: 1rem auto;
+  padding-inline: clamp(1rem, 2vw, 2rem);
+}
+
+.page-card-small {
+  max-width: 1280px;
+}
+
+.page-card-large {
+  max-width: 1920px;
+}
+
+.page-state {
+  display: grid;
+  min-height: 320px;
+  place-items: center;
+}
+
+.section-card {
+  overflow: hidden;
+  border-radius: 8px !important;
+}
 /* ── Pokémon grid (global, used by PokemonView + PokemonGrid component) ── */
 .pokemon-grid {
   display: grid;
@@ -358,43 +79,19 @@
   padding-top: 4px;
 }
 
-/* ── Search box (used by SearchBox.vue) ─────────────────────────────────── */
-.search-box {
-  position: relative;
-  display: flex;
-  align-items: center;
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text);
-  border-radius: 12px;
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease;
-}
-
-.search-box:focus-within {
-  border-color: rgba(var(--primary-rgb), 0.7);
-  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12);
-}
-
-.search-box__icon {
-  margin-left: 10px;
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.search-box input {
-  padding-left: 10px;
-  padding-right: 10px;
-  height: 40px;
-  box-sizing: border-box;
-  background: var(--input-bg);
-  border: 0;
-  color: var(--text);
-  outline: none;
-}
-
 .remove-left-right-padding {
   padding-left: 0 !important;
   padding-right: 0 !important;
+}
+
+.v-card,
+.v-dialog > .v-overlay__content > .v-card {
+  background: var(--card-bg-solid) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: var(--surface-shadow) !important;
+}
+
+.content-divider{
+  padding-top: 12px;
+  padding-bottom: 12px;
 }

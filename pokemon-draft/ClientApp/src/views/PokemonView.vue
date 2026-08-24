@@ -2,7 +2,6 @@
 import { ref, computed, onMounted } from 'vue'
 import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
-import PokeballLoader from '@/components/PokeballLoader.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import FormField from '@/components/FormField.vue'
 import { REGULATIONS, getRegulation } from '@/data/regulations'
@@ -166,7 +165,7 @@ async function saveToServer() {
 </script>
 
 <template>
-  <v-container fluid class="pokemon-view">
+  <v-container fluid class="page-card-small">
     <PageHeader
       class="page-hero"
       :eyebrow="authStore.isAdmin ? 'Commissioner tools' : 'League pool'"
@@ -248,7 +247,6 @@ async function saveToServer() {
 
     <!-- Grid -->
     <div v-if="pokemonStore.isLoading" class="loading">
-      <!-- <PokeballLoader variant="page" label="Loading Pokémon data…" /> -->
     </div>
     <div v-else-if="pokemonStore.error" class="loading">
       {{ pokemonStore.error }}

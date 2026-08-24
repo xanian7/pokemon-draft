@@ -12,6 +12,10 @@ import vue3GoogleLogin from 'vue3-google-login'
 import App from './App.vue'
 import router from './router'
 import { installApiLoadingTracker } from './services/apiLoading'
+import { applyAppTheme, getStoredAppTheme } from './services/appTheme'
+
+const initialTheme = getStoredAppTheme()
+applyAppTheme(initialTheme)
 
 const vuetify = createVuetify({
   components,
@@ -39,19 +43,32 @@ const vuetify = createVuetify({
     },
   },
   theme: {
-    defaultTheme: 'pokeDraftDark',
+    defaultTheme: initialTheme,
     themes: {
       pokeDraftDark: {
         dark: true,
         colors: {
-          background: '#080b14',
-          surface: '#141a2b',
+          background: '#000000',
+          surface: '#0d0e0f',
           primary: '#7c6cff',
           secondary: '#ff5c7a',
           success: '#35d39a',
           warning: '#ffca62',
           error: '#ff5c7a',
           info: '#2ab6ff',
+        },
+      },
+      pokeDraftLight: {
+        dark: false,
+        colors: {
+          background: '#f5f7fb',
+          surface: '#ffffff',
+          primary: '#5a48e8',
+          secondary: '#d9365b',
+          success: '#16845d',
+          warning: '#a56500',
+          error: '#cf2f4e',
+          info: '#087eaf',
         },
       },
     },

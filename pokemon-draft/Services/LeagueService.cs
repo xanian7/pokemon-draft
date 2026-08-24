@@ -863,15 +863,15 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         var matchup = league.Matchups.FirstOrDefault(m => m.Id == matchupId);
         if (matchup is null) return (false, "Matchup not found.");
 
-        if (matchup.Player1Id != playerId && matchup.Player2Id != playerId)
-            return (false, "You are not in this matchup.");
+        // if (matchup.Player1Id != playerId && matchup.Player2Id != playerId)
+        //     return (false, "You are not in this matchup.");
 
         if (matchup.Player1Wins.HasValue || matchup.Player2Wins.HasValue)
             return (false, "This matchup has already been reported.");
 
         var player = GetOrderedPlayers(league).FirstOrDefault(p => p.Id == playerId);
         if (player is null || !VerifyPin(player, pin))
-            return (false, "Invalid PIN.");
+            return (false, "You've been logged out. Please rejoin the league and try again.");
 
         if (player1Wins < 0 || player2Wins < 0 || player1Wins > 2 || player2Wins > 2)
             return (false, "Wins must be between 0 and 2.");

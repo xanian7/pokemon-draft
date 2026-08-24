@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
-import PokeballLoader from '@/components/PokeballLoader.vue'
 import PageHeader from '@/components/PageHeader.vue'
-import FormField from '@/components/FormField.vue'
+import ScoreReportDialog from '@/components/ScoreReportDialog.vue'
+import SectionHeader from '@/components/SectionHeader.vue'
+
 import DraftGateNotice from '@/components/DraftGateNotice.vue'
-import { apiGet } from '@/services/api'
+import { apiGet, apiPost } from '@/services/api'
 import { enqueueSnackbar } from '@/services/snackbar'
 import { useSignalR } from '@/services/signalr'
 import { useAuthStore } from '@/stores/auth'
@@ -37,6 +37,9 @@ interface RosterEntry {
   points: number
 }
 
+const TeamScoutingReport = defineAsyncComponent(
+  () => import('@/components/TeamScoutingReport.vue'),
+)
 const router = useRouter()
 const authStore = useAuthStore()
 const pokemonStore = usePokemonStore()
@@ -49,6 +52,12 @@ const schedule = ref<ScheduleData | null>(null)
 const isLoading = ref(true)
 const selectedMatchupId = ref<number | null>(null)
 const selectedPokemon = ref<Pokemon | null>(null)
+const scoreDialogOpen = ref(false)
+const reportMyWins = ref(2)
+const reportOpponentWins = ref(0)
+const reportReplayUrls = ref(['', '', ''])
+const reportError = ref('')
+const reportLoading = ref(false)
 
 const myMatchups = computed(() =>
   (schedule.value?.weeks ?? [])
@@ -90,6 +99,19 @@ const opponentStanding = computed<StandingRow | null>(
   () => schedule.value?.standings.find((row) => row.playerId === opponentId.value) ?? null,
 )
 
+const myRoster = computed<RosterEntry[]>(() => {
+  if (!league.value || !authStore.playerId) return []
+
+  return league.value.draft.picks
+    .filter((pick) => pick.playerId === authStore.playerId)
+    .sort((a, b) => a.pickNumber - b.pickNumber)
+    .flatMap((pick) => {
+      const pokemon = pokemonStore.getPokemonById(pick.pokemonId)
+      return pokemon
+        ? [{ pokemon, points: Number(league.value?.pointValues[pick.pokemonId] ?? 0) }]
+        : []
+    })
+})
 const opponentRoster = computed<RosterEntry[]>(() => {
   if (!league.value || !opponentId.value) return []
 
@@ -108,14 +130,6 @@ const rosterPoints = computed(() =>
   opponentRoster.value.reduce((total, entry) => total + entry.points, 0),
 )
 
-const averageBst = computed(() => {
-  if (!opponentRoster.value.length) return 0
-  const total = opponentRoster.value.reduce(
-    (sum, entry) => sum + (entry.pokemon.bst ?? 0),
-    0,
-  )
-  return Math.round(total / opponentRoster.value.length)
-})
 
 const availabilityDays = computed(() => parseAvailability(opponent.value?.availability))
 
@@ -133,6 +147,10 @@ const matchupStatus = computed(() => {
     ? { label: `Won ${myWins}-${theirWins}`, color: 'success' }
     : { label: `Lost ${myWins}-${theirWins}`, color: 'error' }
 })
+
+const canReportScore = computed(
+  () => activeMatchup.value?.player1Wins === null && activeMatchup.value?.player2Wins === null,
+)
 
 function applyState(state: ServerLeagueResponse) {
   league.value = state
@@ -158,6 +176,108 @@ function selectDefaultMatchup() {
   const nextMatchup = myMatchups.value.find((matchup) => matchup.player1Wins === null)
   selectedMatchupId.value =
     nextMatchup?.id ?? myMatchups.value[myMatchups.value.length - 1]?.id ?? null
+}
+
+function selectMatchup(matchupId: number) {
+  selectedMatchupId.value = matchupId
+  scoreDialogOpen.value = false
+  reportError.value = ''
+}
+
+function openScoreReport() {
+  if (!activeMatchup.value || !canReportScore.value) return
+  reportMyWins.value = 2
+  reportOpponentWins.value = 0
+  reportReplayUrls.value = ['', '', '']
+  reportError.value = ''
+  scoreDialogOpen.value = true
+}
+
+function closeScoreReport() {
+  scoreDialogOpen.value = false
+  reportError.value = ''
+}
+
+function normalizedReplayUrls() {
+  return reportReplayUrls.value.map((url) => url.trim()).filter(Boolean).slice(0, 3)
+}
+
+function validateScoreReport() {
+  if (
+    reportMyWins.value < 0 ||
+    reportOpponentWins.value < 0 ||
+    reportMyWins.value > 2 ||
+    reportOpponentWins.value > 2
+  ) {
+    return 'Wins must be between 0 and 2.'
+  }
+  if (reportMyWins.value + reportOpponentWins.value > 3) {
+    return 'A best-of-3 cannot exceed 3 games.'
+  }
+  if (reportMyWins.value !== 2 && reportOpponentWins.value !== 2) {
+    return 'One team must have 2 wins.'
+  }
+  if (reportMyWins.value === 2 && reportOpponentWins.value === 2) {
+    return 'Both teams cannot have 2 wins.'
+  }
+
+  for (const replayUrl of normalizedReplayUrls()) {
+    try {
+      const url = new URL(replayUrl)
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        return 'Replay links must be valid http or https URLs.'
+      }
+    } catch {
+      return 'Replay links must be valid URLs.'
+    }
+  }
+
+  return ''
+}
+
+async function submitScoreReport() {
+  const matchup = activeMatchup.value
+  if (!matchup) return
+
+  const validationError = validateScoreReport()
+  if (validationError) {
+    reportError.value = validationError
+    return
+  }
+
+  reportLoading.value = true
+  reportError.value = ''
+
+  const isPlayerOne = matchup.player1Id === authStore.playerId
+  const replayUrls = normalizedReplayUrls()
+  const result = await apiPost(
+    '/leagues/' + authStore.leagueCode + '/schedule/' + matchup.id + '/report',
+    {
+      playerId: authStore.playerId,
+      pin: authStore.pin,
+      player1Wins: isPlayerOne ? reportMyWins.value : reportOpponentWins.value,
+      player2Wins: isPlayerOne ? reportOpponentWins.value : reportMyWins.value,
+      replayUrl: replayUrls[0] ?? null,
+      replayUrls,
+    },
+  )
+
+  if (result.error) {
+    reportError.value = result.error
+    reportLoading.value = false
+    return
+  }
+
+  try {
+    await fetchSchedule()
+    closeScoreReport()
+    enqueueSnackbar('Week ' + matchup.week + ' score reported.', 'success')
+  } catch {
+    closeScoreReport()
+    enqueueSnackbar('Score saved, but the schedule could not be refreshed.', 'warning')
+  } finally {
+    reportLoading.value = false
+  }
 }
 
 async function loadPage() {
@@ -257,31 +377,10 @@ function localTime(timeZone?: string) {
 </script>
 
 <template>
-  <v-container fluid class="matchup-page">
-    <v-card class="wrapper-card">
-      <PageHeader
-        class="matchup-page-header"
-        eyebrow="Competition"
-        title="Matchup"
-        :subtitle="activeMatchup ? `Week ${activeMatchup.week} · Review both rosters and prepare for battle.` : 'Your current scheduled opponent and roster comparison.'"
-      >
-        <template v-if="activeMatchup" #actions>
-          <v-chip :color="matchupStatus.color" size="small" variant="tonal">
-            {{ matchupStatus.label }}
-          </v-chip>
-          <FormField v-if="matchupOptions.length > 1" label="Matchup">
-            <v-select
-              v-model="selectedMatchupId"
-              :items="matchupOptions"
-              hide-details
-              class="matchup-select"
-            />
-          </FormField>
-        </template>
-      </PageHeader>
+  <v-container fluid class="page-card-small">
 
-      <div v-if="isLoading" class="loading-panel">
-        <!-- <PokeballLoader variant="page" label="Loading matchup..." /> -->
+      <div v-if="isLoading" class="page-state">
+        
       </div>
 
       <DraftGateNotice
@@ -299,7 +398,52 @@ function localTime(timeZone?: string) {
       </v-alert>
 
       <div v-else class="matchup-content">
-        <v-card class="matchup-card" variant="outlined">
+        <div class="matchup-toolbar">
+          <div class="matchup-toolbar__identity">
+            <span>Selected matchup</span>
+            <strong>Week {{ activeMatchup.week }} · {{ opponentLabel(activeMatchup) }}</strong>
+          </div>
+
+          <div class="matchup-toolbar__actions">
+            <v-chip :color="matchupStatus.color" size="small" variant="tonal">
+              {{ matchupStatus.label }}
+            </v-chip>
+
+            <v-menu v-if="matchupOptions.length > 1" location="bottom end">
+              <template #activator="{ props: menuProps }">
+                <v-btn
+                  v-bind="menuProps"
+                  prepend-icon="mdi-calendar-sync"
+                  size="small"
+                  variant="outlined"
+                >
+                  Switch week
+                </v-btn>
+              </template>
+              <v-list density="compact" min-width="260">
+                <v-list-item
+                  v-for="option in matchupOptions"
+                  :key="option.value"
+                  :title="option.title"
+                  :active="option.value === selectedMatchupId"
+                  @click="selectMatchup(option.value)"
+                />
+              </v-list>
+            </v-menu>
+
+            <v-btn
+              v-if="canReportScore"
+              prepend-icon="mdi-trophy-outline"
+              size="small"
+              color="primary"
+              @click="openScoreReport"
+            >
+              Report score
+            </v-btn>
+          </div>
+        </div>
+
+        <v-card class="matchup-card section-card" variant="outlined">
           <v-card-text class="battle-row">
             <div class="battle-team">
               <v-avatar size="64" color="primary" class="team-avatar">
@@ -335,15 +479,12 @@ function localTime(timeZone?: string) {
 
         <v-row class="details-row" dense>
           <v-col cols="12" md="6">
-            <v-card class="info-card" variant="outlined">
-              <v-card-title class="section-title">
-                <div>
-                  <div class="text-overline text-medium-emphasis">Season performance</div>
-                  <span>Opponent Snapshot</span>
-                </div>
-                <v-icon icon="mdi-chart-box-outline" />
-              </v-card-title>
-              <v-divider />
+            <v-card class="info-card section-card" variant="outlined">
+              <SectionHeader
+                eyebrow="Season performance"
+                title="Opponent Snapshot"
+                icon="mdi-chart-box-outline"
+              />
               <v-card-text class="snapshot-grid">
                 <v-card class="metric" variant="tonal">
                   <span>Record</span>
@@ -370,15 +511,12 @@ function localTime(timeZone?: string) {
           </v-col>
 
           <v-col cols="12" md="6">
-            <v-card class="info-card" variant="outlined">
-              <v-card-title class="section-title">
-                <div>
-                  <div class="text-overline text-medium-emphasis">Scheduling</div>
-                  <span>Time &amp; Availability</span>
-                </div>
-                <v-icon icon="mdi-clock-outline" />
-              </v-card-title>
-              <v-divider />
+            <v-card class="info-card section-card" variant="outlined">
+              <SectionHeader
+                eyebrow="Scheduling"
+                title="Time &amp; Availability"
+                icon="mdi-clock-outline"
+              />
               <v-card-text>
                 <div class="timezone">
                   <strong>{{ opponent?.timeZone || 'Time zone not set' }}</strong>
@@ -396,40 +534,43 @@ function localTime(timeZone?: string) {
           </v-col>
         </v-row>
 
-        <v-card class="roster-section" variant="outlined">
-          <v-card-title class="section-title">
-            <div>
-              <div class="text-overline text-medium-emphasis">Scouting report</div>
-              <span>{{ opponentLabel(activeMatchup) }}'s Pokémon</span>
-            </div>
-            <div class="roster-summary">
-              <v-chip prepend-icon="mdi-pokeball" size="small" variant="tonal">
-                {{ opponentRoster.length }} Pokémon
-              </v-chip>
-              <v-chip prepend-icon="mdi-chart-line" size="small" variant="tonal">
-                {{ averageBst }} Avg. BST
-              </v-chip>
-            </div>
-          </v-card-title>
-          <v-divider />
-          <v-card-text>
-            <div v-if="opponentRoster.length" class="roster-grid">
-              <PokemonCard
-                v-for="entry in opponentRoster"
-                :key="entry.pokemon.id"
-                :pokemon="entry.pokemon"
-                :point-value="entry.points"
-                mode="team"
-                @click="selectedPokemon = entry.pokemon"
-              />
-            </div>
-            <v-alert v-else type="info" variant="tonal">
-              This opponent does not have any Pokémon on their roster yet.
-            </v-alert>
-          </v-card-text>
-        </v-card>
+        <v-row class="content-divider">
+            <v-col cols="12">
+              <v-divider class="border-opacity-25"></v-divider>
+            </v-col>
+          </v-row>
+
+        <TeamScoutingReport
+          :my-team-name="authStore.teamName || authStore.playerName || 'Your Team'"
+          :opponent-team-name="opponentLabel(activeMatchup)"
+          :my-roster="myRoster"
+          :opponent-roster="opponentRoster"
+          @select-pokemon="selectedPokemon = $event"
+        />
       </div>
-    </v-card>
+
+    <ScoreReportDialog
+      v-if="activeMatchup"
+      :model-value="scoreDialogOpen"
+      :title="'Report Week ' + activeMatchup.week + ' Score'"
+      :subtitle="
+        (authStore.teamName || authStore.playerName || 'Your Team') +
+        ' vs ' +
+        opponentLabel(activeMatchup)
+      "
+      left-label="Your wins"
+      right-label="Opponent wins"
+      :left-wins="reportMyWins"
+      :right-wins="reportOpponentWins"
+      :replay-urls="reportReplayUrls"
+      :error="reportError"
+      :loading="reportLoading"
+      @update:model-value="(value) => !value && closeScoreReport()"
+      @update:left-wins="reportMyWins = $event"
+      @update:right-wins="reportOpponentWins = $event"
+      @update:replay-urls="reportReplayUrls = $event"
+      @submit="submitScoreReport"
+    />
 
     <PokemonDetailModal
       v-if="selectedPokemon"
@@ -444,28 +585,7 @@ function localTime(timeZone?: string) {
 </template>
 
 <style scoped>
-.matchup-page {
-  padding: clamp(1rem, 2vw, 2rem);
-}
 
-.wrapper-card {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  height: auto;
-  max-height: none;
-  overflow: auto;
-  padding: 0;
-}
-
-.wrapper-card :deep(.v-card) {
-  border-color: var(--border-color);
-  border-radius: var(--radius-md);
-}
-
-.wrapper-card :deep(.v-card-text) {
-  padding: 16px;
-}
 
 .matchup-content {
   display: flex;
@@ -473,47 +593,48 @@ function localTime(timeZone?: string) {
   gap: 8px;
 }
 
-.section-title {
+.matchup-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 8px 12px;
+  gap: 12px;
+  min-height: 58px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color);
 }
 
-.section-title > div:first-child {
+.matchup-toolbar__identity {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
-.section-title span {
-  display: block;
+.matchup-toolbar__identity span {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.matchup-toolbar__identity strong {
   overflow: hidden;
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 0.95rem;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.matchup-title {
-  min-height: 58px;
-}
-
-.matchup-actions {
+.matchup-toolbar__actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.matchup-select {
-  width: min(320px, 42vw);
-}
 
-.loading-panel {
-  display: grid;
-  min-height: 320px;
-  place-items: center;
-}
+
+
+
 
 .battle-row {
   display: grid;
@@ -620,49 +741,23 @@ function localTime(timeZone?: string) {
   font-size: 0.82rem;
 }
 
-.roster-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
 
-.roster-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 6px;
-}
 
 @media (max-width: 720px) {
-  .wrapper-card {
-    height: auto;
-    max-height: none;
-    overflow: visible;
-    padding: 6px;
-    border-right: 0;
-    border-left: 0;
-    border-radius: 0;
-  }
-
-  .wrapper-card :deep(.v-card) {
-    border-right: 0;
-    border-left: 0;
-    border-radius: 0;
-  }
-
-  .matchup-title {
+  .matchup-toolbar {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .matchup-actions {
-    justify-content: space-between;
+  .matchup-toolbar__actions {
+    justify-content: flex-start;
   }
 
-  .matchup-select {
+  .matchup-toolbar__actions :deep(.v-btn) {
     flex: 1 1 auto;
-    width: auto;
-    min-width: 0;
   }
+
+
 
   .battle-row {
     grid-template-columns: minmax(0, 1fr) 42px minmax(0, 1fr);
@@ -689,9 +784,6 @@ function localTime(timeZone?: string) {
     height: 54px !important;
   }
 
-  .roster-grid {
-    grid-template-columns: 1fr;
-  }
 
   .timezone,
   .availability-row {

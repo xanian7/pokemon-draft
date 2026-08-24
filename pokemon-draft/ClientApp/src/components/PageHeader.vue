@@ -35,10 +35,10 @@ withDefaults(
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: clamp(1rem, 2vw, 1.5rem);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.14), transparent);
+  min-height: 70px;
+  margin-bottom: 16px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .page-header__copy {
@@ -50,9 +50,16 @@ withDefaults(
   flex: 0 0 auto;
 }
 
+.eyebrow {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 h1 {
   margin-top: 3px;
-  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  font-size: 1.5rem;
   font-weight: 800;
   line-height: 1.15;
 }
@@ -60,7 +67,7 @@ h1 {
 p {
   margin-top: 4px;
   color: var(--text-muted);
-  font-size: 0.86rem;
+  font-size: 0.82rem;
 }
 
 .page-header__actions {

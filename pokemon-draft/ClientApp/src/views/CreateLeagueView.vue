@@ -2,7 +2,6 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '@/components/AppIcon.vue'
-import PokeballLoader from '@/components/PokeballLoader.vue'
 import { API_BASE } from '@/services/signalr'
 import { useAuthStore } from '@/stores/auth'
 import { mdiTrophy, mdiPartyPopper, mdiGoogle } from '@mdi/js'
@@ -118,8 +117,7 @@ async function enterAsAdmin() {
 
           <div v-if="error" class="error-msg">{{ error }}</div>
           <button type="submit" class="btn btn-primary btn-full btn-lg" :disabled="isLoading">
-            <!-- <PokeballLoader v-if="isLoading" variant="inline" :size="16" />
-            {{ isLoading ? 'Creating…' : 'Create League' }} -->
+            {{ isLoading ? 'Creating…' : 'Create League' }}
           </button>
         </form>
       </template>

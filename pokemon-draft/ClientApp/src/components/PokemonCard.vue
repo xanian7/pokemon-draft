@@ -13,6 +13,7 @@ const props = defineProps<{
   isCurrentPicker?: boolean
   mode?: 'browse' | 'draft' | 'team'
   showSprite?: boolean
+  stacked?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -28,6 +29,7 @@ const emit = defineEmits<{
       'is-disabled': isDisabled,
       'mode-draft': mode === 'draft',
       'mode-team': mode === 'team',
+      'layout-stacked': stacked,
     }"
     :data-tooltip="mode === 'draft' ? formatPokemonName(pokemon.name) : undefined"
     @click="emit('click')"
@@ -73,10 +75,9 @@ const emit = defineEmits<{
   flex-direction: column;
   align-items: center;
   background:
-    radial-gradient(circle at 50% 18%, rgba(var(--primary-rgb), 0.09), transparent 48%),
     var(--card-bg);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
+  border-radius: 4px;
   padding: 0.7rem;
   cursor: pointer;
   transition:
@@ -91,7 +92,6 @@ const emit = defineEmits<{
 
 .pokemon-card:hover:not(.is-picked, .is-disabled) {
   transform: translateY(-4px);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
   border-color: rgba(var(--primary-rgb), 0.58);
   z-index: 1;
 }
@@ -171,6 +171,20 @@ const emit = defineEmits<{
 
 .mode-team .types {
   justify-content: flex-start;
+}
+
+.layout-stacked {
+  flex-direction: column;
+  text-align: center;
+}
+
+.layout-stacked .sprite {
+  width: 78px;
+  height: 78px;
+}
+
+.layout-stacked .types {
+  justify-content: center;
 }
 
 .type-badge {

@@ -526,7 +526,7 @@ async function confirmDeleteMatchup() {
 </script>
 
 <template>
-  <v-container fluid class="league-setup">
+  <v-container fluid class="page-card-small">
     <PageHeader
       class="setup-hero"
       eyebrow="Commissioner workspace"

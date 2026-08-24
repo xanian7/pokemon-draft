@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usePokemonStore } from '@/stores/pokemon'
 import AppIcon from '@/components/AppIcon.vue'
-import PokeballLoader from '@/components/PokeballLoader.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { API_BASE } from '@/services/signalr'
 import {
@@ -261,7 +260,7 @@ const outlookStatusLabel = (status: string) => {
   </v-container>
 
   <!-- ── League dashboard ────────────────────────────────────────────────── -->
-  <v-container v-else class="dashboard player-dashboard">
+  <v-container v-else class="page-card-small">
     <PageHeader
       class="dash-header"
       :eyebrow="authStore.isAdmin ? 'Commissioner · League home' : 'League home'"
@@ -338,9 +337,6 @@ const outlookStatusLabel = (status: string) => {
             <span class="record-wl">{{ myStanding.wins }}–{{ myStanding.losses }}</span>
             <span class="record-mp">{{ myStanding.matchPoints }} pts</span>
           </div>
-          <!-- <div v-else class="hub-empty">
-            <PokeballLoader variant="inline" label="" />
-          </div> -->
         </div>
 
         <!-- Next Matchup -->
@@ -398,9 +394,6 @@ const outlookStatusLabel = (status: string) => {
           </tbody>
         </v-table>
       </div>
-      <!-- <div v-else-if="!schedule" class="hub-card hub-standings hub-loading">
-        <PokeballLoader variant="inline" label="Loading standings…" />
-      </div> -->
 
       <!-- Row 3: Playoff Outlook -->
       <div class="hub-card hub-outlook" v-if="outlookPreview.length">

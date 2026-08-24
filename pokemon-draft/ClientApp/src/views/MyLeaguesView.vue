@@ -3,7 +3,6 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppIcon from '@/components/AppIcon.vue'
-import PokeballLoader from '@/components/PokeballLoader.vue'
 import { mdiPokeball, mdiTrophy, mdiPlusCircle, mdiLogin } from '@mdi/js'
 import LoginForm from '@/components/LoginForm.vue'
 import { enqueueSnackbar } from '@/services/snackbar'
@@ -50,7 +49,6 @@ async function enterLeague(code: string) {
 <template>
   <v-container fluid class="page">
     <div v-if="isLoading" class="loader-wrap">
-      <!-- <PokeballLoader /> -->
     </div>
 
     <template v-else>

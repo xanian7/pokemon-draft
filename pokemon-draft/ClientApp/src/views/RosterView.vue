@@ -8,7 +8,6 @@ import type { DraftPick, LeaguePlayer, Pokemon, Trade } from '@/types'
 import { formatPokemonName } from '@/utils/format'
 import AppIcon from '@/components/AppIcon.vue'
 import PokemonGrid from '@/components/PokemonGrid.vue'
-import PokeballLoader from '@/components/PokeballLoader.vue'
 import FormField from '@/components/FormField.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import DraftGateNotice from '@/components/DraftGateNotice.vue'
@@ -317,9 +316,8 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 </script>
 
 <template>
-  <main class="roster-view page" :class="{ 'trade-mode': activeTab === 'trade' }">
+  <main class="page-card-small" :class="{ 'trade-mode': activeTab === 'trade' }">
     <section v-if="isLoading" class="state-card loading-card">
-      <!-- <PokeballLoader variant="page" label="Loading roster tools…" /> -->
     </section>
 
     <template v-else-if="league">

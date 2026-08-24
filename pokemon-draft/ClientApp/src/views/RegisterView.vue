@@ -4,7 +4,6 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { API_BASE } from '@/services/signalr'
 import AppIcon from '@/components/AppIcon.vue'
-import PokeballLoader from '@/components/PokeballLoader.vue'
 import { mdiPokeball, mdiGoogle } from '@mdi/js'
 
 const router = useRouter()
@@ -175,8 +174,7 @@ async function register() {
           <div v-if="error" class="error-msg">{{ error }}</div>
 
           <button type="submit" class="btn btn-primary btn-full btn-lg" :disabled="isLoading">
-            <!-- <PokeballLoader v-if="isLoading" variant="inline" :size="16" />
-            {{ isLoading ? 'Joining…' : 'Join League' }} -->
+            {{ isLoading ? 'Joining…' : 'Join League' }}
           </button>
         </form>
 

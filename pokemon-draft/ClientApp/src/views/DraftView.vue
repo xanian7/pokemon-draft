@@ -141,7 +141,7 @@ const { isLegalPokemon } = useRegulationFilter(computed(() => draftStore.regulat
 </script>
 
 <template>
-  <v-container fluid>
+  <v-container fluid class="page-card-large">
     <v-card class="wrapper-card">
       <v-row class="upcoming-picks-row">
         <v-col cols="12" md="12">
