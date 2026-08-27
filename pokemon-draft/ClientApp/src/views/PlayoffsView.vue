@@ -85,7 +85,7 @@ const headers = [
 </script>
 
 <template>
-  <v-container fluid class="playoffs-page">
+  <v-container fluid class="page-card-large">
     <PageHeader
       class="page-hero"
       eyebrow="Postseason race"

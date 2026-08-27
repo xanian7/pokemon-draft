@@ -402,9 +402,12 @@ async function handleCommissionerAction(pokemonId: number) {
 .grid-view-container {
   flex: 1 1 auto;
   min-height: 0;
+  overflow-x: auto;
   overflow-y: hidden;
   padding-top: 6px;
   transform: rotateX(180deg);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
 .inner-grid-contents {
@@ -548,7 +551,8 @@ async function handleCommissionerAction(pokemonId: number) {
     height: auto;
     max-height: none;
     margin-top: 6px;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
     padding: 6px 0;
   }
 
@@ -557,8 +561,13 @@ async function handleCommissionerAction(pokemonId: number) {
     gap: 0.35rem;
   }
 
+  .inner-grid-contents {
+    min-width: 100%;
+    width: max-content;
+  }
+
   .tier-view {
-    min-width: 0;
+    min-width: max-content;
     overflow: visible;
     padding-bottom: 8px;
   }

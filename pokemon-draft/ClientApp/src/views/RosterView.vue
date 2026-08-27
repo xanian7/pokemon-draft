@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { API_BASE, useSignalR } from '@/services/signalr'
@@ -316,7 +316,7 @@ onUnmounted(() => unsubscribe(handleLeagueState))
 </script>
 
 <template>
-  <main class="page-card-small" :class="{ 'trade-mode': activeTab === 'trade' }">
+  <main class="page-card-large" :class="{ 'trade-mode': activeTab === 'trade' }">
     <section v-if="isLoading" class="state-card loading-card">
     </section>
 
@@ -328,14 +328,6 @@ onUnmounted(() => unsubscribe(handleLeagueState))
         subtitle="Manage roster transactions and propose trades."
       >
         <template #actions>
-          <v-chip
-            :color="isConnected ? 'success' : undefined"
-            :prepend-icon="isConnected ? 'mdi-wifi' : 'mdi-wifi-off'"
-            size="small"
-            variant="tonal"
-          >
-            {{ isConnected ? 'Live' : 'Offline' }}
-          </v-chip>
           <v-chip color="primary" size="small" variant="tonal">
             {{ myPointTotal }} / {{ league.pointLimit }} pts
           </v-chip>
@@ -375,7 +367,7 @@ onUnmounted(() => unsubscribe(handleLeagueState))
           </v-card>
 
           <section v-if="activeTab === 'add-drop'" class="add-drop-layout">
-            <aside class="team-sidebar panel-card">
+            <section class="transaction-builder panel-card">
               <div class="section-header">
                 <div class="sidebar-heading">
                   <AppIcon :path="mdiAccountGroup" :size="16" />
@@ -539,7 +531,7 @@ onUnmounted(() => unsubscribe(handleLeagueState))
                   </v-btn>
                 </div>
               </div>
-            </aside>
+            </section>
 
             <PokemonGrid
               mode="select"
@@ -985,21 +977,48 @@ h3 {
   color: #34d399;
 }
 
-/* ── Add/Drop split layout ───────────────────────────────────────────────── */
+/* ── Add/Drop layout ─────────────────────────────────────────────────────── */
 .add-drop-layout {
-  display: grid;
-  grid-template-columns: minmax(340px, 390px) 1fr;
-  gap: 8px;
-  align-items: stretch;
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 8px;
   min-height: 0;
 }
 
-.team-sidebar {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+.transaction-builder {
+  align-items: start;
+  display: grid;
+  gap: 8px;
+  grid-template-areas:
+    "header preview footer"
+    "points preview footer"
+    "team team team";
+  grid-template-columns: minmax(220px, 0.8fr) minmax(320px, 1.4fr) minmax(280px, 0.9fr);
   min-height: 0;
+  overflow: visible;
+}
+
+.transaction-builder > .section-header {
+  grid-area: header;
+}
+
+.transaction-builder > .points-bar {
+  grid-area: points;
+}
+
+.transaction-builder > .team-list,
+.transaction-builder > .empty-text {
+  grid-area: team;
+}
+
+.transaction-builder > .transaction-preview {
+  grid-area: preview;
+}
+
+.transaction-builder > .transaction-footer {
+  align-self: stretch;
+  grid-area: footer;
 }
 
 .sidebar-heading {
@@ -1040,19 +1059,21 @@ h3 {
 }
 
 .team-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  flex: none;
   gap: 6px;
-  margin-top: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 0;
+  max-height: 188px;
   overflow-y: auto;
-  flex: 1;
   padding-right: 0.15rem;
 }
 
 .transaction-preview {
   display: grid;
   gap: 6px;
-  margin-top: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0;
 }
 
 .transaction-slot {
@@ -1139,9 +1160,12 @@ h3 {
 }
 
 .transaction-footer {
-  border-top: 1px solid var(--border-color);
-  margin-top: 8px;
-  padding-top: 8px;
+  border-top: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .result-row,
@@ -1205,9 +1229,9 @@ h3 {
 
 .trade-layout {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 8px;
-  flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding-right: 0.15rem;
@@ -1215,37 +1239,40 @@ h3 {
 
 .trade-layout > .v-card {
   flex: 0 0 auto;
-  overflow: visible;
 }
 
 .trade-section {
-  background: rgba(20, 26, 43, 0.72) !important;
+  background: var(--card-bg) !important;
   border-color: var(--border-color) !important;
-  border-radius: 16px !important;
+  border-radius: 6px !important;
   overflow: hidden !important;
 }
 
 .trade-target-content {
   align-items: end;
   display: grid;
-  gap: 20px;
+  gap: 8px;
   grid-template-columns: minmax(280px, 1fr) minmax(260px, 420px);
-  padding: 18px !important;
+  padding: 8px !important;
 }
 
 .trade-section-title {
-  padding: 18px 18px 8px;
+  padding: 8px 8px 0;
   white-space: normal;
 }
 
 .trade-section-heading {
   align-items: center;
   display: flex;
-  gap: 12px;
+  gap: 8px;
+}
+
+.trade-section-heading :deep(.v-avatar) {
+  border: 1px solid var(--border-color);
 }
 
 .trade-section-heading h2 {
-  font-size: 1.05rem;
+  font-size: 1rem;
   line-height: 1.25;
   margin: 1px 0 2px;
 }
@@ -1261,7 +1288,7 @@ h3 {
   color: var(--primary);
   font-size: 0.68rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
@@ -1271,30 +1298,32 @@ h3 {
 
 .trade-builder,
 .trade-preview {
-  padding: 8px 14px 14px !important;
+  padding: 8px !important;
 }
 
 .trade-roster-grid,
 .trade-preview-grid {
   align-items: stretch;
+  margin: -4px;
 }
 
 .trade-roster-grid > .v-col,
 .trade-preview-grid > .v-col {
   display: flex;
+  padding: 4px;
 }
 
 .trade-roster-card,
 .trade-preview-side {
-  background: rgba(8, 11, 20, 0.44) !important;
-  border: 1px solid var(--border-color);
-  border-radius: 13px !important;
+  background: var(--bg) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 6px !important;
   width: 100%;
 }
 
 .trade-roster-title {
   align-items: center;
-  padding: 14px 14px 8px;
+  padding: 8px;
 }
 
 .trade-roster-title > div {
@@ -1305,38 +1334,37 @@ h3 {
 
 .trade-pokemon-list {
   display: grid;
-  gap: 7px;
-  padding: 6px 10px 10px;
+  gap: 6px;
+  padding: 0 8px 8px;
 }
 
 .trade-pokemon-row {
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid transparent;
-  border-radius: 11px !important;
-  min-height: 62px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px !important;
+  min-height: 58px;
   transition:
-    background-color 0.18s ease,
-    border-color 0.18s ease,
-    transform 0.18s ease;
+    background-color 0.14s ease,
+    border-color 0.14s ease;
 }
 
 .trade-pokemon-row:hover {
-  background: rgba(255, 255, 255, 0.055);
-  transform: translateY(-1px);
+  background: var(--input-bg);
 }
 
 .trade-pokemon-row.selected {
-  background: rgba(var(--primary-rgb), 0.11);
-  border-color: rgba(var(--primary-rgb), 0.55);
+  background: color-mix(in srgb, var(--primary) 12%, var(--card-bg));
+  border-color: color-mix(in srgb, var(--primary) 68%, var(--border-color));
 }
 
 .trade-pokemon-row.request-row.selected {
-  background: rgba(255, 92, 122, 0.1);
-  border-color: rgba(255, 92, 122, 0.55);
+  background: color-mix(in srgb, var(--secondary) 12%, var(--card-bg));
+  border-color: color-mix(in srgb, var(--secondary) 68%, var(--border-color));
 }
 
 .trade-pokemon-avatar {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
 }
 
 .trade-pokemon-name {
@@ -1346,37 +1374,41 @@ h3 {
 }
 
 .trade-preview-side {
-  min-height: 120px;
+  min-height: 112px;
 }
 
 .trade-preview-side.offer {
-  border-top: 2px solid var(--primary);
+  border-top: 2px solid var(--primary) !important;
 }
 
 .trade-preview-side.request {
-  border-top: 2px solid var(--secondary);
+  border-top: 2px solid var(--secondary) !important;
 }
 
 .trade-preview-side .v-card-title {
   align-items: center;
   display: flex;
   gap: 7px;
+  padding: 8px;
+}
+
+.trade-preview-side :deep(.v-card-text) {
+  padding: 0 8px 8px !important;
 }
 
 .trade-submit-actions {
   align-items: center;
-  background: rgba(8, 11, 20, 0.35);
+  background: var(--bg);
   border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
-  padding: 12px 16px !important;
+  padding: 8px !important;
 }
 
 .trade-submit-actions > span {
   color: var(--text-muted);
   font-size: 0.78rem;
 }
-
 .roster-view.trade-mode {
   height: auto;
   max-height: none;
@@ -1405,11 +1437,21 @@ h3 {
 }
 
 @media (max-width: 900px) {
-  .add-drop-layout {
+  .transaction-builder {
+    grid-template-areas:
+      "header"
+      "points"
+      "preview"
+      "team"
+      "footer";
     grid-template-columns: 1fr;
   }
 
-  .team-sidebar {
+  .transaction-preview {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .team-list {
     max-height: 280px;
   }
 
@@ -1436,13 +1478,12 @@ h3 {
     border-radius: 0;
   }
 
-  .trade-section {
-    border-radius: 12px !important;
-  }
 
   .trade-target-content,
-  .trade-section-title {
-    padding: 14px !important;
+  .trade-section-title,
+  .trade-builder,
+  .trade-preview {
+    padding: 8px !important;
   }
 
   .trade-submit-actions {
@@ -1466,14 +1507,18 @@ h3 {
     overflow: visible;
   }
 
-  .team-sidebar {
-    max-height: none;
+  .transaction-builder {
     min-height: auto;
     overflow: visible;
   }
 
+  .transaction-preview {
+    grid-template-columns: 1fr;
+  }
+
   .team-list {
     flex: none;
+    max-height: none;
     overflow: visible;
   }
 }
