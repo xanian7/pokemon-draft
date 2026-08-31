@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PokemonDraft.Data;
 
@@ -11,9 +12,11 @@ using PokemonDraft.Data;
 namespace PokemonDraft.Migrations
 {
     [DbContext(typeof(DraftDbContext))]
-    partial class DraftDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260831223139_AddReplayScoutingData")]
+    partial class AddReplayScoutingData
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -362,10 +365,6 @@ namespace PokemonDraft.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Ability")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<int>("Deaths")
                         .HasColumnType("int");
 
@@ -375,9 +374,6 @@ namespace PokemonDraft.Migrations
 
                     b.Property<int>("Kos")
                         .HasColumnType("int");
-
-                    b.Property<bool>("MovesAreComplete")
-                        .HasColumnType("bit");
 
                     b.Property<string>("MovesJson")
                         .IsRequired()

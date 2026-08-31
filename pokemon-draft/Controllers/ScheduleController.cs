@@ -7,7 +7,10 @@ using PokemonDraft.Services;
 namespace PokemonDraft.Controllers;
 
 [Route("api/leagues/{code}")]
-public class ScheduleController(ILeagueService leagueService, IHubContext<DraftHub> hub)
+public class ScheduleController(
+    ILeagueService leagueService,
+    IReplayAnalysisService replayAnalysisService,
+    IHubContext<DraftHub> hub)
     : LeagueBaseController(leagueService, hub)
 {
     [HttpGet("schedule")]
@@ -22,6 +25,14 @@ public class ScheduleController(ILeagueService leagueService, IHubContext<DraftH
     {
         var outlook = LeagueService.GetPlayoffOutlook(code);
         return outlook is null ? NotFound() : Ok(outlook);
+    }
+
+    [HttpGet("replay-stats")]
+    public async Task<IActionResult> GetReplayStats(string code, CancellationToken cancellationToken)
+    {
+        await replayAnalysisService.AnalyzeMissingAsync(code, cancellationToken);
+        var stats = await replayAnalysisService.GetStatsAsync(code, cancellationToken);
+        return stats is null ? NotFound() : Ok(stats);
     }
 
     [HttpPost("schedule")]
@@ -59,6 +70,7 @@ public class ScheduleController(ILeagueService leagueService, IHubContext<DraftH
     {
         var (success, error) = LeagueService.ReportMatchup(code, matchupId, req.PlayerId, req.Pin, req.Player1Wins, req.Player2Wins, req.ReplayUrl, req.ReplayUrls);
         if (!success) return BadRequest(error);
+        await replayAnalysisService.AnalyzeMatchupAsync(code, matchupId, HttpContext.RequestAborted);
         await Hub.Clients.Group(code.ToUpperInvariant()).SendAsync("ScheduleUpdate", LeagueService.GetSchedule(code));
         return Ok();
     }
@@ -68,6 +80,7 @@ public class ScheduleController(ILeagueService leagueService, IHubContext<DraftH
     {
         var (success, error) = LeagueService.EditMatchup(code, matchupId, req.AdminPin, req.Player1Wins, req.Player2Wins, req.ReplayUrl, req.ReplayUrls);
         if (!success) return BadRequest(error);
+        await replayAnalysisService.AnalyzeMatchupAsync(code, matchupId, HttpContext.RequestAborted);
         await Hub.Clients.Group(code.ToUpperInvariant()).SendAsync("ScheduleUpdate", LeagueService.GetSchedule(code));
         return Ok();
     }

@@ -180,6 +180,24 @@ public record WeekGroup(int Week, List<MatchupResponse> Matchups);
 
 public record ScheduleResponse(List<WeekGroup> Weeks, List<StandingRow> Standings);
 
+public record ReplayPokemonStatResponse(
+    string Side, string? PlayerId, int? PokemonId, string PokemonName, int Kos, int Deaths,
+    List<string> Moves, bool MovesAreComplete, string? HeldItem, string? Ability, string? Nature);
+
+public record ReplayGameResponse(
+    int Id, int MatchupId, int Week, int GameNumber, string ReplayUrl,
+    string Status, string? Error,
+    string ShowdownPlayer1, string ShowdownPlayer2, string WinnerName,
+    string Player1Id, string Player1TeamName, string Player2Id, string Player2TeamName,
+    DateTime AnalyzedAt, List<ReplayPokemonStatResponse> Pokemon);
+
+public record PokemonReplayTotalResponse(
+    string? PlayerId, string PlayerName, string TeamName,
+    int? PokemonId, string PokemonName, int Games, int Kos, int Deaths);
+
+public record ReplayStatsResponse(
+    List<ReplayGameResponse> Games, List<PokemonReplayTotalResponse> Pokemon);
+
 public record PlayoffOutlookEntry(
     string PlayerId, string PlayerName, string TeamName, string TeamImageUrl,
     int Wins, int Losses, int MatchPoints, int GamesWon, int GamesLost,

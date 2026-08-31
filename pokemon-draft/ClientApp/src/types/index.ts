@@ -93,6 +93,55 @@ export interface ScheduleData {
   standings: StandingRow[]
 }
 
+export interface ReplayPokemonStat {
+  side: 'p1' | 'p2'
+  playerId: string | null
+  pokemonId: number | null
+  pokemonName: string
+  kos: number
+  deaths: number
+  moves: string[]
+  movesAreComplete: boolean
+  heldItem: string | null
+  ability: string | null
+  nature: string | null
+}
+
+export interface ReplayGameStat {
+  id: number
+  matchupId: number
+  week: number
+  gameNumber: number
+  replayUrl: string
+  status: 'Complete' | 'Failed' | 'Pending'
+  error: string | null
+  showdownPlayer1: string
+  showdownPlayer2: string
+  winnerName: string
+  player1Id: string
+  player1TeamName: string
+  player2Id: string
+  player2TeamName: string
+  analyzedAt: string
+  pokemon: ReplayPokemonStat[]
+}
+
+export interface PokemonReplayTotal {
+  playerId: string | null
+  playerName: string
+  teamName: string
+  pokemonId: number | null
+  pokemonName: string
+  games: number
+  kos: number
+  deaths: number
+}
+
+export interface ReplayStatsData {
+  games: ReplayGameStat[]
+  pokemon: PokemonReplayTotal[]
+}
+
 export interface NavigationButton {
   label: string
   icon: string

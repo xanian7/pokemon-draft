@@ -13,6 +13,7 @@ import PlayoffsView from '@/views/PlayoffsView.vue'
 import PokemonView from '@/views/PokemonView.vue'
 import RosterView from '@/views/RosterView.vue'
 import ScheduleView from '@/views/ScheduleView.vue'
+import StatsView from '@/views/StatsView.vue'
 import TeamsView from '@/views/TeamsView.vue'
 
 const route = useRoute()
@@ -27,6 +28,7 @@ const tabComponents: Record<LeagueTab, unknown> = {
   matchup: MatchupView,
   teams: TeamsView,
   schedule: ScheduleView,
+  stats: StatsView,
   playoffs: PlayoffsView,
   draft: DraftView,
   setup: LeagueSetupView,

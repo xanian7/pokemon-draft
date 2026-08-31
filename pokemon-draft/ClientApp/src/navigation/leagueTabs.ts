@@ -6,6 +6,7 @@ export type LeagueTab =
   | 'matchup'
   | 'teams'
   | 'schedule'
+  | 'stats'
   | 'playoffs'
   | 'draft'
   | 'setup'
@@ -26,6 +27,7 @@ export const leagueTabs: LeagueTabDefinition[] = [
   { label: 'Matchup', value: 'matchup', icon: 'mdi-sword-cross' },
   { label: 'All Teams', value: 'teams', icon: 'mdi-account-group' },
   { label: 'Schedule', value: 'schedule', icon: 'mdi-calendar' },
+  { label: 'Stats', value: 'stats', icon: 'mdi-chart-line' },
   { label: 'Playoffs', value: 'playoffs', icon: 'mdi-trophy' },
   { label: 'Draft Board', value: 'draft', icon: 'mdi-view-dashboard-variant' },
   { label: 'League Setup', value: 'setup', icon: 'mdi-cog', adminOnly: true },
@@ -40,6 +42,7 @@ const leaguePaths: Partial<Record<string, LeagueTab>> = {
   '/matchup': 'matchup',
   '/teams': 'teams',
   '/schedule': 'schedule',
+  '/stats': 'stats',
   '/playoffs': 'playoffs',
   '/draft': 'draft',
   '/league/setup': 'setup',

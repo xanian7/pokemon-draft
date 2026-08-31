@@ -17,6 +17,8 @@ public class DraftDbContext : DbContext
     public DbSet<TradeItem> TradeItems { get; set; }
     public DbSet<RosterTransaction> RosterTransactions { get; set; }
     public DbSet<Matchup> Matchups { get; set; }
+    public DbSet<ReplayGame> ReplayGames { get; set; }
+    public DbSet<ReplayPokemonStat> ReplayPokemonStats { get; set; }
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -49,6 +51,15 @@ public class DraftDbContext : DbContext
         model.Entity<Trade>()
             .HasMany(t => t.Items).WithOne(i => i.Trade)
             .HasForeignKey(i => i.TradeId).OnDelete(DeleteBehavior.Cascade);
+        model.Entity<Matchup>()
+            .HasMany(m => m.ReplayGames).WithOne(g => g.Matchup)
+            .HasForeignKey(g => g.MatchupId).OnDelete(DeleteBehavior.Cascade);
+        model.Entity<ReplayGame>()
+            .HasMany(g => g.PokemonStats).WithOne(s => s.ReplayGame)
+            .HasForeignKey(s => s.ReplayGameId).OnDelete(DeleteBehavior.Cascade);
+        model.Entity<ReplayGame>().HasIndex(g => new { g.MatchupId, g.GameNumber }).IsUnique();
+        model.Entity<ReplayPokemonStat>().HasIndex(s => s.PlayerId);
+        model.Entity<ReplayPokemonStat>().HasIndex(s => s.PokemonId);
 
         model.Entity<PokemonCache>().HasKey(p => p.Id);
         model.Entity<PokemonCache>().Property(p => p.Id).ValueGeneratedNever();

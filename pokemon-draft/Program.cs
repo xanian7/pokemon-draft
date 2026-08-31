@@ -21,6 +21,11 @@ builder.Services.AddDbContext<DraftDbContext>(opts => opts
 builder.Services.AddScoped<ILeagueService, LeagueService>();
 builder.Services.AddHttpClient<IDiscordService, DiscordService>();
 builder.Services.AddHttpClient<IPokemonService, PokemonService>();
+builder.Services.AddHttpClient<IReplayAnalysisService, ReplayAnalysisService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(20);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("PokemonDraft-ReplayAnalyzer/1.0");
+});
 builder.Services.AddHttpClient("discord");
 builder.Services.AddMemoryCache();
 builder.Services.AddControllers();

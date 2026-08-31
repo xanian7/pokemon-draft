@@ -186,8 +186,8 @@ function validateReport() {
   for (const replayUrl of replayUrls) {
     try {
       const url = new URL(replayUrl)
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-        return 'Replay links must be valid http or https URLs.'
+      if (url.protocol !== 'https:' || url.hostname !== 'replay.pokemonshowdown.com') {
+        return 'Replay links must use https://replay.pokemonshowdown.com/.'
       }
     } catch {
       return 'Replay links must be valid URLs.'

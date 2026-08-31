@@ -128,6 +128,42 @@ public class Matchup
     public string? ReplayUrl { get; set; }
     public string? ReportedByPlayerId { get; set; }
     public DateTime? ReportedAt { get; set; }
+    public List<ReplayGame> ReplayGames { get; set; } = [];
+}
+
+public class ReplayGame
+{
+    public int Id { get; set; }
+    public int MatchupId { get; set; }
+    public Matchup Matchup { get; set; } = null!;
+    public int GameNumber { get; set; }
+    public string ReplayUrl { get; set; } = string.Empty;
+    public string Status { get; set; } = "Pending";
+    public string? Error { get; set; }
+    public string ShowdownPlayer1 { get; set; } = string.Empty;
+    public string ShowdownPlayer2 { get; set; } = string.Empty;
+    public string WinnerName { get; set; } = string.Empty;
+    public DateTime AnalyzedAt { get; set; } = DateTime.UtcNow;
+    public int AnalysisVersion { get; set; } = 1;
+    public List<ReplayPokemonStat> PokemonStats { get; set; } = [];
+}
+
+public class ReplayPokemonStat
+{
+    public int Id { get; set; }
+    public int ReplayGameId { get; set; }
+    public ReplayGame ReplayGame { get; set; } = null!;
+    public string Side { get; set; } = string.Empty;
+    public string? PlayerId { get; set; }
+    public int? PokemonId { get; set; }
+    public string PokemonName { get; set; } = string.Empty;
+    public int Kos { get; set; }
+    public int Deaths { get; set; }
+    public string MovesJson { get; set; } = "[]";
+    public string HeldItem { get; set; } = string.Empty;
+    public string Ability { get; set; } = string.Empty;
+    public string Nature { get; set; } = string.Empty;
+    public bool MovesAreComplete { get; set; }
 }
 
 public enum DraftStatus

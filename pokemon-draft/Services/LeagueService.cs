@@ -965,9 +965,10 @@ public class LeagueService(DraftDbContext db) : ILeagueService
         foreach (var url in candidates)
         {
             if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
-                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                uri.Scheme != Uri.UriSchemeHttps ||
+                !string.Equals(uri.Host, "replay.pokemonshowdown.com", StringComparison.OrdinalIgnoreCase))
             {
-                return ([], "Replay links must be valid http or https URLs.");
+                return ([], "Replay links must use https://replay.pokemonshowdown.com/.");
             }
         }
 
