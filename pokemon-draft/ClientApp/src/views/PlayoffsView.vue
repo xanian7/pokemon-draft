@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import PageHeader from '@/components/PageHeader.vue'
 import DraftGateNotice from '@/components/DraftGateNotice.vue'
+import PostseasonBracket from '@/components/PostseasonBracket.vue'
 import { API_BASE } from '@/services/signalr'
 
 const router = useRouter()
@@ -67,10 +68,17 @@ const statusLabel = (status: string) => {
 
 const teamLabel = (entry: OutlookEntry) => entry.teamName || entry.playerName
 
-const seasonOver = computed(() => outlook.value.every((e) => e.remainingMatchups === 0))
-const clinchedCount = computed(() => outlook.value.filter((entry) => entry.status === 'Clinched').length)
-const remainingGames = computed(() =>
-  outlook.value.reduce((total, entry) => total + entry.remainingMatchups, 0) / 2,
+const seasonOver = computed(
+  () =>
+    outlook.value.length > 0 &&
+    outlook.value.some((e) => e.wins + e.losses > 0) &&
+    outlook.value.every((e) => e.remainingMatchups === 0),
+)
+const clinchedCount = computed(
+  () => outlook.value.filter((entry) => entry.status === 'Clinched').length,
+)
+const remainingGames = computed(
+  () => outlook.value.reduce((total, entry) => total + entry.remainingMatchups, 0) / 2,
 )
 const headers = [
   { title: 'Seed', key: 'rank', width: 72 },
@@ -85,22 +93,19 @@ const headers = [
 </script>
 
 <template>
-  <v-container fluid class="page-card-large">
+  <v-container fluid class="page-card-small">
     <PageHeader
-      class="page-hero"
       eyebrow="Postseason race"
-      title="Playoff Outlook"
-      :subtitle="`Top ${playoffSpots} teams qualify for the bracket.`"
+      :title="seasonOver ? 'Playoffs' : 'Playoff Outlook'"
+      :subtitle="
+        seasonOver
+          ? 'Play-in tournament and championship bracket.'
+          : `Top ${playoffSpots} teams qualify for the bracket.`
+      "
     >
-      <template #actions>
-        <v-avatar color="primary" variant="tonal" size="56">
-          <v-icon icon="mdi-trophy-outline" size="30" />
-        </v-avatar>
-      </template>
     </PageHeader>
 
-    <div v-if="isLoading" class="state-panel">
-    </div>
+    <div v-if="isLoading" class="state-panel"></div>
     <v-alert v-else-if="error" type="error" variant="tonal">{{ error }}</v-alert>
     <DraftGateNotice
       v-else-if="!draftComplete"
@@ -113,36 +118,42 @@ const headers = [
     />
 
     <template v-else>
-      <v-alert v-if="seasonOver" type="success" variant="tonal" class="mb-4">
-        Regular season complete. Final standings are locked in.
-      </v-alert>
-
       <v-row dense class="summary-grid">
         <v-col cols="4">
           <v-card variant="outlined" class="summary-card">
-            <v-card-text><span>Playoff spots</span><strong>{{ playoffSpots }}</strong></v-card-text>
+            <v-card-text
+              ><span>Playoff spots</span><strong>{{ playoffSpots }}</strong></v-card-text
+            >
           </v-card>
         </v-col>
         <v-col cols="4">
           <v-card variant="outlined" class="summary-card">
-            <v-card-text><span>Clinched</span><strong>{{ clinchedCount }}</strong></v-card-text>
+            <v-card-text
+              ><span>Clinched</span><strong>{{ clinchedCount }}</strong></v-card-text
+            >
           </v-card>
         </v-col>
         <v-col cols="4">
           <v-card variant="outlined" class="summary-card">
-            <v-card-text><span>Games left</span><strong>{{ remainingGames }}</strong></v-card-text>
+            <v-card-text
+              ><span>Games left</span><strong>{{ remainingGames }}</strong></v-card-text
+            >
           </v-card>
         </v-col>
       </v-row>
 
-      <v-card variant="outlined" class="outlook-card">
+      <v-card variant="outlined" class="outlook-card mb-6">
         <v-data-table :headers="headers" :items="outlook" item-value="playerId" hide-default-footer>
-          <template #item.rank="{ index, item }">
-            <v-chip :color="index < playoffSpots ? 'success' : undefined" size="small" variant="tonal">
+          <template #[`item.rank`]="{ index }">
+            <v-chip
+              :color="index < playoffSpots ? 'success' : undefined"
+              size="small"
+              variant="tonal"
+            >
               #{{ index + 1 }}
             </v-chip>
           </template>
-          <template #item.team="{ item }">
+          <template #[`item.team`]="{ item }">
             <div class="team-cell">
               <v-avatar size="36" color="surface">
                 <v-img v-if="item.teamImageUrl" :src="item.teamImageUrl" :alt="teamLabel(item)" />
@@ -152,20 +163,30 @@ const headers = [
                 <strong>{{ teamLabel(item) }}</strong>
                 <span>{{ item.teamName ? item.playerName : '' }}</span>
               </div>
-              <v-chip v-if="item.playerId === authStore.playerId" size="x-small" color="primary">You</v-chip>
+              <v-chip v-if="item.playerId === authStore.playerId" size="x-small" color="primary"
+                >You</v-chip
+              >
             </div>
           </template>
-          <template #item.record="{ item }"><strong>{{ item.wins }}–{{ item.losses }}</strong></template>
-          <template #item.magicNumber="{ item }">
+          <template #[`item.record`]="{ item }"
+            ><strong>{{ item.wins }}–{{ item.losses }}</strong></template
+          >
+          <template #[`item.magicNumber`]="{ item }">
             <v-chip v-if="item.magicNumber !== null" size="small" color="primary" variant="tonal">
               {{ item.magicNumber }}
             </v-chip>
             <span v-else>—</span>
           </template>
-          <template #item.status="{ item }">
+          <template #[`item.status`]="{ item }">
             <v-chip
               size="small"
-              :color="item.status === 'Clinched' ? 'success' : item.status === 'Eliminated' ? 'error' : 'warning'"
+              :color="
+                item.status === 'Clinched'
+                  ? 'success'
+                  : item.status === 'Eliminated'
+                    ? 'error'
+                    : 'warning'
+              "
               variant="tonal"
             >
               {{ statusLabel(item.status) }}
@@ -177,6 +198,12 @@ const headers = [
           assumes a team wins every remaining matchup.
         </v-card-text>
       </v-card>
+
+      <PostseasonBracket
+        :players="outlook"
+        :playoff-spots="playoffSpots"
+        :season-over="seasonOver"
+      />
     </template>
   </v-container>
 </template>

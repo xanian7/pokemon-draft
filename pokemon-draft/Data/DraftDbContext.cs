@@ -17,11 +17,14 @@ public class DraftDbContext : DbContext
     public DbSet<TradeItem> TradeItems { get; set; }
     public DbSet<RosterTransaction> RosterTransactions { get; set; }
     public DbSet<Matchup> Matchups { get; set; }
+    public DbSet<PlayoffBracket> PlayoffBrackets { get; set; }
     public DbSet<ReplayGame> ReplayGames { get; set; }
     public DbSet<ReplayPokemonStat> ReplayPokemonStats { get; set; }
 
     protected override void OnModelCreating(ModelBuilder model)
     {
+        model.Entity<PlayoffBracket>().HasOne(b => b.League).WithOne()
+            .HasForeignKey<PlayoffBracket>(b => b.LeagueCode).OnDelete(DeleteBehavior.Cascade);
         model.Entity<AppUser>().HasKey(u => u.Id);
         model.Entity<AppUser>().HasIndex(u => u.GoogleId).IsUnique().HasFilter("[GoogleId] IS NOT NULL");
         model.Entity<AppUser>().HasIndex(u => u.DiscordId).IsUnique().HasFilter("[DiscordId] IS NOT NULL");
