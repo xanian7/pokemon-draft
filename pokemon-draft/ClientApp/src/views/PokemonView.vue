@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -96,6 +96,29 @@ const tierGroups = computed(() => {
     .sort((a, b) => b[0] - a[0])
     .map(([pts, pokemon]) => ({ pts, pokemon }))
 })
+
+const tierGrid = ref<HTMLElement | null>(null)
+const tierScrollbar = ref<HTMLElement | null>(null)
+const tierScrollWidth = ref(0)
+
+function syncTierScroll(event: Event, target: HTMLElement | null) {
+  if (target) target.scrollLeft = (event.currentTarget as HTMLElement).scrollLeft
+}
+
+watch(
+  [tierGrid, tierGroups],
+  ([grid], _previous, onCleanup) => {
+    if (!grid) return
+    const updateScrollWidth = () => {
+      tierScrollWidth.value = grid.scrollWidth
+    }
+    const observer = new ResizeObserver(updateScrollWidth)
+    observer.observe(grid)
+    updateScrollWidth()
+    onCleanup(() => observer.disconnect())
+  },
+  { flush: 'post' },
+)
 
 async function onRegulationChange() {
   legalIds.value = null
@@ -255,30 +278,42 @@ async function saveToServer() {
     <div v-else-if="filtered.length === 0" class="loading">No Pokémon match your filters.</div>
 
     <!-- Tier view -->
-    <div v-else-if="viewMode === 'tier'" class="tier-view">
-      <div v-for="group in tierGroups" :key="group.pts" class="tier-col">
-        <div class="tier-col-header">
-          <span class="tier-badge">{{ group.pts }} pts</span>
-          <span class="tier-count">{{ group.pokemon.length }}</span>
-        </div>
-        <div class="tier-col-body">
-          <div v-for="pokemon in group.pokemon" :key="pokemon.id" class="pokemon-entry">
-            <PokemonCard
-              :pokemon="pokemon"
-              :point-value="pokemon.pointValue"
-              mode="draft"
-              :show-sprite="!xs"
-              @click="openDetail(pokemon)"
-            />
-            <input
-              v-if="authStore.isAdmin"
-              type="number"
-              min="0"
-              :value="pokemon.pointValue || ''"
-              placeholder="pts"
-              class="pts-input native-field"
-              @change="onPointInput(pokemon.id, $event)"
-            />
+    <div v-else-if="viewMode === 'tier'" class="tier-layout">
+      <div
+        ref="tierScrollbar"
+        class="tier-scrollbar"
+        role="region"
+        aria-label="Scroll Pokémon tiers horizontally"
+        tabindex="0"
+        @scroll="syncTierScroll($event, tierGrid)"
+      >
+        <div :style="{ width: `${tierScrollWidth}px`, height: '1px' }" />
+      </div>
+      <div ref="tierGrid" class="tier-view" @scroll="syncTierScroll($event, tierScrollbar)">
+        <div v-for="group in tierGroups" :key="group.pts" class="tier-col">
+          <div class="tier-col-header">
+            <span class="tier-badge">{{ group.pts }} pts</span>
+            <span class="tier-count">{{ group.pokemon.length }}</span>
+          </div>
+          <div class="tier-col-body">
+            <div v-for="pokemon in group.pokemon" :key="pokemon.id" class="pokemon-entry">
+              <PokemonCard
+                :pokemon="pokemon"
+                :point-value="pokemon.pointValue"
+                mode="draft"
+                :show-sprite="!xs"
+                @click="openDetail(pokemon)"
+              />
+              <input
+                v-if="authStore.isAdmin"
+                type="number"
+                min="0"
+                :value="pokemon.pointValue || ''"
+                placeholder="pts"
+                class="pts-input native-field"
+                @change="onPointInput(pokemon.id, $event)"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -400,6 +435,21 @@ async function saveToServer() {
 }
 
 /* ── Tier view ───────────────────────────────────────────────────────────── */
+.tier-layout {
+  min-width: 0;
+}
+
+.tier-scrollbar {
+  min-height: 20px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+.tier-view::-webkit-scrollbar {
+  display: none;
+}
+
 .tier-view {
   display: flex;
   flex-direction: row;
@@ -409,8 +459,7 @@ async function saveToServer() {
   padding: 0.75rem;
   flex: 1;
   align-items: flex-start;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-color) transparent;
+  scrollbar-width: none;
 }
 
 .tier-col {

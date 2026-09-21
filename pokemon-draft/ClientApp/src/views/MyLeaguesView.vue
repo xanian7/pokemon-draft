@@ -1,22 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { useAuthStore, type MyLeague } from '@/stores/auth'
 import AppIcon from '@/components/AppIcon.vue'
-import { mdiPokeball, mdiTrophy, mdiPlusCircle, mdiLogin } from '@mdi/js'
+import { mdiTrophy, mdiLogin } from '@mdi/js'
 import LoginForm from '@/components/LoginForm.vue'
 import { enqueueSnackbar } from '@/services/snackbar'
-
-interface MyLeague {
-  code: string
-  name: string
-  playerId: string
-  playerName: string
-  teamName: string
-  teamImageUrl: string
-  isCommissioner: boolean
-  isCoCommissioner: boolean
-}
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -24,6 +13,15 @@ const authStore = useAuthStore()
 const leagues = ref<MyLeague[]>([])
 const isLoading = ref(true)
 const enteringCode = ref<string | null>(null)
+
+const sortedLeagues = computed(() => {
+  const recentOrder = new Map(authStore.recentLeagues.map((league, index) => [league.code, index]))
+  // Keep the API order for leagues without a recorded visit.
+  const unvisited = recentOrder.size
+  return [...leagues.value].sort((a, b) =>
+    (recentOrder.get(a.code) ?? unvisited) - (recentOrder.get(b.code) ?? unvisited),
+  )
+})
 
 onMounted(async () => {
   if (!authStore.isSignedIn) {
@@ -35,78 +33,89 @@ onMounted(async () => {
 })
 
 async function enterLeague(code: string) {
+  if (enteringCode.value) return
   enteringCode.value = code
-  const err = await authStore.enterLeague(code)
-  enteringCode.value = null
-  if (err) {
-    enqueueSnackbar(err, 'error')
-  } else {
-    router.push('/league?tab=home')
+  try {
+    const err = await authStore.enterLeague(code)
+    if (err) {
+      enqueueSnackbar(err, 'error')
+    } else {
+      await router.push('/league?tab=home')
+    }
+  } finally {
+    enteringCode.value = null
   }
 }
 </script>
 
 <template>
   <v-container fluid class="page">
-    <div v-if="isLoading" class="loader-wrap">
+    <div v-if="isLoading" class="loader-wrap" role="status" aria-label="Loading leagues">
+      <v-progress-circular indeterminate color="primary" />
     </div>
 
-    <template v-else>
-      <v-row>
-        <v-col cols="2"></v-col>
-        <v-col cols="12" md="2" class="d-flex">
-          <LoginForm />
-        </v-col>
-        <v-col cols="12" md="6" class="d-flex justify-start">
-          <v-data-table
-            :items="leagues"
-            :headers="[
-              { title: 'League Name', value: 'name' },
-              { title: 'Your Team', value: 'team' },
-              { title: 'Role', value: 'role', sortable: false },
-              { title: 'Actions', value: 'actions', sortable: false },
-            ]"
-            class="rounded-lg"
-          >
-            <template #item.team="{ item }">
-              <div class="d-flex align-center">
-                <v-avatar v-if="item.teamImageUrl" :image="item.teamImageUrl" size="36" />
-                <div>
-                  <div class="player-name">{{ item.playerName }}</div>
-                  <div class="team-name">{{ item.teamName }}</div>
+    <v-row v-else>
+      <v-col cols="12" md="4">
+        <LoginForm />
+      </v-col>
+      <v-col cols="12" md="8">
+        <header class="page-header">
+          <div>
+            <h1>My Leagues</h1>
+            <p class="subtitle">Jump back into your leagues. Recently accessed leagues appear first.</p>
+          </div>
+        </header>
+
+        <v-card v-if="!leagues.length" variant="outlined" rounded="lg" class="empty-state">
+          <p>You haven't joined any leagues yet.</p>
+          <p class="empty-sub">Join a league or create one to get started.</p>
+        </v-card>
+
+        <ul v-else class="league-list" aria-label="Your leagues">
+          <li v-for="league in sortedLeagues" :key="league.code">
+            <v-card variant="outlined" rounded="lg" class="league-card">
+              <div class="league-info">
+                <h2 class="league-name">{{ league.name }}</h2>
+                <div class="league-meta">
+                  <span class="code-badge">{{ league.code }}</span>
+                  <v-chip v-if="league.isCommissioner" color="primary" size="small">
+                    Commissioner
+                  </v-chip>
+                  <v-chip v-else-if="league.isCoCommissioner" color="secondary" size="small">
+                    Co-Commissioner
+                  </v-chip>
+                  <v-chip v-else size="small">Player</v-chip>
+                </div>
+                <div class="team-info">
+                  <v-avatar v-if="league.teamImageUrl" :image="league.teamImageUrl" size="40" />
+                  <div class="team-details">
+                    <div class="player-name">{{ league.playerName }}</div>
+                    <div v-if="league.teamName" class="team-name">{{ league.teamName }}</div>
+                  </div>
                 </div>
               </div>
-            </template>
-            <template #item.role="{ item }">
-              <v-chip v-if="item.isCommissioner" color="primary" size="small">
-                Commissioner
-              </v-chip>
-              <v-chip v-else-if="item.isCoCommissioner" color="secondary" size="small">
-                Co-Commissioner
-              </v-chip>
-              <span v-else>Player</span>
-            </template>
-            <template #item.actions="{ item }">
               <v-btn
-                :color="item.isCommissioner || item.isCoCommissioner ? 'primary' : 'secondary'"
-                @click="enterLeague(item.code)"
-                :loading="enteringCode === item.code"
+                :color="league.isCommissioner || league.isCoCommissioner ? 'primary' : 'secondary'"
+                :loading="enteringCode === league.code"
+                :disabled="enteringCode !== null && enteringCode !== league.code"
+                :aria-label="`Enter ${league.name}`"
                 class="enter-btn"
+                @click="enterLeague(league.code)"
               >
-                <AppIcon :path="mdiLogin" :size="18" class="icon" />
+                <AppIcon :path="mdiLogin" :size="18" class="mr-2" />
                 Enter League
               </v-btn>
-            </template>
-          </v-data-table>
-        </v-col> 
-        <v-col cols="2"></v-col> 
-      </v-row>
-    </template>
+            </v-card>
+          </li>
+        </ul>
+      </v-col>
+    </v-row>
   </v-container>
 </template>
 
 <style scoped>
 .page {
+  max-width: 1200px;
   margin: 0 auto;
   padding: 2rem 1.25rem;
 }
@@ -115,11 +124,11 @@ async function enterLeague(code: string) {
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .header-icon {
-  color: var(--primary);
+  color: rgb(var(--v-theme-primary));
   flex-shrink: 0;
 }
 
@@ -129,8 +138,13 @@ h1 {
   margin-bottom: 0.15rem;
 }
 
+.subtitle,
+.team-name,
+.empty-state {
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}
+
 .subtitle {
-  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
@@ -143,12 +157,6 @@ h1 {
 .empty-state {
   text-align: center;
   padding: 3rem 1rem;
-  color: var(--text-muted);
-}
-
-.empty-icon {
-  margin-bottom: 1rem;
-  opacity: 0.4;
 }
 
 .empty-sub {
@@ -156,11 +164,13 @@ h1 {
   margin-top: 0.5rem;
 }
 
-.league-grid {
+.league-list {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  margin-bottom: 2rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
 .league-card {
@@ -168,80 +178,72 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 1.1rem 1.25rem;
+  padding: 1.25rem;
+  border-color: rgba(var(--v-border-color), var(--v-border-opacity));
   transition: border-color 0.15s;
 }
 
-.league-card:hover {
-  border-color: var(--primary);
+.league-card:hover,
+.league-card:focus-within {
+  border-color: rgb(var(--v-theme-primary));
+}
+
+.league-info,
+.team-details {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .league-info {
   flex: 1;
-  min-width: 0;
 }
 
 .league-name {
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   font-weight: 700;
-  margin-bottom: 0.3rem;
+  margin-bottom: 0.5rem;
+}
+
+.league-meta,
+.team-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .league-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
 }
 
 .code-badge {
-  background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 0.1rem 0.4rem;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: var(--text-muted);
-}
-
-.commissioner-badge {
-  background: var(--primary);
-  color: #fff;
-  border-radius: 4px;
-  padding: 0.1rem 0.4rem;
-  font-size: 0.72rem;
-  font-weight: 700;
 }
 
 .player-name {
-  font-size: 0.85rem;
-  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 
 .team-name {
-  font-size: 0.8rem;
-  color: var(--text-muted);
+  font-size: 0.85rem;
   margin-top: 0.15rem;
 }
 
-.enter-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  white-space: nowrap;
+.enter-btn,
+.team-info .v-avatar {
   flex-shrink: 0;
 }
 
-.v-avatar {
-  margin-right: 12px;
-}
+@media (max-width: 599px) {
+  .league-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
 
-.icon {
-  margin-top: 2px;
-  margin-right: 4px;
+  .enter-btn {
+    width: 100%;
+  }
 }
 </style>
